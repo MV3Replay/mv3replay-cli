@@ -1,0 +1,39 @@
+{
+  "id": "OX-006",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Prepare the unmerged v0.1.0-rc1 release candidate from accepted work without publishing, pushing, tagging, or weakening any gate.",
+  "allowedFiles": [
+    "src/**",
+    "tests/**",
+    "fixtures/**",
+    "scripts/**",
+    "schemas/**",
+    "docs/**",
+    ".github/workflows/**",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md",
+    "package.json"
+  ],
+  "acceptanceCriteria": [
+    "Package version is exactly 0.1.0-rc1 and release notes distinguish implemented behavior from future ideas.",
+    "Every prior acceptance test, public-safety check, schema check, pack check, and local installation check passes.",
+    "No secret, personal identifier, absolute personal path, private-history artifact, payment, ad, telemetry, or unsupported claim is present.",
+    "The candidate is ready for Claude review and Codex validation but remains uncommitted to a remote release.",
+    "Known limitations and the absence of browser automation are prominent."
+  ],
+  "testCommands": [
+    "npm test",
+    "npm run check:public",
+    "npm pack --dry-run"
+  ],
+  "stopConditions": [
+    "Any prior task or required test remains unresolved.",
+    "A release action requests credentials, a push, a tag, or publication.",
+    "Three attempts fail on the same issue.",
+    "The exact Ox model is unavailable or rate-limited."
+  ],
+  "deliverable": "Changed public files and compact release-candidate JSON with version, tests, inventory, limitations, and blockers."
+}
