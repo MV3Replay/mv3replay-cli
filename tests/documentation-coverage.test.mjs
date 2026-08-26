@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 
 const ROOT = path.resolve(".");
-const readme = await readFile(path.join(ROOT, "README.md"), "utf8");
+const readme = (await readFile(path.join(ROOT, "README.md"), "utf8")).replace(/\r\n?/g, "\n");
 
 test("README documents every required topic as a section", () => {
   const requiredSections = [
