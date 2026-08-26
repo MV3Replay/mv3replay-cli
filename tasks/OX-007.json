@@ -1,0 +1,24 @@
+{
+  "id": "OX-007",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Fix the one release-candidate test expectation that omits an already completed offline tarball installation check.",
+  "allowedFiles": [
+    "tests/release-candidate.test.mjs"
+  ],
+  "acceptanceCriteria": [
+    "Add the existing release record entry install exact local tarball offline and run inspect to the exact expected tests list.",
+    "Do not change source code, release metadata, documentation, package metadata, dependencies, or any other test.",
+    "Preserve the unpublished and private release gates.",
+    "Leave the full test suite passing with only the existing platform-specific skip."
+  ],
+  "testCommands": [
+    "npm test"
+  ],
+  "stopConditions": [
+    "Any file outside the allowlist would need to change.",
+    "The exact Ox model is unavailable or rate-limited.",
+    "Three attempts fail to make the allowed test pass."
+  ],
+  "deliverable": "One focused test expectation change and a concise npm test result."
+}
