@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0-rc1",
+  "date": "2026-08-22",
+  "status": "source-public-release-candidate",
+  "published": false,
+  "sourceRepositoryPublic": true,
+  "packagePublished": false,
+  "gitHubReleasePublished": false,
+  "commitState": "public-source-snapshot",
+  "localArtifact": {
+    "path": "dist/mv3replay-cli-0.1.0-rc1.tgz",
+    "bytes": 16771,
+    "sha256": "3E2FF50EC839D31B7DCD5D530D9254D198BF67B3AA52417F4A1987399C326FAC",
+    "published": false
+  },
+  "tests": [
+    { "command": "npm run check:public", "status": "pass" },
+    { "command": "npm test", "status": "pass" },
+    { "command": "npm pack --dry-run", "status": "pass" },
+    { "command": "install exact local tarball offline and run inspect", "status": "pass" }
+  ],
+  "inventory": {
+    "packageContents": [
+      "LICENSE",
+      "README.md",
+      "package.json",
+      "schemas/compare-v1.schema.json",
+      "schemas/inspect-v1.schema.json",
+      "src/cli.mjs",
+      "src/manifest-analyzer.mjs"
+    ],
+    "runtimeDependencies": 0,
+    "engines": { "node": ">=20" },
+    "license": "Apache-2.0"
+  },
+  "limitations": [
+    "Static manifest-only analysis; extension code is never executed.",
+    "No browser automation: the tool never launches, connects to, or controls a browser and observes no runtime behavior.",
+    "Coverage is limited to MV3 surfaces the analyzer recognizes; unrecognized manifest keys are ignored, not interpreted.",
+    "A report is a regression-testing plan, not evidence that an extension passed any test.",
+    "Comparisons do not predict Chrome Web Store review outcomes or prove an update is safe.",
+    "Manifests larger than 1 MiB are rejected and non-MV3 manifests exit with code 6."
+  ],
+  "blockers": [],
+  "review": {
+    "claudeReview": "completed-no-blockers",
+    "codexValidation": "completed"
+  }
+}
