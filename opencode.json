@@ -1,0 +1,35 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "username": "MV3 Replay",
+  "model": "openrouter/stealth/ox-alpha",
+  "small_model": "openrouter/stealth/ox-alpha",
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "permission": {
+    "external_directory": "deny",
+    "task": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "question": "deny",
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      ".git/config": "deny"
+    },
+    "edit": "allow",
+    "bash": {
+      "*": "deny",
+      "npm test": "allow",
+      "npm test *": "allow",
+      "npm run check:public": "allow",
+      "node --test *": "allow",
+      "node src/cli.mjs *": "allow",
+      "git status": "allow",
+      "git status *": "allow",
+      "git diff": "allow",
+      "git diff *": "allow"
+    }
+  }
+}

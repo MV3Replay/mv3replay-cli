@@ -1,0 +1,26 @@
+{
+  "name": "mv3replay-cli",
+  "version": "0.1.0-rc1",
+  "description": "Local-only Manifest V3 release risk analyzer and regression-plan generator.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "mv3replay": "src/cli.mjs"
+  },
+  "scripts": {
+    "inspect": "node src/cli.mjs inspect",
+    "pretest": "npm run check:public",
+    "test": "node --test tests/manifest-analyzer.test.mjs tests/schema-contract.test.mjs tests/cli-exit-codes.test.mjs tests/json-stdout.test.mjs tests/default-output-privacy.test.mjs tests/public-safety.test.mjs tests/license-metadata.test.mjs tests/tarball-install.test.mjs tests/documentation-coverage.test.mjs tests/fuzz-seeded.test.mjs tests/robust-inputs.test.mjs tests/privacy-boundary.test.mjs tests/error-redaction.test.mjs tests/release-candidate.test.mjs",
+    "check:public": "node scripts/check-public-safety.mjs"
+  },
+  "files": [
+    "src/",
+    "schemas/",
+    "README.md",
+    "LICENSE"
+  ]
+}
