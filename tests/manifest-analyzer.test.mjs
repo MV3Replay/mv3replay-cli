@@ -1,0 +1,617 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import test from "node:test";
+import { analyzeManifest, compareManifests } from "../src/manifest-analyzer.mjs";
+
+const CLI_PATH = path.resolve("src/cli.mjs");
+const FIXTURE_ROOT = path.resolve("fixtures");
+const MAX_MANIFEST_BYTES = 1024 * 1024;
+
+function runCli(...args) {
+  return spawnSync(process.execPath, [CLI_PATH, ...args], {
+    encoding: "utf8",
+    cwd: path.resolve(".")
+  });
+}
+
+async function readFixtureManifest(fixture) {
+  const file = path.join(FIXTURE_ROOT, fixture, "manifest.json");
+  return JSON.parse(await readFile(file, "utf8"));
+}
+
+const richManifest = {
+  manifest_version: 3,
+  name: "Fixture extension",
+  version: "1.2.3",
+  permissions: ["storage", "tabs"],
+  host_permissions: ["<all_urls>"],
+  background: { service_worker: "worker.js", type: "module" },
+  action: { default_popup: "popup.html" },
+  options_ui: { page: "options.html" },
+  side_panel: { default_path: "side-panel.html" },
+  commands: { _execute_action: { suggested_key: { default: "Ctrl+Shift+Y" } } },
+  declarative_net_request: { rule_resources: [{ id: "base", enabled: true, path: "rules.json" }] },
+  web_accessible_resources: [{ resources: ["injected.js"], matches: ["<all_urls>"] }],
+  externally_connectable: { matches: ["https://example.com/*"] },
+  content_scripts: [{
+    matches: ["https://example.com/*"],
+    js: ["content.js"],
+    all_frames: true,
+    world: "MAIN"
+  }]
+};
+
+test("builds a deterministic plan from MV3 surfaces", () => {
+  const first = analyzeManifest(richManifest);
+  const second = analyzeManifest(structuredClone(richManifest));
+
+  assert.equal(first.fingerprint, second.fingerprint);
+  assert.equal(first.surfaces.actionPopup, true);
+  assert.equal(first.surfaces.optionsPage, true);
+  assert.equal(first.surfaces.serviceWorker, true);
+  assert.equal(first.surfaces.contentScripts, 1);
+  assert.equal(first.surfaces.storage, true);
+  assert.deepEqual(first.privacy, {
+    localOnly: true,
+    sourceFilesRead: false,
+    browserConnected: false,
+    dataUploaded: false
+  });
+
+  const laneIds = first.lanes.map(lane => lane.id);
+  assert.ok(laneIds.includes("host-page-safety"));
+  assert.ok(laneIds.includes("service-worker-lifecycle"));
+  assert.ok(laneIds.includes("storage-persistence"));
+  assert.ok(laneIds.includes("permission-boundaries"));
+  assert.ok(laneIds.includes("keyboard-commands"));
+  assert.ok(laneIds.includes("network-rules"));
+  assert.ok(laneIds.includes("web-accessible-resources"));
+  assert.ok(laneIds.includes("external-messaging"));
+
+  const riskIds = first.riskFlags.map(flag => flag.id);
+  assert.ok(riskIds.includes("broad-host-scope"));
+  assert.ok(riskIds.includes("all-frames"));
+  assert.ok(riskIds.includes("main-world"));
+  assert.ok(riskIds.includes("ephemeral-worker"));
+  assert.ok(riskIds.includes("broad-web-accessible-resources"));
+});
+
+test("detects lifecycle and trust-boundary surfaces", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Boundaries",
+    version: "1.0.0",
+    permissions: ["offscreen", "notifications", "tabCapture"],
+    optional_permissions: ["storage"],
+    incognito: "split",
+    externally_connectable: { matches: ["<all_urls>"] },
+    content_scripts: [{
+      matches: ["https://example.com/*"],
+      js: ["content.js"],
+      match_origin_as_fallback: true
+    }]
+  });
+
+  const laneIds = report.lanes.map(lane => lane.id);
+  assert.ok(laneIds.includes("offscreen-document"));
+  assert.ok(laneIds.includes("notifications"));
+  assert.ok(laneIds.includes("tab-capture"));
+  assert.ok(laneIds.includes("optional-permissions"));
+  assert.ok(laneIds.includes("incognito-boundary"));
+
+  const riskIds = report.riskFlags.map(flag => flag.id);
+  assert.ok(riskIds.includes("required-tab-capture"));
+  assert.ok(riskIds.includes("broad-external-messaging"));
+  assert.ok(riskIds.includes("derived-frame-matching"));
+});
+
+test("compares release manifests and gates required-access expansion", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    permissions: ["storage"],
+    host_permissions: ["https://example.com/*"],
+    background: { service_worker: "old-worker.js" }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    permissions: ["storage", "tabCapture"],
+    host_permissions: ["https://example.com/*", "https://app.example.net/*"],
+    background: { service_worker: "new-worker.js" }
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.requiredPermissions.added, ["tabCapture"]);
+  assert.deepEqual(report.changes.requiredHosts.added, ["https://app.example.net/*"]);
+  assert.equal(report.requiresManualUpdateValidation, true);
+  assert.deepEqual(report.findings.map(item => item.id), [
+    "required-permission-expansion",
+    "required-host-expansion",
+    "service-worker-entry-change"
+  ]);
+});
+
+test("detects required-versus-optional permission and host-access transitions", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    permissions: ["storage"],
+    optional_permissions: ["tabCapture"],
+    host_permissions: [],
+    optional_host_permissions: ["https://legacy.example.com/*"]
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    permissions: ["storage", "tabCapture"],
+    optional_permissions: [],
+    host_permissions: ["https://legacy.example.com/*"],
+    optional_host_permissions: []
+  };
+
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.permissionTransitions.optionalToRequired, ["tabCapture"]);
+  assert.deepEqual(report.changes.hostTransitions.optionalToRequired, ["https://legacy.example.com/*"]);
+  const findingIds = report.findings.map(item => item.id);
+  assert.ok(findingIds.includes("optional-permission-required"));
+  assert.ok(findingIds.includes("optional-host-required"));
+  assert.equal(report.requiresManualUpdateValidation, true);
+
+  const downgraded = compareManifests(current, previous);
+  assert.deepEqual(downgraded.changes.permissionTransitions.requiredToOptional, ["tabCapture"]);
+  assert.deepEqual(downgraded.changes.hostTransitions.requiredToOptional, ["https://legacy.example.com/*"]);
+  assert.ok(downgraded.findings.some(item => item.id === "required-permission-optional"));
+  assert.equal(downgraded.requiresManualUpdateValidation, false);
+});
+
+test("detects removed required and optional permissions and host access", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    permissions: ["storage", "tabs"],
+    optional_permissions: ["downloads"],
+    host_permissions: ["https://example.com/*", "https://app.example.net/*"],
+    optional_host_permissions: ["https://legacy.example.com/*"]
+  };
+  const current = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "2.0.0",
+    permissions: ["storage"],
+    optional_permissions: [],
+    host_permissions: ["https://example.com/*"],
+    optional_host_permissions: []
+  };
+
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.requiredPermissions.added, []);
+  assert.deepEqual(report.changes.requiredPermissions.removed, ["tabs"]);
+  assert.deepEqual(report.changes.optionalPermissions.removed, ["downloads"]);
+  assert.deepEqual(report.changes.requiredHosts.removed, ["https://app.example.net/*"]);
+  assert.deepEqual(report.changes.optionalHosts.removed, ["https://legacy.example.com/*"]);
+  assert.deepEqual(report.changes.permissionTransitions.optionalToRequired, []);
+  assert.deepEqual(report.changes.hostTransitions.optionalToRequired, []);
+  assert.equal(report.requiresManualUpdateValidation, false);
+
+  const readded = compareManifests(current, previous);
+  assert.deepEqual(readded.changes.requiredPermissions.added, ["tabs"]);
+  assert.deepEqual(readded.changes.requiredPermissions.removed, []);
+});
+
+test("compares content-script registrations deterministically", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    content_scripts: [{
+      matches: ["https://example.com/*"],
+      js: ["content.js"],
+      run_at: "document_idle"
+    }]
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    content_scripts: [
+      {
+        matches: ["https://example.com/*"],
+        js: ["content.js"],
+        run_at: "document_start",
+        all_frames: true,
+        exclude_matches: ["https://example.com/login*"]
+      },
+      {
+        matches: ["https://other.example.org/*"],
+        css: ["style.css"],
+        world: "MAIN",
+        match_origin_as_fallback: true
+      }
+    ]
+  };
+
+  const report = compareManifests(previous, current);
+  assert.equal(report.changes.contentScripts.added.length, 2);
+  assert.equal(report.changes.contentScripts.removed.length, 1);
+  assert.deepEqual(report.changes.contentScripts.removed[0], {
+    matches: ["https://example.com/*"],
+    excludeMatches: [],
+    files: ["content.js"],
+    runAt: "document_idle",
+    allFrames: false,
+    world: "ISOLATED",
+    matchAboutBlank: false,
+    matchOriginAsFallback: false
+  });
+
+  const added = report.changes.contentScripts.added;
+  const timingChange = added.find(item => item.runAt === "document_start");
+  assert.deepEqual(timingChange.matches, ["https://example.com/*"]);
+  assert.deepEqual(timingChange.files, ["content.js"]);
+  assert.equal(timingChange.allFrames, true);
+  assert.deepEqual(timingChange.excludeMatches, ["https://example.com/login*"]);
+
+  const newRegistration = added.find(item => item.world === "MAIN");
+  assert.deepEqual(newRegistration.matches, ["https://other.example.org/*"]);
+  assert.deepEqual(newRegistration.files, ["style.css"]);
+  assert.equal(newRegistration.matchOriginAsFallback, true);
+
+  const identical = compareManifests(previous, structuredClone(previous));
+  assert.deepEqual(identical.changes.contentScripts, { added: [], removed: [] });
+});
+
+test("compares commands, DNR rulesets, external messaging, web-accessible resources, and surfaces", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    action: { default_popup: "popup.html" },
+    commands: { "run-job": { suggested_key: { default: "Ctrl+Shift+1" } } },
+    declarative_net_request: {
+      rule_resources: [{ id: "base", enabled: true, path: "rules.json" }]
+    },
+    web_accessible_resources: [{ resources: ["injected.js"], matches: ["https://example.com/*"] }],
+    externally_connectable: { matches: ["https://example.com/*"] }
+  };
+  const current = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "2.0.0",
+    options_ui: { page: "options.html" },
+    side_panel: { default_path: "side-panel.html" },
+    devtools_page: "devtools.html",
+    commands: { "run-job": {}, "open-panel": {} },
+    declarative_net_request: {
+      rule_resources: [
+        { id: "base", enabled: true, path: "rules-v2.json" },
+        { id: "extra", enabled: false, path: "extra.json" }
+      ]
+    },
+    web_accessible_resources: [
+      { resources: ["injected.js"], matches: ["https://example.com/*"] },
+      { resources: ["bridge.js"], matches: ["https://other.example.org/*"] }
+    ],
+    externally_connectable: {
+      matches: ["https://example.com/*", "https://other.example.org/*"],
+      ids: ["abcdefabcdabcdef"]
+    }
+  };
+
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.commands, { added: ["open-panel"], removed: [] });
+  assert.deepEqual(report.changes.staticRulesets, {
+    added: ["extra"],
+    removed: [],
+    changed: ["base"]
+  });
+  assert.deepEqual(report.changes.externalMessaging.matches.added, ["https://other.example.org/*"]);
+  assert.deepEqual(report.changes.externalMessaging.ids.added, ["abcdefabcdabcdef"]);
+  assert.deepEqual(report.changes.webAccessibleResources.added, [
+    {
+      matches: ["https://other.example.org/*"],
+      resources: ["bridge.js"],
+      extensionIds: [],
+      useDynamicUrl: false
+    }
+  ]);
+  assert.deepEqual(report.changes.webAccessibleResources.removed, []);
+  assert.deepEqual(report.changes.surfaces.added, ["devtools", "options", "side-panel"]);
+  assert.deepEqual(report.changes.surfaces.removed, ["action-popup"]);
+
+  assert.deepEqual(report.findings.map(item => item.id), [
+    "commands-change",
+    "dnr-ruleset-change",
+    "external-messaging-expansion",
+    "web-accessible-resources-change",
+    "extension-surface-change"
+  ]);
+  assert.equal(report.requiresManualUpdateValidation, true);
+
+  const reversed = compareManifests(current, previous);
+  assert.deepEqual(reversed.changes.surfaces.added, ["action-popup"]);
+  assert.deepEqual(reversed.changes.surfaces.removed, ["devtools", "options", "side-panel"]);
+  assert.deepEqual(reversed.changes.externalMessaging.matches.added, []);
+  assert.equal(reversed.requiresManualUpdateValidation, false);
+});
+
+test("detects value-only declaration changes when surfaces stay present", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    background: { service_worker: "worker.js", type: "module" },
+    action: { default_popup: "popup.html" },
+    options_page: "options.html",
+    side_panel: { default_path: "side-panel.html" },
+    devtools_page: "devtools.html",
+    commands: { "run-job": { suggested_key: { default: "Ctrl+Shift+1" } } }
+  };
+  const current = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "2.0.0",
+    background: { service_worker: "worker-v2.js" },
+    action: { default_popup: "popup-v2.html" },
+    options_ui: { page: "options-v2.html" },
+    side_panel: { default_path: "side-panel-v2.html" },
+    devtools_page: "devtools-v2.html",
+    commands: { "run-job": { description: "Runs the job immediately" } }
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, []);
+  assert.deepEqual(report.changes.surfaces.removed, []);
+
+  assert.deepEqual(report.changes.declarations, [
+    { field: "action.default_popup", previous: "popup.html", current: "popup-v2.html" },
+    { field: "background.service_worker", previous: "worker.js", current: "worker-v2.js" },
+    { field: "background.type", previous: "module", current: null },
+    { field: "command.run-job", previous: { suggestedKeyDefault: "Ctrl+Shift+1" }, current: { description: "Runs the job immediately" } },
+    { field: "devtools_page", previous: "devtools.html", current: "devtools-v2.html" },
+    { field: "options_page", previous: "options.html", current: "options-v2.html" },
+    { field: "side_panel.default_path", previous: "side-panel.html", current: "side-panel-v2.html" }
+  ]);
+  const findingIds = report.findings.map(item => item.id);
+  assert.ok(findingIds.includes("service-worker-entry-change"));
+  assert.ok(findingIds.includes("commands-change"));
+  assert.ok(findingIds.includes("extension-surface-change"));
+
+  const identical = compareManifests(current, structuredClone(current));
+  assert.deepEqual(identical.changes.declarations, []);
+});
+
+test("a command-only definition change emits commands-change but never extension-surface-change", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    commands: { "run-job": { suggested_key: { default: "Ctrl+Shift+1" } } }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    commands: { "run-job": { description: "Runs the job immediately" } }
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.declarations, [
+    {
+      field: "command.run-job",
+      previous: { suggestedKeyDefault: "Ctrl+Shift+1" },
+      current: { description: "Runs the job immediately" }
+    }
+  ]);
+  assert.ok(report.findings.some(item => item.id === "commands-change"));
+  assert.ok(!report.findings.some(item => item.id === "extension-surface-change"));
+});
+
+test("normalizes command description and every suggested_key platform entry deterministically", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Fixture extension",
+    version: "1.0.0",
+    commands: {
+      "run-job": {
+        description: "Runs the job",
+        suggested_key: { default: "Ctrl+Shift+1", mac: "Command+Shift+1", windows: "Ctrl+Shift+1" }
+      }
+    }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    commands: {
+      "run-job": {
+        description: "Runs the job immediately",
+        suggested_key: { mac: "Command+Shift+2", windows: "Ctrl+Shift+1", default: "Ctrl+Shift+1" }
+      },
+      "other-job": {
+        description: "Other job",
+        suggested_key: { linux: "Ctrl+Alt+O" }
+      }
+    }
+  };
+
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.declarations, [
+    {
+      field: "command.run-job",
+      previous: {
+        description: "Runs the job",
+        suggestedKeyDefault: "Ctrl+Shift+1",
+        suggestedKeyMac: "Command+Shift+1",
+        suggestedKeyWindows: "Ctrl+Shift+1"
+      },
+      current: {
+        description: "Runs the job immediately",
+        suggestedKeyDefault: "Ctrl+Shift+1",
+        suggestedKeyMac: "Command+Shift+2",
+        suggestedKeyWindows: "Ctrl+Shift+1"
+      }
+    }
+  ]);
+  assert.ok(report.findings.some(item => item.id === "commands-change"));
+
+  const reordered = compareManifests(current, structuredClone(current));
+  assert.deepEqual(reordered.changes.declarations, []);
+});
+
+test("CLI compare reads two manifests and reports critical changes", async () => {
+  const previousDirectory = await mkdtemp(path.join(os.tmpdir(), "mv3-replay-previous-"));
+  const currentDirectory = await mkdtemp(path.join(os.tmpdir(), "mv3-replay-current-"));
+  await writeFile(path.join(previousDirectory, "manifest.json"), JSON.stringify({
+    manifest_version: 3, name: "Fixture", version: "1.0.0"
+  }));
+  await writeFile(path.join(currentDirectory, "manifest.json"), JSON.stringify({
+    manifest_version: 3, name: "Fixture", version: "1.1.0", permissions: ["tabCapture"]
+  }));
+
+  const result = runCli("compare", previousDirectory, currentDirectory, "--json");
+
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.requiresManualUpdateValidation, true);
+  assert.deepEqual(report.changes.requiredPermissions.added, ["tabCapture"]);
+});
+
+test("keeps a minimal MV3 report honest", () => {
+  const report = analyzeManifest({ manifest_version: 3, name: "Minimal", version: "0.1.0" });
+  assert.deepEqual(report.lanes.map(lane => lane.id), ["install-and-upgrade"]);
+  assert.equal(report.riskFlags.length, 0);
+  assert.equal(report.counts.hostPermissions, 0);
+});
+
+test("rejects non-MV3 manifests", () => {
+  assert.throws(
+    () => analyzeManifest({ manifest_version: 2, name: "Old" }),
+    /Manifest V3 only/
+  );
+});
+
+test("CLI accepts an unpacked extension directory and returns JSON", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "mv3-replay-test-"));
+  await writeFile(path.join(directory, "manifest.json"), JSON.stringify(richManifest));
+
+  const result = runCli("inspect", directory, "--json");
+
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.identity.name, "Fixture extension");
+  assert.equal(report.privacy.dataUploaded, false);
+});
+
+const fixtureExpectations = {
+  "minimal-mv3": report => {
+    assert.deepEqual(report.lanes.map(lane => lane.id), ["install-and-upgrade"]);
+    assert.deepEqual(report.riskFlags, []);
+    assert.equal(report.counts.hostPermissions, 0);
+  },
+  "action-popup": report => {
+    assert.equal(report.surfaces.actionPopup, true);
+    assert.ok(report.lanes.some(lane => lane.id === "action-popup"));
+  },
+  "options-page": report => {
+    assert.equal(report.surfaces.optionsPage, true);
+    assert.ok(report.lanes.some(lane => lane.id === "options"));
+  },
+  "service-worker": report => {
+    assert.equal(report.surfaces.serviceWorker, true);
+    assert.ok(report.lanes.some(lane => lane.id === "service-worker-lifecycle"));
+    assert.ok(report.riskFlags.some(flag => flag.id === "ephemeral-worker"));
+  },
+  "content-scripts": report => {
+    assert.equal(report.surfaces.contentScripts, 1);
+    assert.ok(report.lanes.some(lane => lane.id === "host-page-safety"));
+    assert.deepEqual(report.riskFlags, []);
+  },
+  "permissions-required-optional": report => {
+    assert.equal(report.surfaces.storage, true);
+    assert.equal(report.counts.permissions, 2);
+    assert.equal(report.counts.optionalPermissions, 1);
+    assert.ok(report.lanes.some(lane => lane.id === "optional-permissions"));
+  },
+  "host-permissions": report => {
+    assert.equal(report.counts.hostPermissions, 2);
+    assert.ok(report.lanes.some(lane => lane.id === "permission-boundaries"));
+  },
+  "declarative-net-request": report => {
+    assert.equal(report.counts.staticRulesets, 2);
+    assert.ok(report.lanes.some(lane => lane.id === "network-rules"));
+    assert.ok(report.riskFlags.every(flag => flag.id !== "broad-host-scope"));
+  },
+  "side-panel": report => {
+    assert.equal(report.surfaces.sidePanel, true);
+    assert.ok(report.lanes.some(lane => lane.id === "side-panel"));
+  },
+  "risky-external-messaging": report => {
+    const riskIds = report.riskFlags.map(flag => flag.id);
+    assert.ok(riskIds.includes("broad-external-messaging"));
+    assert.ok(riskIds.includes("broad-web-accessible-resources"));
+    assert.ok(report.lanes.some(lane => lane.id === "external-messaging"));
+    assert.ok(report.lanes.some(lane => lane.id === "web-accessible-resources"));
+  }
+};
+
+for (const [fixture, expect] of Object.entries(fixtureExpectations)) {
+  test(`fixture ${fixture} produces its expected regression plan`, async () => {
+    const result = runCli("inspect", path.join(FIXTURE_ROOT, fixture), "--json");
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.privacy.localOnly, true);
+    expect(report);
+  });
+}
+
+test("CLI rejects malformed JSON with a diagnostic on stderr", () => {
+  const result = runCli("inspect", path.join(FIXTURE_ROOT, "malformed-json"));
+  assert.equal(result.status, 4);
+  assert.match(result.stderr, /^MV3 Replay:/);
+});
+
+test("CLI rejects a directory without a manifest", async () => {
+  const emptyDirectory = await mkdtemp(path.join(os.tmpdir(), "mv3-replay-empty-"));
+  const result = runCli("inspect", emptyDirectory);
+  assert.equal(result.status, 3);
+  assert.match(result.stderr, /^MV3 Replay:/);
+});
+
+test("CLI rejects oversized manifests before parsing", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "mv3-replay-oversized-"));
+  await writeFile(
+    path.join(directory, "manifest.json"),
+    " ".repeat(MAX_MANIFEST_BYTES + 1),
+    "utf8"
+  );
+  const result = runCli("inspect", directory);
+  assert.equal(result.status, 5);
+  assert.match(result.stderr, /1 MiB safety limit/);
+});
+
+test("CLI rejects non-MV3 input", () => {
+  const result = runCli("inspect", path.join(FIXTURE_ROOT, "non-mv3"));
+  assert.equal(result.status, 6);
+  assert.match(result.stderr, /Manifest V3 only/);
+});
+
+test("JSON output is byte-stable across runs and matches the in-process fingerprint", async () => {
+  const fixtureDirectory = path.join(FIXTURE_ROOT, "minimal-mv3");
+  const first = runCli("inspect", fixtureDirectory, "--json");
+  const second = runCli("inspect", fixtureDirectory, "--json");
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(first.stdout, second.stdout);
+
+  const report = JSON.parse(first.stdout);
+  const manifest = await readFixtureManifest("minimal-mv3");
+  assert.equal(report.fingerprint, analyzeManifest(manifest).fingerprint);
+});
