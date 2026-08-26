@@ -1,0 +1,34 @@
+{
+  "id": "OX-001",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Counter-audit the imported MV3 analyzer, make the separated repository testable, and add missing representative MV3 fixtures without expanding product scope.",
+  "allowedFiles": [
+    "src/**",
+    "tests/**",
+    "fixtures/**",
+    "scripts/check-public-safety.mjs",
+    "README.md",
+    "package.json",
+    "LICENSE"
+  ],
+  "acceptanceCriteria": [
+    "All existing behaviors remain deterministic and local-only.",
+    "Tests run from this repository root on Windows and use no hard-coded parent path.",
+    "Representative fixtures cover minimal MV3, popup, options, service worker, content scripts, optional and required permissions, host permissions, DNR, side panel, and risky external messaging.",
+    "Malformed JSON, missing manifest, oversized manifest, non-MV3 input, and stable JSON output are tested.",
+    "A public-safety check rejects likely secrets, email addresses, personal Windows paths, unrelated brand references, and parent-directory traversal in tracked public files.",
+    "No network call, telemetry, browser access, new runtime dependency, commit, push, or package publication is introduced."
+  ],
+  "testCommands": [
+    "npm test",
+    "npm run check:public"
+  ],
+  "stopConditions": [
+    "Any required file or fact exists only outside this repository.",
+    "A requested change would require credentials, a browser profile, or a network call.",
+    "The same failing approach has been attempted three times.",
+    "The configured model is not stealth/ox-alpha or it is rate-limited."
+  ],
+  "deliverable": "Implement the changes, run the allowed tests, and finish with a compact JSON summary containing changedFiles, tests, risks, and blockers."
+}
