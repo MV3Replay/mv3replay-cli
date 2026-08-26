@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mv3replay:schemas:compare-v1",
+  "title": "MV3 Replay compare report (schemaVersion 1)",
+  "description": "Local manifest-only release comparison produced by `mv3replay compare --json`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "from",
+    "to",
+    "changes",
+    "findings",
+    "requiresManualUpdateValidation",
+    "privacy",
+    "fingerprint"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "from": { "$ref": "#/$defs/identity" },
+    "to": { "$ref": "#/$defs/identity" },
+    "changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requiredPermissions",
+        "optionalPermissions",
+        "requiredHosts",
+        "optionalHosts",
+        "permissionTransitions",
+        "hostTransitions",
+        "contentScriptMatches",
+        "contentScripts",
+        "commands",
+        "staticRulesets",
+        "externalMessaging",
+        "webAccessibleResources",
+        "surfaces",
+        "declarations"
+      ],
+      "properties": {
+        "requiredPermissions": { "$ref": "#/$defs/stringDiff" },
+        "optionalPermissions": { "$ref": "#/$defs/stringDiff" },
+        "requiredHosts": { "$ref": "#/$defs/stringDiff" },
+        "optionalHosts": { "$ref": "#/$defs/stringDiff" },
+        "permissionTransitions": { "$ref": "#/$defs/transitionDiff" },
+        "hostTransitions": { "$ref": "#/$defs/transitionDiff" },
+        "contentScriptMatches": { "$ref": "#/$defs/stringDiff" },
+        "contentScripts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["added", "removed"],
+          "properties": {
+            "added": { "type": "array", "items": { "$ref": "#/$defs/contentScriptRegistration" } },
+            "removed": { "type": "array", "items": { "$ref": "#/$defs/contentScriptRegistration" } }
+          }
+        },
+        "commands": { "$ref": "#/$defs/stringDiff" },
+        "staticRulesets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["added", "removed", "changed"],
+          "properties": {
+            "added": { "type": "array", "items": { "type": "string" } },
+            "removed": { "type": "array", "items": { "type": "string" } },
+            "changed": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "externalMessaging": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["matches", "ids"],
+          "properties": {
+            "matches": { "$ref": "#/$defs/stringDiff" },
+            "ids": { "$ref": "#/$defs/stringDiff" }
+          }
+        },
+        "webAccessibleResources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["added", "removed"],
+          "properties": {
+            "added": { "type": "array", "items": { "$ref": "#/$defs/webAccessibleResource" } },
+            "removed": { "type": "array", "items": { "$ref": "#/$defs/webAccessibleResource" } }
+          }
+        },
+        "surfaces": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["added", "removed"],
+          "properties": {
+            "added": { "type": "array", "items": { "type": "string" } },
+            "removed": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "declarations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "previous", "current"],
+            "properties": {
+              "field": { "type": "string", "minLength": 1 },
+              "previous": {},
+              "current": {}
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "level", "message"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "level": { "enum": ["critical", "high", "medium", "low"] },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "requiresManualUpdateValidation": { "type": "boolean" },
+    "privacy": { "$ref": "#/$defs/privacy" },
+    "fingerprint": { "type": "string", "pattern": "^[0-9a-f]{16}$" }
+  },
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "manifestVersion"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "manifestVersion": { "const": 3 }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localOnly", "sourceFilesRead", "browserConnected", "dataUploaded"],
+      "properties": {
+        "localOnly": { "const": true },
+        "sourceFilesRead": { "const": false },
+        "browserConnected": { "const": false },
+        "dataUploaded": { "const": false }
+      }
+    },
+    "stringDiff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "removed"],
+      "properties": {
+        "added": { "type": "array", "items": { "type": "string" } },
+        "removed": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "transitionDiff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["optionalToRequired", "requiredToOptional"],
+      "properties": {
+        "optionalToRequired": { "type": "array", "items": { "type": "string" } },
+        "requiredToOptional": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "contentScriptRegistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matches",
+        "excludeMatches",
+        "files",
+        "runAt",
+        "allFrames",
+        "world",
+        "matchAboutBlank",
+        "matchOriginAsFallback"
+      ],
+      "properties": {
+        "matches": { "type": "array", "items": { "type": "string" } },
+        "excludeMatches": { "type": "array", "items": { "type": "string" } },
+        "files": { "type": "array", "items": { "type": "string" } },
+        "runAt": { "enum": ["document_start", "document_end", "document_idle", null] },
+        "allFrames": { "type": "boolean" },
+        "world": { "enum": ["ISOLATED", "MAIN"] },
+        "matchAboutBlank": { "type": "boolean" },
+        "matchOriginAsFallback": { "type": "boolean" }
+      }
+    },
+    "webAccessibleResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resources", "matches", "extensionIds", "useDynamicUrl"],
+      "properties": {
+        "resources": { "type": "array", "items": { "type": "string" } },
+        "matches": { "type": "array", "items": { "type": "string" } },
+        "extensionIds": { "type": "array", "items": { "type": "string" } },
+        "useDynamicUrl": { "type": "boolean" }
+      }
+    }
+  }
+}

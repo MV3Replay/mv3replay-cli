@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mv3replay:schemas:inspect-v1",
+  "title": "MV3 Replay inspect report (schemaVersion 1)",
+  "description": "Local manifest-only regression plan produced by `mv3replay inspect --json`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "identity",
+    "surfaces",
+    "counts",
+    "lanes",
+    "riskFlags",
+    "privacy",
+    "fingerprint"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "identity": { "$ref": "#/$defs/identity" },
+    "surfaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionPopup",
+        "optionsPage",
+        "serviceWorker",
+        "contentScripts",
+        "sidePanel",
+        "devtoolsPage",
+        "storage",
+        "offscreen",
+        "notifications",
+        "tabCapture",
+        "commands",
+        "staticRulesets",
+        "webAccessibleResourceDeclarations",
+        "externallyConnectable",
+        "incognitoMode"
+      ],
+      "properties": {
+        "actionPopup": { "type": "boolean" },
+        "optionsPage": { "type": "boolean" },
+        "serviceWorker": { "type": "boolean" },
+        "contentScripts": { "type": "integer", "minimum": 0 },
+        "sidePanel": { "type": "boolean" },
+        "devtoolsPage": { "type": "boolean" },
+        "storage": { "type": "boolean" },
+        "offscreen": { "type": "boolean" },
+        "notifications": { "type": "boolean" },
+        "tabCapture": { "type": "boolean" },
+        "commands": { "type": "integer", "minimum": 0 },
+        "staticRulesets": { "type": "integer", "minimum": 0 },
+        "webAccessibleResourceDeclarations": { "type": "integer", "minimum": 0 },
+        "externallyConnectable": { "type": "boolean" },
+        "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "permissions",
+        "optionalPermissions",
+        "hostPermissions",
+        "optionalHostPermissions",
+        "contentScriptRegistrations",
+        "contentScriptMatchPatterns",
+        "commands",
+        "staticRulesets",
+        "webAccessibleResourceDeclarations",
+        "externalMatchPatterns",
+        "externalExtensionIds"
+      ],
+      "properties": {
+        "permissions": { "type": "integer", "minimum": 0 },
+        "optionalPermissions": { "type": "integer", "minimum": 0 },
+        "hostPermissions": { "type": "integer", "minimum": 0 },
+        "optionalHostPermissions": { "type": "integer", "minimum": 0 },
+        "contentScriptRegistrations": { "type": "integer", "minimum": 0 },
+        "contentScriptMatchPatterns": { "type": "integer", "minimum": 0 },
+        "commands": { "type": "integer", "minimum": 0 },
+        "staticRulesets": { "type": "integer", "minimum": 0 },
+        "webAccessibleResourceDeclarations": { "type": "integer", "minimum": 0 },
+        "externalMatchPatterns": { "type": "integer", "minimum": 0 },
+        "externalExtensionIds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "priority", "reason", "checks"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "priority": { "enum": ["critical", "high", "medium", "low"] },
+          "reason": { "type": "string", "minLength": 1 },
+          "checks": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
+    "riskFlags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "level", "message"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "level": { "enum": ["critical", "high", "medium", "low"] },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "privacy": { "$ref": "#/$defs/privacy" },
+    "fingerprint": { "type": "string", "pattern": "^[0-9a-f]{16}$" }
+  },
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "manifestVersion"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "manifestVersion": { "const": 3 }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localOnly", "sourceFilesRead", "browserConnected", "dataUploaded"],
+      "properties": {
+        "localOnly": { "const": true },
+        "sourceFilesRead": { "const": false },
+        "browserConnected": { "const": false },
+        "dataUploaded": { "const": false }
+      }
+    }
+  }
+}
