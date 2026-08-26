@@ -1,0 +1,20 @@
+{
+  "id": "OXS-001",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Prove that the exact Ox Alpha model is reachable inside the isolated public CLI workspace without changing any file.",
+  "allowedFiles": [],
+  "acceptanceCriteria": [
+    "Read only AGENTS.md and this task contract.",
+    "Do not call shell, network, browser, account, or publication tools.",
+    "Do not edit, create, delete, stage, commit, or publish any file.",
+    "Return exactly OX_SMOKE_OK as the final line."
+  ],
+  "testCommands": [],
+  "stopConditions": [
+    "The selected model is not openrouter/stealth/ox-alpha.",
+    "Authentication is unavailable or the model is rate-limited.",
+    "Any instruction would require leaving this repository."
+  ],
+  "deliverable": "One final line containing OX_SMOKE_OK and no repository change."
+}
