@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Declarative Net Request Fixture",
+  "version": "1.0.0",
+  "permissions": ["declarativeNetRequest"],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      },
+      {
+        "id": "ruleset_2",
+        "enabled": false,
+        "path": "extra-rules.json"
+      }
+    ]
+  }
+}
