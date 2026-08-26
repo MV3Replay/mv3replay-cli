@@ -1,0 +1,33 @@
+{
+  "id": "OX-005",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Add deterministic fuzz, malformed-input, resource-limit, and privacy-boundary tests without adding network or browser access.",
+  "allowedFiles": [
+    "src/**",
+    "tests/**",
+    "fixtures/**",
+    "scripts/**",
+    "README.md",
+    "package.json"
+  ],
+  "acceptanceCriteria": [
+    "Seeded property-style tests cover unexpected primitive, array, nested, Unicode, duplicate, and extreme manifest values reproducibly.",
+    "Input-size, nesting, array-count, malformed JSON, BOM, missing-file, directory, and unreadable-input cases fail safely.",
+    "Tests demonstrate that only the selected manifest is read and no source tree, browser profile, environment value, or network resource is inspected.",
+    "Error output avoids leaking manifest content, secrets, or absolute personal paths.",
+    "No new runtime dependency, telemetry, network call, or browser access is introduced.",
+    "The complete suite stays deterministic across Windows and Linux."
+  ],
+  "testCommands": [
+    "npm test",
+    "npm run check:public"
+  ],
+  "stopConditions": [
+    "A test would require a real credential, personal path, network service, or browser profile.",
+    "A fuzz case becomes nondeterministic or unbounded.",
+    "Three attempts fail on the same issue.",
+    "The exact Ox model is unavailable or rate-limited."
+  ],
+  "deliverable": "Changed public files and compact JSON with seed, case counts, privacy assertions, test results, and blockers."
+}
