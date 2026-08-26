@@ -1,0 +1,32 @@
+{
+  "id": "OX-002",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Harden release comparison for permission, host-access, content-script, network-rule, external-messaging, and extension-surface changes without predicting store behavior.",
+  "allowedFiles": [
+    "src/**",
+    "tests/**",
+    "fixtures/**",
+    "schemas/**",
+    "README.md"
+  ],
+  "acceptanceCriteria": [
+    "Detect additions, removals, and required-versus-optional transitions for permissions and host access.",
+    "Compare content-script matches, exclusions, files, run timing, frames, execution world, and origin-fallback behavior deterministically.",
+    "Compare service-worker declarations, commands, DNR rule resources, externally connectable scopes, web-accessible resources, action, options, side-panel, and DevTools surfaces.",
+    "Classify findings with documented deterministic rules and require real manual-update validation only for explicitly defined critical changes.",
+    "Use representative fixtures and preserve the local-only privacy boundary.",
+    "Make no Chrome Web Store approval, security, compliance, or bug-absence claim."
+  ],
+  "testCommands": [
+    "npm test",
+    "npm run check:public"
+  ],
+  "stopConditions": [
+    "The change requires browser automation, a live store account, network access, or non-public data.",
+    "A new runtime dependency appears necessary but is not explicitly approved.",
+    "The same failing approach has been attempted three times.",
+    "The exact Ox model is unavailable or rate-limited."
+  ],
+  "deliverable": "Changed public files plus compact JSON listing covered diff categories, tests, known limitations, and blockers."
+}

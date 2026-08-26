@@ -1,0 +1,37 @@
+{
+  "id": "OX-004",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Prepare a truthful local installation experience and complete public documentation without publishing a package or release.",
+  "allowedFiles": [
+    "src/**",
+    "tests/**",
+    "scripts/**",
+    "docs/**",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md",
+    "package.json"
+  ],
+  "acceptanceCriteria": [
+    "The Apache-2.0 license text and package metadata are complete and consistent.",
+    "A locally packed tarball installs into a temporary directory and exposes the documented mv3replay command.",
+    "Documentation includes inspect, compare, JSON, errors, privacy, limitations, support status, and safe examples.",
+    "No npm publish, GitHub release, network telemetry, account, billing, or promotional claim is added.",
+    "npm package contents include only intended public runtime and documentation files.",
+    "All tests and the public-safety check pass."
+  ],
+  "testCommands": [
+    "npm test",
+    "npm run check:public",
+    "npm pack --dry-run"
+  ],
+  "stopConditions": [
+    "Packaging requires publishing or credentials.",
+    "The package would contain an unexpected file or identifier.",
+    "Three attempts fail on the same issue.",
+    "The exact Ox model is unavailable or rate-limited."
+  ],
+  "deliverable": "Changed public files and compact JSON with tarball inventory, install-test result, documentation coverage, and blockers."
+}

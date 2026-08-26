@@ -1,0 +1,34 @@
+{
+  "id": "OX-003",
+  "owner": "Ox Alpha",
+  "sensitivity": "PUBLIC",
+  "objective": "Stabilize the versioned JSON contract, CLI errors, exit codes, deterministic output, and Windows/Linux continuous tests.",
+  "allowedFiles": [
+    "src/**",
+    "tests/**",
+    "fixtures/**",
+    "schemas/**",
+    ".github/workflows/**",
+    "README.md",
+    "package.json"
+  ],
+  "acceptanceCriteria": [
+    "Publish machine-verifiable schemas for inspect and compare schemaVersion 1 outputs.",
+    "Define and test stable exit codes for success, invocation errors, missing files, invalid JSON, oversize input, and unsupported manifest versions.",
+    "JSON stdout contains only JSON; diagnostics use stderr; ordering and fingerprints remain deterministic.",
+    "Default output does not expose an absolute local path or unrelated environment data.",
+    "CI runs supported Node versions on current Windows and Linux runners without secrets, deployment, publication, or write credentials.",
+    "All public-safety and product tests pass."
+  ],
+  "testCommands": [
+    "npm test",
+    "npm run check:public"
+  ],
+  "stopConditions": [
+    "Compatibility would require silently changing schemaVersion 1 semantics.",
+    "A workflow requests a secret or write permission.",
+    "Three attempts fail on the same issue.",
+    "The exact Ox model is unavailable or rate-limited."
+  ],
+  "deliverable": "Changed public files and compact JSON containing schemas, exit-code table, platform matrix, tests, and residual risks."
+}
