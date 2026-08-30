@@ -97,6 +97,7 @@ function printHuman(report, file) {
     `- Identity flow: ${yesNo(report.surfaces.identityAccess)}`,
     `- Downloads: ${yesNo(report.surfaces.downloads)}`,
     `- Clipboard access: ${yesNo(report.surfaces.clipboard)}`,
+    `- Chrome page override: ${yesNo(report.surfaces.chromeUrlOverrides)}`,
     "",
     "Recommended regression lanes"
   ];

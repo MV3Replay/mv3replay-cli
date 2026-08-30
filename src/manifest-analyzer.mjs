@@ -162,7 +162,8 @@ const SURFACE_NAMES = [
   ["extension-management", "management"],
   ["identity", "identityAccess"],
   ["downloads", "downloads"],
-  ["clipboard", "clipboard"]
+  ["clipboard", "clipboard"],
+  ["browser-page-override", "chromeUrlOverrides"]
 ];
 
 function surfaceDiff(previousSurfaces, currentSurfaces) {
@@ -250,6 +251,17 @@ function declarationChanges(previousManifest, currentManifest) {
     presentString(previousManifest.incognito) ? previousManifest.incognito : null,
     presentString(currentManifest.incognito) ? currentManifest.incognito : null
   );
+  for (const page of ["bookmarks", "history", "newtab"]) {
+    pushIfChanged(
+      `chrome_url_overrides.${page}`,
+      presentString(previousManifest.chrome_url_overrides?.[page])
+        ? previousManifest.chrome_url_overrides[page]
+        : null,
+      presentString(currentManifest.chrome_url_overrides?.[page])
+        ? currentManifest.chrome_url_overrides[page]
+        : null
+    );
+  }
   pushIfChanged(
     "content_security_policy.extension_pages",
     presentString(previousManifest.content_security_policy?.extension_pages)
@@ -373,6 +385,8 @@ export function analyzeManifest(manifest) {
   const downloads = permissions.includes("downloads") || optionalPermissions.includes("downloads");
   const clipboard = ["clipboardRead", "clipboardWrite"].some(permission =>
     permissions.includes(permission) || optionalPermissions.includes(permission));
+  const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
+    presentString(manifest.chrome_url_overrides?.[page]));
 
   const surfaces = {
     actionPopup,
@@ -398,6 +412,7 @@ export function analyzeManifest(manifest) {
     identityAccess,
     downloads,
     clipboard,
+    chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     incognitoMode
   };
 
@@ -440,6 +455,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "devtools", "medium",
       "The extension declares a DevTools page.",
       ["Open DevTools on a supported host", "Verify panel registration", "Reload DevTools and inspect errors"]);
+  }
+  if (chromeUrlOverridePages.length > 0) {
+    addLane(lanes, "browser-page-override", "high",
+      `The extension replaces a built-in Chrome page (${chromeUrlOverridePages.join(", ")}).`,
+      ["Open the overridden page from its normal browser entry point", "Verify fast loading and a clear page title", "Test normal and incognito behavior where supported"]);
   }
   if (hostPermissions.length > 0 || optionalHostPermissions.length > 0) {
     addLane(lanes, "permission-boundaries", "high",
@@ -580,6 +600,9 @@ export function analyzeManifest(manifest) {
   }
   if (permissions.includes("clipboardRead")) {
     riskFlags.push({ id: "required-clipboard-read", level: "high", message: "clipboardRead is required; verify user expectations, unavailable states, and that clipboard content is not retained unexpectedly." });
+  }
+  if (chromeUrlOverridePages.length > 0) {
+    riskFlags.push({ id: "browser-page-override", level: "high", message: "A built-in Chrome page is replaced; verify navigation, performance, focus, and incognito behavior." });
   }
 
   const report = {
@@ -788,6 +811,13 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "incognito-mode-change",
       level: "high",
       message: "The declared incognito mode changed. Test access disabled and enabled, then verify that state does not cross profile boundaries."
+    });
+  }
+  if (declarations.some(item => item.field.startsWith("chrome_url_overrides."))) {
+    findings.push({
+      id: "browser-page-override-change",
+      level: "high",
+      message: "A built-in Chrome page override changed. Test the affected browser entry point, loading speed, title, focus, navigation, and supported incognito behavior."
     });
   }
   if (changes.surfaces.added.length > 0 || changes.surfaces.removed.length > 0 || uiDeclarationsChanged) {

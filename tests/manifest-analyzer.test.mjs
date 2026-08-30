@@ -32,6 +32,7 @@ const richManifest = {
   action: { default_popup: "popup.html" },
   options_ui: { page: "options.html" },
   side_panel: { default_path: "side-panel.html" },
+  chrome_url_overrides: { newtab: "newtab.html" },
   commands: { _execute_action: { suggested_key: { default: "Ctrl+Shift+Y" } } },
   declarative_net_request: { rule_resources: [{ id: "base", enabled: true, path: "rules.json" }] },
   web_accessible_resources: [{ resources: ["injected.js"], matches: ["<all_urls>"] }],
@@ -54,6 +55,7 @@ test("builds a deterministic plan from MV3 surfaces", () => {
   assert.equal(first.surfaces.serviceWorker, true);
   assert.equal(first.surfaces.contentScripts, 1);
   assert.equal(first.surfaces.storage, true);
+  assert.equal(first.surfaces.chromeUrlOverrides, true);
   assert.deepEqual(first.privacy, {
     localOnly: true,
     sourceFilesRead: false,
@@ -70,6 +72,7 @@ test("builds a deterministic plan from MV3 surfaces", () => {
   assert.ok(laneIds.includes("network-rules"));
   assert.ok(laneIds.includes("web-accessible-resources"));
   assert.ok(laneIds.includes("external-messaging"));
+  assert.ok(laneIds.includes("browser-page-override"));
 
   const riskIds = first.riskFlags.map(flag => flag.id);
   assert.ok(riskIds.includes("broad-host-scope"));
@@ -77,6 +80,7 @@ test("builds a deterministic plan from MV3 surfaces", () => {
   assert.ok(riskIds.includes("main-world"));
   assert.ok(riskIds.includes("ephemeral-worker"));
   assert.ok(riskIds.includes("broad-web-accessible-resources"));
+  assert.ok(riskIds.includes("browser-page-override"));
 });
 
 test("detects lifecycle and trust-boundary surfaces", () => {
@@ -556,6 +560,28 @@ test("detects update-source and incognito-mode changes", () => {
   assert.ok(report.findings.some(item => item.id === "update-source-change"));
   assert.ok(report.findings.some(item => item.id === "incognito-mode-change"));
   assert.equal(report.requiresManualUpdateValidation, true);
+});
+
+test("detects built-in Chrome page override changes", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Override fixture",
+    version: "1.0.0"
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    chrome_url_overrides: { newtab: "newtab.html" }
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["browser-page-override"]);
+  assert.ok(report.changes.declarations.some(change =>
+    change.field === "chrome_url_overrides.newtab"
+    && change.previous === null
+    && change.current === "newtab.html"));
+  assert.ok(report.findings.some(item => item.id === "browser-page-override-change"));
+  assert.ok(report.findings.some(item => item.id === "extension-surface-change"));
 });
 
 test("normalizes command description and every suggested_key platform entry deterministically", () => {

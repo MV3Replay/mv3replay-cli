@@ -45,6 +45,7 @@
         "identityAccess",
         "downloads",
         "clipboard",
+        "chromeUrlOverrides",
         "incognitoMode"
       ],
       "properties": {
@@ -71,6 +72,7 @@
         "identityAccess": { "type": "boolean" },
         "downloads": { "type": "boolean" },
         "clipboard": { "type": "boolean" },
+        "chromeUrlOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }
       }
     },
