@@ -164,6 +164,11 @@ test("built-in comparison example renders an explicit manual-validation gate", a
   assert.equal(payload.previous.manifest_version, 3);
   assert.equal(payload.current.host_permissions.includes("<all_urls>"), true);
   assert.match(elements.get("compare-status").textContent, /sample data/);
+  assert.match(collectText(elements.get("compare-report-summary")), /12 structured change records/);
+  assert.match(
+    collectText(elements.get("compare-report-summary")),
+    /Breakdown: version 1; access 3; scripts 1; rules 2; external boundaries 2; surfaces 1; declarations 2\./
+  );
   assert.match(collectText(elements.get("comparison-readiness")), /Update-path validation required/);
   assert.match(collectText(elements.get("compare-report-details")), /omnibox\.keyword: not declared → mv3/);
   assert.match(collectText(elements.get("compare-report-details")), /Extension surfaces Added: native-messaging/);

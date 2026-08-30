@@ -205,9 +205,16 @@ function renderComparisonSummary(report) {
   renderCountBadges(badgeRow, countByLevel(report.findings));
   compareReportSummaryEl.appendChild(badgeRow);
 
-  const changeCount = countChangeRecords(report.changes);
+  const changeCount = countComparisonChanges(report.changes);
   compareReportSummaryEl.appendChild(el("p", {
-    text: `${changeCount} change${changeCount === 1 ? "" : "s"} across permissions, hosts, matches, and commands.`
+    text: `${changeCount} structured change record${changeCount === 1 ? "" : "s"} across version, access, scripts, rules, surfaces, and declarations.`
+  }));
+  const breakdown = comparisonChangeBreakdown(report.changes)
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `${label} ${count}`)
+    .join("; ");
+  compareReportSummaryEl.appendChild(el("p", {
+    text: breakdown ? `Breakdown: ${breakdown}.` : "Breakdown: no structured changes."
   }));
 
   const manualBadge = el("span", {
@@ -219,10 +226,48 @@ function renderComparisonSummary(report) {
   compareReportSummaryEl.appendChild(el("p", {}, [manualBadge]));
 }
 
-function countChangeRecords(value) {
-  if (Array.isArray(value)) return value.length;
-  if (!value || typeof value !== "object") return 0;
-  return Object.values(value).reduce((total, child) => total + countChangeRecords(child), 0);
+function countListDiff(diff) {
+  return (diff?.added?.length || 0) + (diff?.removed?.length || 0);
+}
+
+function countComparisonChanges(changes) {
+  return comparisonChangeBreakdown(changes)
+    .reduce((total, [, count]) => total + count, 0);
+}
+
+function comparisonChangeBreakdown(changes) {
+  let access = 0;
+  for (const key of [
+    "requiredPermissions", "optionalPermissions", "requiredHosts", "optionalHosts",
+    "oauthScopes"
+  ]) {
+    access += countListDiff(changes[key]);
+  }
+  access += countListDiff({
+    added: changes.permissionTransitions?.optionalToRequired,
+    removed: changes.permissionTransitions?.requiredToOptional
+  });
+  access += countListDiff({
+    added: changes.hostTransitions?.optionalToRequired,
+    removed: changes.hostTransitions?.requiredToOptional
+  });
+  const scripts = countListDiff(changes.contentScriptMatches) + countListDiff(changes.contentScripts);
+  const rules = (changes.staticRulesets?.added?.length || 0)
+    + (changes.staticRulesets?.removed?.length || 0)
+    + (changes.staticRulesets?.changed?.length || 0);
+  const externalBoundaries = countListDiff(changes.externalMessaging?.matches)
+    + countListDiff(changes.externalMessaging?.ids)
+    + countListDiff(changes.webAccessibleResources);
+  return [
+    ["version", changes.version?.previous !== changes.version?.current ? 1 : 0],
+    ["access", access],
+    ["scripts", scripts],
+    ["commands", countListDiff(changes.commands)],
+    ["rules", rules],
+    ["external boundaries", externalBoundaries],
+    ["surfaces", countListDiff(changes.surfaces)],
+    ["declarations", changes.declarations?.length || 0]
+  ];
 }
 
 function setReadiness(container, state, title, detail) {

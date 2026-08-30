@@ -741,11 +741,15 @@ test("comparison UI and Markdown expose network and external-boundary changes", 
   assert.match(source, /escapeMarkdownText\(formatWebAccessibleResource\(declaration\)\)/);
 });
 
-test("comparison summary counts nested and declaration changes", async () => {
+test("comparison summary counts explicit change records without traversing nested payload fields", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
-  assert.match(source, /function countChangeRecords/);
-  assert.match(source, /if \(Array\.isArray\(value\)\) return value\.length/);
-  assert.match(source, /const changeCount = countChangeRecords\(report\.changes\)/);
+  assert.match(source, /function countComparisonChanges\(changes\)/);
+  assert.match(source, /function comparisonChangeBreakdown\(changes\)/);
+  assert.match(source, /function countListDiff\(diff\)/);
+  assert.match(source, /const changeCount = countComparisonChanges\(report\.changes\)/);
+  assert.doesNotMatch(source, /function countChangeRecords/);
+  assert.match(source, /changes\.declarations\?\.length \|\| 0/);
+  assert.match(source, /Breakdown: \$\{breakdown\}/);
 });
 
 test("both in-memory checklists have accessible completion filters and reset controls", async () => {
