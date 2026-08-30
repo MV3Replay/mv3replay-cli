@@ -164,6 +164,10 @@ const SURFACE_NAMES = [
   ["identity", "identityAccess"],
   ["downloads", "downloads"],
   ["clipboard", "clipboard"],
+  ["cookies", "cookies"],
+  ["history", "historyAccess"],
+  ["bookmarks", "bookmarksAccess"],
+  ["web-request", "webRequestAccess"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -411,6 +415,11 @@ export function analyzeManifest(manifest) {
   const downloads = permissions.includes("downloads") || optionalPermissions.includes("downloads");
   const clipboard = ["clipboardRead", "clipboardWrite"].some(permission =>
     permissions.includes(permission) || optionalPermissions.includes(permission));
+  const cookies = permissions.includes("cookies") || optionalPermissions.includes("cookies");
+  const historyAccess = permissions.includes("history") || optionalPermissions.includes("history");
+  const bookmarksAccess = permissions.includes("bookmarks") || optionalPermissions.includes("bookmarks");
+  const webRequestAccess = ["webRequest", "webRequestBlocking"].some(permission =>
+    permissions.includes(permission) || optionalPermissions.includes(permission));
   const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
     presentString(manifest.chrome_url_overrides?.[page]));
   const chromeSettingsOverrides = Boolean(
@@ -445,6 +454,10 @@ export function analyzeManifest(manifest) {
     identityAccess,
     downloads,
     clipboard,
+    cookies,
+    historyAccess,
+    bookmarksAccess,
+    webRequestAccess,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -601,6 +614,26 @@ export function analyzeManifest(manifest) {
       "Clipboard access handles data outside the extension and can fail without focus or user activation.",
       ["Exercise the intended user-initiated clipboard action", "Handle unavailable or denied clipboard access", "Verify copied or read content is not retained unexpectedly"]);
   }
+  if (cookies) {
+    addLane(lanes, "cookie-boundary", "high",
+      "Cookie access depends on host grants, cookie stores, and partition keys.",
+      ["Use only synthetic cookies on an explicitly authorized test host", "Verify denied-host, session, persistent, and partitioned-cookie behavior", "Confirm test cookies are removed and no unrelated cookie values are recorded"]);
+  }
+  if (historyAccess) {
+    addLane(lanes, "history-boundary", "high",
+      "Browsing-history access can read, add, and remove visited URLs.",
+      ["Use a disposable browser profile containing only synthetic history entries", "Exercise query, add, and narrowly scoped removal behavior", "Verify unrelated history is never exported, logged, or modified"]);
+  }
+  if (bookmarksAccess) {
+    addLane(lanes, "bookmarks-boundary", "high",
+      "Bookmark access can read and modify the browser bookmark tree.",
+      ["Use a disposable folder containing only synthetic bookmarks", "Exercise create, update, move, and removal without touching protected roots", "Verify unrelated bookmarks are never exported, logged, or modified"]);
+  }
+  if (webRequestAccess) {
+    addLane(lanes, "web-request-boundary", "critical",
+      "Web-request access observes network traffic within granted host scope and may have restricted blocking behavior in MV3.",
+      ["Use only an explicitly authorized synthetic host and request set", "Verify requested URL and initiator host boundaries", "Confirm observed request details are not persisted and unsupported blocking paths fail safely"]);
+  }
 
   const riskFlags = [];
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
@@ -650,6 +683,21 @@ export function analyzeManifest(manifest) {
   }
   if (chromeSettingsOverrides) {
     riskFlags.push({ id: "browser-settings-override", level: "critical", message: "Browser settings are overridden; verify explicit user confirmation, the exact resulting settings, and recovery after disable or removal." });
+  }
+  if (permissions.includes("cookies")) {
+    riskFlags.push({ id: "required-cookie-access", level: "high", message: "Cookie access is required; test only synthetic cookie values on authorized hosts and verify store and partition isolation." });
+  }
+  if (permissions.includes("history")) {
+    riskFlags.push({ id: "required-history-access", level: "critical", message: "Browsing-history access is required; use a disposable profile with synthetic entries and verify unrelated history is untouched." });
+  }
+  if (permissions.includes("bookmarks")) {
+    riskFlags.push({ id: "required-bookmarks-access", level: "high", message: "Bookmark access is required; use a disposable synthetic folder and verify unrelated bookmarks are untouched." });
+  }
+  if (permissions.includes("webRequest")) {
+    riskFlags.push({ id: "required-web-request-access", level: "high", message: "Web-request observation is required; constrain testing to authorized synthetic hosts and do not retain request details." });
+  }
+  if (permissions.includes("webRequestBlocking")) {
+    riskFlags.push({ id: "mv3-web-request-blocking", level: "critical", message: "webRequestBlocking is restricted for most MV3 extensions; verify the intended policy-installed context or replace the blocking path." });
   }
 
   const report = {
@@ -888,6 +936,22 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "extension-surface-change",
       level: "medium",
       message: `Extension surfaces changed (added: ${changes.surfaces.added.join(", ") || "none"}; removed: ${changes.surfaces.removed.join(", ") || "none"}${uiDeclarationsChanged ? "; declarations changed" : ""}). Verify each affected surface through its browser entry point.`
+    });
+  }
+  const addedBrowserDataSurfaces = changes.surfaces.added.filter(surface =>
+    ["bookmarks", "cookies", "history"].includes(surface));
+  if (addedBrowserDataSurfaces.length > 0) {
+    findings.push({
+      id: "browser-data-surface-expansion",
+      level: "high",
+      message: `Sensitive browser-data surfaces added: ${addedBrowserDataSurfaces.join(", ")}. Use only a disposable profile with synthetic data and verify unrelated data remains untouched.`
+    });
+  }
+  if (changes.surfaces.added.includes("web-request")) {
+    findings.push({
+      id: "web-request-surface-expansion",
+      level: "high",
+      message: "Web-request observation was added. Test only authorized synthetic hosts, verify URL and initiator boundaries, and do not persist request details."
     });
   }
   if (changes.contentScripts.added.length > 0 || changes.contentScripts.removed.length > 0) {

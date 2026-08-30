@@ -145,6 +145,33 @@ test("compares release manifests and gates required-access expansion", () => {
   ]);
 });
 
+test("builds privacy-preserving lanes for browser data and request access", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Sensitive browser data",
+    version: "1.0.0",
+    permissions: ["cookies", "history", "bookmarks", "webRequest", "webRequestBlocking"],
+    host_permissions: ["https://synthetic.example.test/*"]
+  });
+
+  assert.equal(report.surfaces.cookies, true);
+  assert.equal(report.surfaces.historyAccess, true);
+  assert.equal(report.surfaces.bookmarksAccess, true);
+  assert.equal(report.surfaces.webRequestAccess, true);
+  const laneIds = report.lanes.map(lane => lane.id);
+  assert.ok(laneIds.includes("cookie-boundary"));
+  assert.ok(laneIds.includes("history-boundary"));
+  assert.ok(laneIds.includes("bookmarks-boundary"));
+  assert.ok(laneIds.includes("web-request-boundary"));
+  const riskIds = report.riskFlags.map(flag => flag.id);
+  assert.ok(riskIds.includes("required-cookie-access"));
+  assert.ok(riskIds.includes("required-history-access"));
+  assert.ok(riskIds.includes("required-bookmarks-access"));
+  assert.ok(riskIds.includes("required-web-request-access"));
+  assert.ok(riskIds.includes("mv3-web-request-blocking"));
+  assert.ok(report.lanes.every(lane => !lane.checks.some(check => /real|personal/i.test(check))));
+});
+
 test("builds a toolbar-action lane when no popup is declared", () => {
   const report = analyzeManifest({
     manifest_version: 3,
@@ -655,6 +682,26 @@ test("compares toolbar action title, icon, and activation mode", () => {
   assert.ok(report.changes.declarations.some(change => change.field === "action.default_icon"));
   assert.ok(report.changes.declarations.some(change => change.field === "action.default_popup"));
   assert.ok(report.findings.some(item => item.id === "toolbar-action-change"));
+});
+
+test("flags newly added browser-data and web-request surfaces", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Boundary expansion",
+    version: "1.0.0"
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    optional_permissions: ["cookies", "history", "bookmarks", "webRequest"],
+    optional_host_permissions: ["https://synthetic.example.test/*"]
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["bookmarks", "cookies", "history", "web-request"]);
+  assert.ok(report.findings.some(item => item.id === "browser-data-surface-expansion"));
+  assert.ok(report.findings.some(item => item.id === "web-request-surface-expansion"));
+  assert.equal(report.requiresManualUpdateValidation, false);
 });
 
 test("normalizes command description and every suggested_key platform entry deterministically", () => {

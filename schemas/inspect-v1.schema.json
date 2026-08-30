@@ -46,6 +46,10 @@
         "identityAccess",
         "downloads",
         "clipboard",
+        "cookies",
+        "historyAccess",
+        "bookmarksAccess",
+        "webRequestAccess",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -75,6 +79,10 @@
         "identityAccess": { "type": "boolean" },
         "downloads": { "type": "boolean" },
         "clipboard": { "type": "boolean" },
+        "cookies": { "type": "boolean" },
+        "historyAccess": { "type": "boolean" },
+        "bookmarksAccess": { "type": "boolean" },
+        "webRequestAccess": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }
