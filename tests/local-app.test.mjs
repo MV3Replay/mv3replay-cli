@@ -698,6 +698,23 @@ test("feedback template is a user-triggered local Markdown download with privacy
   assert.doesNotMatch(source, /fetch\([^\n]*feedback/);
 });
 
+test("comparison UI and Markdown expose surface and declaration changes", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /renderListDiff\("Extension surfaces", report\.changes\.surfaces\)/);
+  assert.match(source, /renderDeclarationChanges\(report\.changes\.declarations\)/);
+  assert.match(source, /function formatDeclarationValue/);
+  assert.match(source, /\["surfaces", "Extension surfaces"\]/);
+  assert.match(source, /### Entry-point declarations/);
+  assert.match(source, /escapeMarkdownText\(change\.field\)/);
+});
+
+test("comparison summary counts nested and declaration changes", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /function countChangeRecords/);
+  assert.match(source, /if \(Array\.isArray\(value\)\) return value\.length/);
+  assert.match(source, /const changeCount = countChangeRecords\(report\.changes\)/);
+});
+
 test("report privacy metadata declares no outbound networking", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/api/analyze`, {

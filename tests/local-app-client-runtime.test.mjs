@@ -86,7 +86,12 @@ async function createClientHarness() {
       requiredHosts: { added: ["<all_urls>"], removed: [] },
       optionalHosts: { added: [], removed: [] },
       contentScriptMatches: { added: [], removed: [] },
-      commands: { added: [], removed: [] }
+      commands: { added: [], removed: [] },
+      surfaces: { added: ["native-messaging"], removed: [] },
+      declarations: [
+        { field: "omnibox.keyword", previous: null, current: "mv3" },
+        { field: "sandbox.pages", previous: [], current: ["sandbox.html"] }
+      ]
     }
   };
 
@@ -138,6 +143,8 @@ test("built-in comparison example renders an explicit manual-validation gate", a
   assert.equal(payload.current.host_permissions.includes("<all_urls>"), true);
   assert.match(elements.get("compare-status").textContent, /sample data/);
   assert.match(collectText(elements.get("comparison-readiness")), /Update-path validation required/);
+  assert.match(collectText(elements.get("compare-report-details")), /omnibox\.keyword: not declared → mv3/);
+  assert.match(collectText(elements.get("compare-report-details")), /Extension surfaces Added: native-messaging/);
   assert.equal(elements.get("compare-report").hidden, false);
   assert.equal(elements.get("compare-submit").disabled, false);
   assert.equal(elements.get("compare-example-button").attributes.get("aria-busy"), "false");

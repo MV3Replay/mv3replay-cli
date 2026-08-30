@@ -194,10 +194,7 @@ function renderComparisonSummary(report) {
   renderCountBadges(badgeRow, countByLevel(report.findings));
   compareReportSummaryEl.appendChild(badgeRow);
 
-  const changeCount = Object.values(report.changes).reduce(
-    (total, diff) => total + (diff.added ? diff.added.length : 0) + (diff.removed ? diff.removed.length : 0),
-    0
-  );
+  const changeCount = countChangeRecords(report.changes);
   compareReportSummaryEl.appendChild(el("p", {
     text: `${changeCount} change${changeCount === 1 ? "" : "s"} across permissions, hosts, matches, and commands.`
   }));
@@ -209,6 +206,12 @@ function renderComparisonSummary(report) {
       : "No manual validation required"
   });
   compareReportSummaryEl.appendChild(el("p", {}, [manualBadge]));
+}
+
+function countChangeRecords(value) {
+  if (Array.isArray(value)) return value.length;
+  if (!value || typeof value !== "object") return 0;
+  return Object.values(value).reduce((total, child) => total + countChangeRecords(child), 0);
 }
 
 function setReadiness(container, state, title, detail) {
@@ -711,6 +714,30 @@ function renderListDiff(title, diff) {
   return container;
 }
 
+function formatDeclarationValue(value) {
+  if (value === null || value === undefined) return "not declared";
+  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "none";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function renderDeclarationChanges(changes) {
+  const container = el("div", { className: "declaration-changes" });
+  container.appendChild(el("strong", { text: "Entry-point declarations" }));
+  if (changes.length === 0) {
+    container.appendChild(el("p", { text: "No entry-point declaration values changed." }));
+    return container;
+  }
+  const list = el("ul");
+  for (const change of changes) {
+    list.appendChild(el("li", {
+      text: `${change.field}: ${formatDeclarationValue(change.previous)} → ${formatDeclarationValue(change.current)}`
+    }));
+  }
+  container.appendChild(list);
+  return container;
+}
+
 function renderCompareReport(report) {
   compareReportDetailsEl.textContent = "";
   comparisonFindingNodes = [];
@@ -749,6 +776,8 @@ function renderCompareReport(report) {
   compareReportDetailsEl.appendChild(renderListDiff("Optional host access", report.changes.optionalHosts));
   compareReportDetailsEl.appendChild(renderListDiff("Content-script match scope", report.changes.contentScriptMatches));
   compareReportDetailsEl.appendChild(renderListDiff("Keyboard commands", report.changes.commands));
+  compareReportDetailsEl.appendChild(renderListDiff("Extension surfaces", report.changes.surfaces));
+  compareReportDetailsEl.appendChild(renderDeclarationChanges(report.changes.declarations));
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
   compareReportDetailsEl.appendChild(el("p", {
@@ -836,7 +865,8 @@ function buildComparisonMarkdown(report, checklist) {
     ["requiredHosts", "Required host access"],
     ["optionalHosts", "Optional host access"],
     ["contentScriptMatches", "Content-script match scope"],
-    ["commands", "Keyboard commands"]
+    ["commands", "Keyboard commands"],
+    ["surfaces", "Extension surfaces"]
   ];
   for (const [key, title] of changeTitles) {
     const diff = report.changes[key];
@@ -847,6 +877,17 @@ function buildComparisonMarkdown(report, checklist) {
       ? diff.removed.map(escapeMarkdownText).join(", ")
       : "none";
     lines.push(`- ${title} — Added: ${added}; Removed: ${removed}`);
+  }
+  lines.push("");
+  lines.push("### Entry-point declarations");
+  if (report.changes.declarations.length === 0) {
+    lines.push("No entry-point declaration values changed.");
+  } else {
+    for (const change of report.changes.declarations) {
+      lines.push(
+        `- ${escapeMarkdownText(change.field)}: ${escapeMarkdownText(formatDeclarationValue(change.previous))} → ${escapeMarkdownText(formatDeclarationValue(change.current))}`
+      );
+    }
   }
   lines.push("");
   lines.push("## Candidate-release checklist");

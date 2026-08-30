@@ -129,7 +129,11 @@ const SURFACE_NAMES = [
   ["action-popup", "actionPopup"],
   ["options", "optionsPage"],
   ["side-panel", "sidePanel"],
-  ["devtools", "devtoolsPage"]
+  ["devtools", "devtoolsPage"],
+  ["omnibox", "omnibox"],
+  ["sandbox-pages", "sandboxPages"],
+  ["native-messaging", "nativeMessaging"],
+  ["user-scripts", "userScripts"]
 ];
 
 function surfaceDiff(previousSurfaces, currentSurfaces) {
@@ -191,6 +195,16 @@ function declarationChanges(previousManifest, currentManifest) {
     "side_panel.default_path",
     presentString(previousManifest.side_panel?.default_path) ? previousManifest.side_panel.default_path : null,
     presentString(currentManifest.side_panel?.default_path) ? currentManifest.side_panel.default_path : null
+  );
+  pushIfChanged(
+    "omnibox.keyword",
+    presentString(previousManifest.omnibox?.keyword) ? previousManifest.omnibox.keyword : null,
+    presentString(currentManifest.omnibox?.keyword) ? currentManifest.omnibox.keyword : null
+  );
+  pushIfChanged(
+    "sandbox.pages",
+    sortedUnique(asStrings(previousManifest.sandbox?.pages)),
+    sortedUnique(asStrings(currentManifest.sandbox?.pages))
   );
 
   const previousCommands = previousManifest.commands && typeof previousManifest.commands === "object"

@@ -414,6 +414,34 @@ test("a command-only definition change emits commands-change but never extension
   assert.ok(!report.findings.some(item => item.id === "extension-surface-change"));
 });
 
+test("compares advanced entry-point presence and declaration values", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Advanced fixture",
+    version: "1.0.0",
+    omnibox: { keyword: "old" },
+    sandbox: { pages: ["old.html", "shared.html"] },
+    optional_permissions: ["nativeMessaging"]
+  };
+  const current = {
+    manifest_version: 3,
+    name: "Advanced fixture",
+    version: "2.0.0",
+    omnibox: { keyword: "new" },
+    sandbox: { pages: ["new.html", "shared.html"] },
+    optional_permissions: ["userScripts"]
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["user-scripts"]);
+  assert.deepEqual(report.changes.surfaces.removed, ["native-messaging"]);
+  assert.deepEqual(report.changes.declarations, [
+    { field: "omnibox.keyword", previous: "old", current: "new" },
+    { field: "sandbox.pages", previous: ["old.html", "shared.html"], current: ["new.html", "shared.html"] }
+  ]);
+  assert.ok(report.findings.some(item => item.id === "extension-surface-change"));
+});
+
 test("normalizes command description and every suggested_key platform entry deterministically", () => {
   const previous = {
     manifest_version: 3,
