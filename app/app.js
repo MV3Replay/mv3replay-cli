@@ -550,6 +550,16 @@ function buildAnalysisMarkdown(report, checklist) {
   lines.push(`- Version: ${escapeMarkdownText(report.identity.version)}`);
   lines.push(`- Manifest version: ${escapeMarkdownText(report.identity.manifestVersion)}`);
   lines.push("");
+  lines.push("## Detected surfaces");
+  for (const [key, value] of Object.entries(report.surfaces).sort(([first], [second]) => first.localeCompare(second))) {
+    lines.push(`- ${escapeMarkdownText(key)}: ${escapeMarkdownText(value)}`);
+  }
+  lines.push("");
+  lines.push("## Manifest counts");
+  for (const [key, value] of Object.entries(report.counts).sort(([first], [second]) => first.localeCompare(second))) {
+    lines.push(`- ${escapeMarkdownText(key)}: ${escapeMarkdownText(value)}`);
+  }
+  lines.push("");
   lines.push("## Findings");
   if (report.riskFlags.length === 0) {
     lines.push("No risk flags were detected in this static analysis.");

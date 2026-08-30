@@ -712,6 +712,16 @@ test("comparison UI and Markdown expose surface and declaration changes", async 
   assert.match(source, /escapeMarkdownText\(change\.field\)/);
 });
 
+test("analysis Markdown includes deterministic surfaces and manifest counts", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /## Detected surfaces/);
+  assert.match(source, /Object\.entries\(report\.surfaces\)\.sort/);
+  assert.match(source, /## Manifest counts/);
+  assert.match(source, /Object\.entries\(report\.counts\)\.sort/);
+  assert.match(source, /escapeMarkdownText\(key\)/);
+  assert.match(source, /escapeMarkdownText\(value\)/);
+});
+
 test("comparison UI and Markdown expose content-script registration changes", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /function renderContentScriptChanges\(diff\)/);
