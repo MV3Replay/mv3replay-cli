@@ -92,6 +92,8 @@ test("the compact release-candidate record distinguishes public source from an u
       "browser page and settings override coverage",
       "toolbar action coverage with and without popups",
       "analysis Markdown surface and count inventory",
+      "privacy-safe browser data and web-request test lanes",
+      "synthetic browser-data regression fixture",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",
