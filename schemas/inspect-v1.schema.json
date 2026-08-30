@@ -55,6 +55,9 @@
         "contentSettingsAccess",
         "privacySettingsAccess",
         "proxyAccess",
+        "geolocationAccess",
+        "desktopCaptureAccess",
+        "pageCaptureAccess",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -93,6 +96,9 @@
         "contentSettingsAccess": { "type": "boolean" },
         "privacySettingsAccess": { "type": "boolean" },
         "proxyAccess": { "type": "boolean" },
+        "geolocationAccess": { "type": "boolean" },
+        "desktopCaptureAccess": { "type": "boolean" },
+        "pageCaptureAccess": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }

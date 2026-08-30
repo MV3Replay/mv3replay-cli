@@ -223,6 +223,31 @@ test("builds reversible lanes for browser setting controls", () => {
   }
 });
 
+test("builds zero-retention lanes for location and capture permissions", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Capture boundaries",
+    version: "1.0.0",
+    permissions: ["geolocation", "desktopCapture", "pageCapture"]
+  });
+
+  assert.equal(report.surfaces.geolocationAccess, true);
+  assert.equal(report.surfaces.desktopCaptureAccess, true);
+  assert.equal(report.surfaces.pageCaptureAccess, true);
+  const laneIds = report.lanes.map(lane => lane.id);
+  assert.ok(laneIds.includes("geolocation-boundary"));
+  assert.ok(laneIds.includes("desktop-capture-boundary"));
+  assert.ok(laneIds.includes("page-capture-boundary"));
+  const riskIds = report.riskFlags.map(flag => flag.id);
+  assert.ok(riskIds.includes("required-geolocation"));
+  assert.ok(riskIds.includes("required-desktop-capture"));
+  assert.ok(riskIds.includes("required-page-capture"));
+  for (const laneId of laneIds.filter(id => id.endsWith("-boundary"))) {
+    const lane = report.lanes.find(item => item.id === laneId);
+    assert.ok(lane.checks.some(check => /synthetic/i.test(check)));
+  }
+});
+
 test("compares extension versions using Chrome update ordering", () => {
   const base = {
     manifest_version: 3,
@@ -755,6 +780,24 @@ test("gates newly added browser setting controls", () => {
   const report = compareManifests(previous, current);
   assert.deepEqual(report.changes.surfaces.added, ["content-settings", "privacy-settings", "proxy-settings"]);
   assert.ok(report.findings.some(item => item.id === "browser-setting-control-expansion"));
+  assert.equal(report.requiresManualUpdateValidation, true);
+});
+
+test("gates newly added capture and location surfaces", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Capture expansion",
+    version: "1.0.0"
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    permissions: ["geolocation", "desktopCapture", "pageCapture"]
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["desktop-capture", "geolocation", "page-capture"]);
+  assert.ok(report.findings.some(item => item.id === "capture-or-location-expansion"));
   assert.equal(report.requiresManualUpdateValidation, true);
 });
 

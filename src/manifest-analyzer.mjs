@@ -173,6 +173,9 @@ const SURFACE_NAMES = [
   ["content-settings", "contentSettingsAccess"],
   ["privacy-settings", "privacySettingsAccess"],
   ["proxy-settings", "proxyAccess"],
+  ["geolocation", "geolocationAccess"],
+  ["desktop-capture", "desktopCaptureAccess"],
+  ["page-capture", "pageCaptureAccess"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -431,6 +434,9 @@ export function analyzeManifest(manifest) {
   const contentSettingsAccess = permissions.includes("contentSettings") || optionalPermissions.includes("contentSettings");
   const privacySettingsAccess = permissions.includes("privacy") || optionalPermissions.includes("privacy");
   const proxyAccess = permissions.includes("proxy") || optionalPermissions.includes("proxy");
+  const geolocationAccess = permissions.includes("geolocation") || optionalPermissions.includes("geolocation");
+  const desktopCaptureAccess = permissions.includes("desktopCapture") || optionalPermissions.includes("desktopCapture");
+  const pageCaptureAccess = permissions.includes("pageCapture") || optionalPermissions.includes("pageCapture");
   const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
     presentString(manifest.chrome_url_overrides?.[page]));
   const chromeSettingsOverrides = Boolean(
@@ -474,6 +480,9 @@ export function analyzeManifest(manifest) {
     contentSettingsAccess,
     privacySettingsAccess,
     proxyAccess,
+    geolocationAccess,
+    desktopCaptureAccess,
+    pageCaptureAccess,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -675,6 +684,21 @@ export function analyzeManifest(manifest) {
       "Proxy access can redirect browser traffic and can be controlled by policy or another extension.",
       ["Use only a disposable profile with a local synthetic endpoint and no real credentials", "Verify direct, unavailable, invalid, and controlled-by-policy states without bypassing failures", "Clear the test configuration and verify exact network restoration"]);
   }
+  if (geolocationAccess) {
+    addLane(lanes, "geolocation-boundary", "critical",
+      "Geolocation access can reveal physical location without a separate web permission prompt.",
+      ["Use only mocked or synthetic coordinates in a disposable profile", "Verify unavailable, timeout, stale, and changed-position behavior", "Confirm coordinates are never logged, exported, uploaded, or retained"]);
+  }
+  if (desktopCaptureAccess) {
+    addLane(lanes, "desktop-capture-boundary", "critical",
+      "Desktop capture can expose screen, window, tab, and optional audio content through a user picker.",
+      ["Use only a synthetic window with no accounts, notifications, or personal content visible", "Exercise explicit selection, cancellation, expired one-time stream IDs, and audio excluded", "Stop every track and verify frames, audio, and identifiers are never retained or uploaded"]);
+  }
+  if (pageCaptureAccess) {
+    addLane(lanes, "page-capture-boundary", "critical",
+      "Page capture can serialize a complete tab and its resources into an MHTML file.",
+      ["Capture only a synthetic local page containing no personal or account data", "Verify failure and unsupported-tab behavior before saving", "Confirm the artifact is created only by explicit user action and is never uploaded or retained automatically"]);
+  }
 
   const riskFlags = [];
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
@@ -755,6 +779,15 @@ export function analyzeManifest(manifest) {
   }
   if (permissions.includes("proxy")) {
     riskFlags.push({ id: "required-proxy-control", level: "critical", message: "Proxy control is required; use only a local synthetic endpoint without credentials and verify exact network restoration." });
+  }
+  if (permissions.includes("geolocation")) {
+    riskFlags.push({ id: "required-geolocation", level: "critical", message: "Geolocation is required and may run without a separate web prompt; use only synthetic coordinates and retain nothing." });
+  }
+  if (permissions.includes("desktopCapture")) {
+    riskFlags.push({ id: "required-desktop-capture", level: "critical", message: "Desktop capture is required; verify explicit picker consent, cancellation, one-time stream expiry, track shutdown, and zero retention." });
+  }
+  if (permissions.includes("pageCapture")) {
+    riskFlags.push({ id: "required-page-capture", level: "critical", message: "Page capture is required; capture only synthetic local content and verify explicit saving with no upload or automatic retention." });
   }
 
   const report = {
@@ -1018,6 +1051,15 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "browser-setting-control-expansion",
       level: "critical",
       message: `Browser-setting control surfaces added: ${addedSettingControlSurfaces.join(", ")}. Use a disposable profile, test policy conflicts, and verify exact restoration before release.`
+    });
+  }
+  const addedCaptureSurfaces = changes.surfaces.added.filter(surface =>
+    ["desktop-capture", "geolocation", "page-capture"].includes(surface));
+  if (addedCaptureSurfaces.length > 0) {
+    findings.push({
+      id: "capture-or-location-expansion",
+      level: "critical",
+      message: `Capture or location surfaces added: ${addedCaptureSurfaces.join(", ")}. Require explicit user intent, synthetic inputs, cancellation coverage, and zero retention before release.`
     });
   }
   if (changes.contentScripts.added.length > 0 || changes.contentScripts.removed.length > 0) {
