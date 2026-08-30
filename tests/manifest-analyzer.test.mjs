@@ -523,6 +523,38 @@ test("compares browser support, CSP, and OAuth scope policy changes precisely", 
   assert.equal(report.requiresManualUpdateValidation, true);
 });
 
+test("detects update-source and incognito-mode changes", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Distribution fixture",
+    version: "1.0.0",
+    update_url: "https://updates.example.test/old.xml",
+    incognito: "spanning"
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    update_url: "https://updates.example.test/new.xml",
+    incognito: "split"
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(
+    report.changes.declarations.filter(item => ["update_url", "incognito"].includes(item.field)),
+    [
+      { field: "incognito", previous: "spanning", current: "split" },
+      {
+        field: "update_url",
+        previous: "https://updates.example.test/old.xml",
+        current: "https://updates.example.test/new.xml"
+      }
+    ]
+  );
+  assert.ok(report.findings.some(item => item.id === "update-source-change"));
+  assert.ok(report.findings.some(item => item.id === "incognito-mode-change"));
+  assert.equal(report.requiresManualUpdateValidation, true);
+});
+
 test("normalizes command description and every suggested_key platform entry deterministically", () => {
   const previous = {
     manifest_version: 3,

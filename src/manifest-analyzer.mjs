@@ -241,6 +241,16 @@ function declarationChanges(previousManifest, currentManifest) {
     presentString(currentManifest.minimum_chrome_version) ? currentManifest.minimum_chrome_version : null
   );
   pushIfChanged(
+    "update_url",
+    presentString(previousManifest.update_url) ? previousManifest.update_url : null,
+    presentString(currentManifest.update_url) ? currentManifest.update_url : null
+  );
+  pushIfChanged(
+    "incognito",
+    presentString(previousManifest.incognito) ? previousManifest.incognito : null,
+    presentString(currentManifest.incognito) ? currentManifest.incognito : null
+  );
+  pushIfChanged(
     "content_security_policy.extension_pages",
     presentString(previousManifest.content_security_policy?.extension_pages)
       ? previousManifest.content_security_policy.extension_pages
@@ -764,6 +774,20 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "minimum-browser-version-change",
       level: "medium",
       message: "The minimum Chrome version changed. Verify install and update behavior at the old and new support boundaries."
+    });
+  }
+  if (declarations.some(item => item.field === "update_url")) {
+    findings.push({
+      id: "update-source-change",
+      level: "critical",
+      message: "The extension update URL changed. Verify the intended distribution source and test an authentic upgrade before release."
+    });
+  }
+  if (declarations.some(item => item.field === "incognito")) {
+    findings.push({
+      id: "incognito-mode-change",
+      level: "high",
+      message: "The declared incognito mode changed. Test access disabled and enabled, then verify that state does not cross profile boundaries."
     });
   }
   if (changes.surfaces.added.length > 0 || changes.surfaces.removed.length > 0 || uiDeclarationsChanged) {
