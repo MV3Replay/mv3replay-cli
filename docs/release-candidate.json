@@ -17,6 +17,7 @@
   "tests": [
     { "command": "npm run check:public", "status": "pass" },
     { "command": "npm test", "status": "pass" },
+    { "command": "npm run test:app", "status": "pass" },
     { "command": "npm pack --dry-run", "status": "pass" },
     { "command": "install exact local tarball offline and run inspect", "status": "pass" }
   ],
@@ -50,7 +51,17 @@
     "included": true,
     "published": false,
     "launchCommand": "npm run start:app",
-    "opensAutomatically": false
+    "opensAutomatically": false,
+    "features": [
+      "inspect",
+      "compare",
+      "in-memory regression checklists",
+      "JSON export",
+      "Markdown export"
+    ],
+    "testCommand": "npm run test:app",
+    "integratedIntoNormalTestGate": true,
+    "runtimeBrowserTested": false
   },
   "blockers": [],
   "review": {

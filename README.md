@@ -69,6 +69,9 @@ memory for that browser tab; it does not persist reports, read other files, or
 send data anywhere outside `127.0.0.1`. Anyone with local access
 to the same machine and port while the server runs could also reach it, so
 treat the loopback session as no more private than any other local process.
+The local interface and its privacy boundary are covered by the normal
+`npm test` gate via `tests/local-app.test.mjs` (also runnable alone as
+`npm run test:app`); no separate manual test process exists for it.
 
 ## Development
 
@@ -81,7 +84,7 @@ node src/cli.mjs inspect ./my-extension --json
 node src/cli.mjs compare ./previous-release ./candidate-release --json
 ```
 
-`npm test` runs the analyzer, CLI, and public-safety suites from the
+`npm test` runs the analyzer, CLI, public-safety, and local-interface suites from the
 repository root on Windows and POSIX shells. Representative manifests live in
 `fixtures/` and cover minimal MV3, popup, options, service worker, content
 scripts, optional and required permissions, host permissions, declarative

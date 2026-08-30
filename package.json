@@ -15,7 +15,8 @@
     "inspect": "node src/cli.mjs inspect",
     "start:app": "node app/server.mjs",
     "pretest": "npm run check:public",
-    "test": "node --test tests/manifest-analyzer.test.mjs tests/schema-contract.test.mjs tests/cli-exit-codes.test.mjs tests/json-stdout.test.mjs tests/default-output-privacy.test.mjs tests/public-safety.test.mjs tests/license-metadata.test.mjs tests/tarball-install.test.mjs tests/documentation-coverage.test.mjs tests/fuzz-seeded.test.mjs tests/robust-inputs.test.mjs tests/privacy-boundary.test.mjs tests/error-redaction.test.mjs tests/release-candidate.test.mjs",
+    "test": "node --test tests/manifest-analyzer.test.mjs tests/schema-contract.test.mjs tests/cli-exit-codes.test.mjs tests/json-stdout.test.mjs tests/default-output-privacy.test.mjs tests/public-safety.test.mjs tests/license-metadata.test.mjs tests/tarball-install.test.mjs tests/documentation-coverage.test.mjs tests/fuzz-seeded.test.mjs tests/robust-inputs.test.mjs tests/privacy-boundary.test.mjs tests/error-redaction.test.mjs tests/local-app.test.mjs tests/release-candidate.test.mjs",
+    "test:app": "node --test tests/local-app.test.mjs",
     "check:public": "node scripts/check-public-safety.mjs"
   },
   "files": [

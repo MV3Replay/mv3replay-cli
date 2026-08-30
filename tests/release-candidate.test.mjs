@@ -21,6 +21,14 @@ test("the package version is exactly 0.1.0-rc1", () => {
   assert.equal(packageJson.version, "0.1.0-rc1");
 });
 
+test("the normal test gate integrates the local-interface tests exactly once", () => {
+  assert.equal(packageJson.scripts["test:app"], "node --test tests/local-app.test.mjs");
+  const testScript = packageJson.scripts.test;
+  const occurrences = testScript.split("tests/local-app.test.mjs").length - 1;
+  assert.equal(occurrences, 1, "tests/local-app.test.mjs must run exactly once from npm test");
+  assert.match(testScript, /tests\/local-app\.test\.mjs/);
+});
+
 test("release notes distinguish implemented behavior from future ideas", () => {
   assert.match(changelog, /^## 0\.1\.0-rc1$/m);
   assert.match(changelog, /^### Implemented in 0\.1\.0-rc1$/m);
@@ -64,18 +72,31 @@ test("the compact release-candidate record distinguishes public source from an u
     included: true,
     published: false,
     launchCommand: "npm run start:app",
-    opensAutomatically: false
+    opensAutomatically: false,
+    features: [
+      "inspect",
+      "compare",
+      "in-memory regression checklists",
+      "JSON export",
+      "Markdown export"
+    ],
+    testCommand: "npm run test:app",
+    integratedIntoNormalTestGate: true,
+    runtimeBrowserTested: false
   });
-  assert.ok(Array.isArray(candidate.tests) && candidate.tests.length >= 4);
+  assert.ok(Array.isArray(candidate.tests) && candidate.tests.length >= 5);
   assert.deepEqual(
     candidate.tests,
     [
       { command: "npm run check:public", status: "pass" },
       { command: "npm test", status: "pass" },
+      { command: "npm run test:app", status: "pass" },
       { command: "npm pack --dry-run", status: "pass" },
       { command: "install exact local tarball offline and run inspect", status: "pass" }
     ]
   );
+  assert.equal(candidate.localApp.integratedIntoNormalTestGate, true);
+  assert.equal(candidate.localApp.runtimeBrowserTested, false);
   assert.ok(Array.isArray(candidate.limitations) && candidate.limitations.length > 0);
   assert.ok(candidate.limitations.some(item => /browser automation/i.test(item)));
   assert.ok(Array.isArray(candidate.blockers));

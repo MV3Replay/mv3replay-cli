@@ -20,6 +20,11 @@ public for testing, but no package, tag, or GitHub Release exists.
   input, invalid JSON, oversize manifest, and non-MV3 input.
 - Local-only privacy boundary: only the manifest selected by the user is
   read; no upload, telemetry, analytics, or network access of any kind.
+- An unpublished local interface in `app/` (`npm run start:app`) for
+  `inspect` and `compare` on a loopback server, with in-memory regression
+  checklists and JSON and Markdown export of reports and checklists to
+  local files. It is not published and is covered by the normal `npm
+  test` gate together with its privacy boundary.
 - Public-safety gate that scans every public working-tree file, including
   untracked release-candidate files, for secrets, email addresses,
   personal Windows paths, and parent-directory traversal; repository
