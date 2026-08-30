@@ -102,6 +102,8 @@ function printHuman(report, file) {
     `- History access: ${yesNo(report.surfaces.historyAccess)}`,
     `- Bookmark access: ${yesNo(report.surfaces.bookmarksAccess)}`,
     `- Web-request access: ${yesNo(report.surfaces.webRequestAccess)}`,
+    `- Browsing-data removal: ${yesNo(report.surfaces.browsingDataAccess)}`,
+    `- Navigation metadata: ${yesNo(report.surfaces.navigationMetadataAccess)}`,
     `- Chrome page override: ${yesNo(report.surfaces.chromeUrlOverrides)}`,
     `- Chrome settings override: ${yesNo(report.surfaces.chromeSettingsOverrides)}`,
     "",

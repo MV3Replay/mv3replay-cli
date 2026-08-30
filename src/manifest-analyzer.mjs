@@ -168,6 +168,8 @@ const SURFACE_NAMES = [
   ["history", "historyAccess"],
   ["bookmarks", "bookmarksAccess"],
   ["web-request", "webRequestAccess"],
+  ["browsing-data", "browsingDataAccess"],
+  ["navigation-metadata", "navigationMetadataAccess"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -420,6 +422,9 @@ export function analyzeManifest(manifest) {
   const bookmarksAccess = permissions.includes("bookmarks") || optionalPermissions.includes("bookmarks");
   const webRequestAccess = ["webRequest", "webRequestBlocking"].some(permission =>
     permissions.includes(permission) || optionalPermissions.includes(permission));
+  const browsingDataAccess = permissions.includes("browsingData") || optionalPermissions.includes("browsingData");
+  const navigationMetadataAccess = ["tabs", "topSites", "webNavigation"].some(permission =>
+    permissions.includes(permission) || optionalPermissions.includes(permission));
   const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
     presentString(manifest.chrome_url_overrides?.[page]));
   const chromeSettingsOverrides = Boolean(
@@ -458,6 +463,8 @@ export function analyzeManifest(manifest) {
     historyAccess,
     bookmarksAccess,
     webRequestAccess,
+    browsingDataAccess,
+    navigationMetadataAccess,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -634,6 +641,16 @@ export function analyzeManifest(manifest) {
       "Web-request access observes network traffic within granted host scope and may have restricted blocking behavior in MV3.",
       ["Use only an explicitly authorized synthetic host and request set", "Verify requested URL and initiator host boundaries", "Confirm observed request details are not persisted and unsupported blocking paths fail safely"]);
   }
+  if (browsingDataAccess) {
+    addLane(lanes, "browsing-data-removal", "critical",
+      "Browsing-data access can remove multiple classes of stored browser data.",
+      ["Use only a disposable profile populated with synthetic browsing data", "Exercise the narrowest supported data types, origins, and time range", "Verify cancellation, unsupported combinations, and that unrelated data remains intact"]);
+  }
+  if (navigationMetadataAccess) {
+    addLane(lanes, "navigation-metadata", "high",
+      "Tab, top-site, or navigation access can expose visited URLs and navigation behavior.",
+      ["Use a disposable profile containing only synthetic tabs and visits", "Verify event and query results stay within the intended feature scope", "Confirm URLs and titles are not persisted, exported, or logged"]);
+  }
 
   const riskFlags = [];
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
@@ -698,6 +715,13 @@ export function analyzeManifest(manifest) {
   }
   if (permissions.includes("webRequestBlocking")) {
     riskFlags.push({ id: "mv3-web-request-blocking", level: "critical", message: "webRequestBlocking is restricted for most MV3 extensions; verify the intended policy-installed context or replace the blocking path." });
+  }
+  if (permissions.includes("browsingData")) {
+    riskFlags.push({ id: "required-browsing-data-removal", level: "critical", message: "Browsing-data removal is required; use only a disposable synthetic profile and verify narrowly scoped deletion." });
+  }
+  const requiredNavigationMetadata = ["tabs", "topSites", "webNavigation"].filter(permission => permissions.includes(permission));
+  if (requiredNavigationMetadata.length > 0) {
+    riskFlags.push({ id: "required-navigation-metadata", level: "high", message: `Navigation metadata permissions are required: ${requiredNavigationMetadata.join(", ")}. Use only synthetic tabs and visits, and do not retain URLs or titles.` });
   }
 
   const report = {
@@ -939,7 +963,7 @@ export function compareManifests(previousManifest, currentManifest) {
     });
   }
   const addedBrowserDataSurfaces = changes.surfaces.added.filter(surface =>
-    ["bookmarks", "cookies", "history"].includes(surface));
+    ["bookmarks", "browsing-data", "cookies", "history", "navigation-metadata"].includes(surface));
   if (addedBrowserDataSurfaces.length > 0) {
     findings.push({
       id: "browser-data-surface-expansion",

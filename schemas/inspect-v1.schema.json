@@ -50,6 +50,8 @@
         "historyAccess",
         "bookmarksAccess",
         "webRequestAccess",
+        "browsingDataAccess",
+        "navigationMetadataAccess",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -83,6 +85,8 @@
         "historyAccess": { "type": "boolean" },
         "bookmarksAccess": { "type": "boolean" },
         "webRequestAccess": { "type": "boolean" },
+        "browsingDataAccess": { "type": "boolean" },
+        "navigationMetadataAccess": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }

@@ -150,7 +150,10 @@ test("builds privacy-preserving lanes for browser data and request access", () =
     manifest_version: 3,
     name: "Sensitive browser data",
     version: "1.0.0",
-    permissions: ["cookies", "history", "bookmarks", "webRequest", "webRequestBlocking"],
+    permissions: [
+      "cookies", "history", "bookmarks", "webRequest", "webRequestBlocking",
+      "browsingData", "tabs", "topSites", "webNavigation"
+    ],
     host_permissions: ["https://synthetic.example.test/*"]
   });
 
@@ -158,17 +161,23 @@ test("builds privacy-preserving lanes for browser data and request access", () =
   assert.equal(report.surfaces.historyAccess, true);
   assert.equal(report.surfaces.bookmarksAccess, true);
   assert.equal(report.surfaces.webRequestAccess, true);
+  assert.equal(report.surfaces.browsingDataAccess, true);
+  assert.equal(report.surfaces.navigationMetadataAccess, true);
   const laneIds = report.lanes.map(lane => lane.id);
   assert.ok(laneIds.includes("cookie-boundary"));
   assert.ok(laneIds.includes("history-boundary"));
   assert.ok(laneIds.includes("bookmarks-boundary"));
   assert.ok(laneIds.includes("web-request-boundary"));
+  assert.ok(laneIds.includes("browsing-data-removal"));
+  assert.ok(laneIds.includes("navigation-metadata"));
   const riskIds = report.riskFlags.map(flag => flag.id);
   assert.ok(riskIds.includes("required-cookie-access"));
   assert.ok(riskIds.includes("required-history-access"));
   assert.ok(riskIds.includes("required-bookmarks-access"));
   assert.ok(riskIds.includes("required-web-request-access"));
   assert.ok(riskIds.includes("mv3-web-request-blocking"));
+  assert.ok(riskIds.includes("required-browsing-data-removal"));
+  assert.ok(riskIds.includes("required-navigation-metadata"));
   assert.ok(report.lanes.every(lane => !lane.checks.some(check => /real|personal/i.test(check))));
 });
 
@@ -693,12 +702,14 @@ test("flags newly added browser-data and web-request surfaces", () => {
   const current = {
     ...previous,
     version: "1.1.0",
-    optional_permissions: ["cookies", "history", "bookmarks", "webRequest"],
+    optional_permissions: ["cookies", "history", "bookmarks", "webRequest", "browsingData", "tabs"],
     optional_host_permissions: ["https://synthetic.example.test/*"]
   };
 
   const report = compareManifests(previous, current);
-  assert.deepEqual(report.changes.surfaces.added, ["bookmarks", "cookies", "history", "web-request"]);
+  assert.deepEqual(report.changes.surfaces.added, [
+    "bookmarks", "browsing-data", "cookies", "history", "navigation-metadata", "web-request"
+  ]);
   assert.ok(report.findings.some(item => item.id === "browser-data-surface-expansion"));
   assert.ok(report.findings.some(item => item.id === "web-request-surface-expansion"));
   assert.equal(report.requiresManualUpdateValidation, false);
