@@ -784,6 +784,40 @@ function renderContentScriptChanges(diff) {
   return container;
 }
 
+function renderStaticRulesetChanges(diff) {
+  const container = el("div", { className: "finding" });
+  container.appendChild(el("strong", { text: "Static DNR rulesets" }));
+  container.appendChild(el("p", { text: `Added: ${diff.added.length ? diff.added.join(", ") : "none"}` }));
+  container.appendChild(el("p", { text: `Removed: ${diff.removed.length ? diff.removed.join(", ") : "none"}` }));
+  container.appendChild(el("p", { text: `Changed: ${diff.changed.length ? diff.changed.join(", ") : "none"}` }));
+  return container;
+}
+
+function formatWebAccessibleResource(declaration) {
+  const resources = declaration.resources.length > 0 ? declaration.resources.join(", ") : "none";
+  const matches = declaration.matches.length > 0 ? declaration.matches.join(", ") : "none";
+  const extensionIds = declaration.extensionIds.length > 0 ? declaration.extensionIds.join(", ") : "none";
+  return `resources=${resources}; matches=${matches}; extensionIds=${extensionIds}; dynamicUrl=${declaration.useDynamicUrl}`;
+}
+
+function renderWebAccessibleResourceChanges(diff) {
+  const container = el("div", { className: "declaration-changes" });
+  container.appendChild(el("strong", { text: "Web-accessible resources" }));
+  if (diff.added.length === 0 && diff.removed.length === 0) {
+    container.appendChild(el("p", { text: "No web-accessible resource declaration changed." }));
+    return container;
+  }
+  const list = el("ul");
+  for (const declaration of diff.added) {
+    list.appendChild(el("li", { text: `Added: ${formatWebAccessibleResource(declaration)}` }));
+  }
+  for (const declaration of diff.removed) {
+    list.appendChild(el("li", { text: `Removed: ${formatWebAccessibleResource(declaration)}` }));
+  }
+  container.appendChild(list);
+  return container;
+}
+
 function formatDeclarationValue(value) {
   if (value === null || value === undefined) return "not declared";
   if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "none";
@@ -852,6 +886,10 @@ function renderCompareReport(report) {
   compareReportDetailsEl.appendChild(renderContentScriptChanges(report.changes.contentScripts));
   compareReportDetailsEl.appendChild(renderListDiff("Keyboard commands", report.changes.commands));
   compareReportDetailsEl.appendChild(renderListDiff("Extension surfaces", report.changes.surfaces));
+  compareReportDetailsEl.appendChild(renderStaticRulesetChanges(report.changes.staticRulesets));
+  compareReportDetailsEl.appendChild(renderListDiff("External messaging matches", report.changes.externalMessaging.matches));
+  compareReportDetailsEl.appendChild(renderListDiff("External messaging extension IDs", report.changes.externalMessaging.ids));
+  compareReportDetailsEl.appendChild(renderWebAccessibleResourceChanges(report.changes.webAccessibleResources));
   compareReportDetailsEl.appendChild(renderDeclarationChanges(report.changes.declarations));
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
@@ -980,6 +1018,33 @@ function buildComparisonMarkdown(report, checklist) {
     }
     for (const registration of report.changes.contentScripts.removed) {
       lines.push(`- Removed: ${escapeMarkdownText(formatContentScriptRegistration(registration))}`);
+    }
+  }
+  lines.push("");
+  lines.push("### Static DNR rulesets");
+  lines.push(`- Added: ${report.changes.staticRulesets.added.length ? report.changes.staticRulesets.added.map(escapeMarkdownText).join(", ") : "none"}`);
+  lines.push(`- Removed: ${report.changes.staticRulesets.removed.length ? report.changes.staticRulesets.removed.map(escapeMarkdownText).join(", ") : "none"}`);
+  lines.push(`- Changed: ${report.changes.staticRulesets.changed.length ? report.changes.staticRulesets.changed.map(escapeMarkdownText).join(", ") : "none"}`);
+  lines.push("");
+  lines.push("### External messaging");
+  for (const [title, diff] of [
+    ["Matches", report.changes.externalMessaging.matches],
+    ["Extension IDs", report.changes.externalMessaging.ids]
+  ]) {
+    const added = diff.added.length ? diff.added.map(escapeMarkdownText).join(", ") : "none";
+    const removed = diff.removed.length ? diff.removed.map(escapeMarkdownText).join(", ") : "none";
+    lines.push(`- ${title} — Added: ${added}; Removed: ${removed}`);
+  }
+  lines.push("");
+  lines.push("### Web-accessible resources");
+  if (report.changes.webAccessibleResources.added.length === 0 && report.changes.webAccessibleResources.removed.length === 0) {
+    lines.push("No web-accessible resource declaration changed.");
+  } else {
+    for (const declaration of report.changes.webAccessibleResources.added) {
+      lines.push(`- Added: ${escapeMarkdownText(formatWebAccessibleResource(declaration))}`);
+    }
+    for (const declaration of report.changes.webAccessibleResources.removed) {
+      lines.push(`- Removed: ${escapeMarkdownText(formatWebAccessibleResource(declaration))}`);
     }
   }
   lines.push("");

@@ -98,6 +98,18 @@ async function createClientHarness() {
       },
       commands: { added: [], removed: [] },
       surfaces: { added: ["native-messaging"], removed: [] },
+      staticRulesets: { added: ["privacy"], removed: [], changed: ["base"] },
+      externalMessaging: {
+        matches: { added: ["https://caller.example/*"], removed: [] },
+        ids: { added: [], removed: [] }
+      },
+      webAccessibleResources: {
+        added: [{
+          resources: ["injected.js"], matches: ["https://example.test/*"],
+          extensionIds: [], useDynamicUrl: true
+        }],
+        removed: []
+      },
       declarations: [
         { field: "omnibox.keyword", previous: null, current: "mv3" },
         { field: "sandbox.pages", previous: [], current: ["sandbox.html"] }
@@ -156,6 +168,9 @@ test("built-in comparison example renders an explicit manual-validation gate", a
   assert.match(collectText(elements.get("compare-report-details")), /omnibox\.keyword: not declared → mv3/);
   assert.match(collectText(elements.get("compare-report-details")), /Extension surfaces Added: native-messaging/);
   assert.match(collectText(elements.get("compare-report-details")), /Added: files=new-content\.js; matches=https:\/\/example\.test\/\*/);
+  assert.match(collectText(elements.get("compare-report-details")), /Static DNR rulesets Added: privacy Removed: none Changed: base/);
+  assert.match(collectText(elements.get("compare-report-details")), /External messaging matches Added: https:\/\/caller\.example\/\*/);
+  assert.match(collectText(elements.get("compare-report-details")), /Web-accessible resources Added: resources=injected\.js/);
   assert.equal(elements.get("compare-report").hidden, false);
   assert.equal(elements.get("compare-submit").disabled, false);
   assert.equal(elements.get("compare-example-button").attributes.get("aria-busy"), "false");

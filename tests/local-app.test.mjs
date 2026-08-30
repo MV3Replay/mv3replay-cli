@@ -718,6 +718,17 @@ test("comparison UI and Markdown expose content-script registration changes", as
   assert.match(source, /escapeMarkdownText\(formatContentScriptRegistration\(registration\)\)/);
 });
 
+test("comparison UI and Markdown expose network and external-boundary changes", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /renderStaticRulesetChanges\(report\.changes\.staticRulesets\)/);
+  assert.match(source, /External messaging matches/);
+  assert.match(source, /renderWebAccessibleResourceChanges\(report\.changes\.webAccessibleResources\)/);
+  assert.match(source, /### Static DNR rulesets/);
+  assert.match(source, /### External messaging/);
+  assert.match(source, /### Web-accessible resources/);
+  assert.match(source, /escapeMarkdownText\(formatWebAccessibleResource\(declaration\)\)/);
+});
+
 test("comparison summary counts nested and declaration changes", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /function countChangeRecords/);
