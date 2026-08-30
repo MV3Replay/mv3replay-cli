@@ -136,6 +136,39 @@ test("compares release manifests and gates required-access expansion", () => {
   ]);
 });
 
+test("compares extension versions using Chrome update ordering", () => {
+  const base = {
+    manifest_version: 3,
+    name: "Version fixture",
+    version: "1.2"
+  };
+
+  const newer = compareManifests(base, { ...base, version: "1.2.0.1" });
+  assert.deepEqual(newer.changes.version, {
+    previous: "1.2",
+    current: "1.2.0.1",
+    relation: "newer"
+  });
+  assert.ok(!newer.findings.some(item => item.id.startsWith("extension-version-")));
+
+  const older = compareManifests(base, { ...base, version: "1.1.65535.65535" });
+  assert.equal(older.changes.version.relation, "older");
+  assert.ok(older.findings.some(item => item.id === "extension-version-decreased"));
+  assert.equal(older.requiresManualUpdateValidation, true);
+
+  const unchanged = compareManifests(base, { ...base, permissions: ["storage"] });
+  assert.equal(unchanged.changes.version.relation, "same");
+  assert.ok(unchanged.findings.some(item => item.id === "extension-version-not-increased"));
+
+  const equivalent = compareManifests(base, { ...base, version: "1.2.0" });
+  assert.equal(equivalent.changes.version.relation, "same");
+  assert.ok(equivalent.findings.some(item => item.id === "extension-version-not-increased"));
+
+  const invalid = compareManifests(base, { ...base, version: "1.02" });
+  assert.equal(invalid.changes.version.relation, "invalid");
+  assert.ok(invalid.findings.some(item => item.id === "extension-version-invalid"));
+});
+
 test("detects required-versus-optional permission and host-access transitions", () => {
   const previous = {
     manifest_version: 3,
@@ -168,7 +201,8 @@ test("detects required-versus-optional permission and host-access transitions", 
   assert.deepEqual(downgraded.changes.permissionTransitions.requiredToOptional, ["tabCapture"]);
   assert.deepEqual(downgraded.changes.hostTransitions.requiredToOptional, ["https://legacy.example.com/*"]);
   assert.ok(downgraded.findings.some(item => item.id === "required-permission-optional"));
-  assert.equal(downgraded.requiresManualUpdateValidation, false);
+  assert.ok(downgraded.findings.some(item => item.id === "extension-version-decreased"));
+  assert.equal(downgraded.requiresManualUpdateValidation, true);
 });
 
 test("detects removed required and optional permissions and host access", () => {
@@ -340,7 +374,8 @@ test("compares commands, DNR rulesets, external messaging, web-accessible resour
   assert.deepEqual(reversed.changes.surfaces.added, ["action-popup"]);
   assert.deepEqual(reversed.changes.surfaces.removed, ["devtools", "options", "side-panel"]);
   assert.deepEqual(reversed.changes.externalMessaging.matches.added, []);
-  assert.equal(reversed.requiresManualUpdateValidation, false);
+  assert.ok(reversed.findings.some(item => item.id === "extension-version-decreased"));
+  assert.equal(reversed.requiresManualUpdateValidation, true);
 });
 
 test("detects value-only declaration changes when surfaces stay present", () => {

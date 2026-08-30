@@ -23,6 +23,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "version",
         "requiredPermissions",
         "optionalPermissions",
         "requiredHosts",
@@ -40,6 +41,16 @@
         "declarations"
       ],
       "properties": {
+        "version": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["previous", "current", "relation"],
+          "properties": {
+            "previous": { "type": "string" },
+            "current": { "type": "string" },
+            "relation": { "enum": ["newer", "same", "older", "invalid"] }
+          }
+        },
         "requiredPermissions": { "$ref": "#/$defs/stringDiff" },
         "optionalPermissions": { "$ref": "#/$defs/stringDiff" },
         "requiredHosts": { "$ref": "#/$defs/stringDiff" },

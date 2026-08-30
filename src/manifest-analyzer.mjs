@@ -38,6 +38,30 @@ function reportFingerprint(report) {
   return createHash("sha256").update(stable).digest("hex").slice(0, 16);
 }
 
+function parseChromeExtensionVersion(value) {
+  if (typeof value !== "string" || !/^\d+(?:\.\d+){0,3}$/.test(value)) return null;
+  const parts = value.split(".");
+  if (parts.some(part => (part.length > 1 && part.startsWith("0")) || Number(part) > 65535)) return null;
+  const numbers = parts.map(Number);
+  if (numbers.every(part => part === 0)) return null;
+  return [...numbers, ...Array(4 - numbers.length).fill(0)];
+}
+
+function versionChange(previousVersion, currentVersion) {
+  const previousParts = parseChromeExtensionVersion(previousVersion);
+  const currentParts = parseChromeExtensionVersion(currentVersion);
+  let relation = "invalid";
+  if (previousParts && currentParts) {
+    relation = "same";
+    for (let index = 0; index < 4; index += 1) {
+      if (currentParts[index] === previousParts[index]) continue;
+      relation = currentParts[index] > previousParts[index] ? "newer" : "older";
+      break;
+    }
+  }
+  return { previous: previousVersion, current: currentVersion, relation };
+}
+
 function listDiff(before, after) {
   const beforeSet = new Set(before);
   const afterSet = new Set(after);
@@ -599,8 +623,11 @@ export function compareManifests(previousManifest, currentManifest) {
     "side_panel.default_path"
   ];
   const uiDeclarationsChanged = declarations.some(item => uiDeclarationFields.includes(item.field));
+  const version = versionChange(previousReport.identity.version, currentReport.identity.version);
+  const manifestChanged = previousReport.fingerprint !== currentReport.fingerprint;
 
   const changes = {
+    version,
     requiredPermissions: listDiff(previous.permissions, current.permissions),
     optionalPermissions: listDiff(previous.optionalPermissions, current.optionalPermissions),
     requiredHosts: listDiff(previous.hostPermissions, current.hostPermissions),
@@ -622,6 +649,27 @@ export function compareManifests(previousManifest, currentManifest) {
   };
 
   const findings = [];
+  if (version.relation === "older") {
+    findings.push({
+      id: "extension-version-decreased",
+      level: "critical",
+      message: `The extension version decreased from ${version.previous} to ${version.current}. Chrome will not treat this package as a newer automatic update.`
+    });
+  }
+  if (version.relation === "same" && manifestChanged) {
+    findings.push({
+      id: "extension-version-not-increased",
+      level: "high",
+      message: `The manifest changed but the extension version remains ${version.current}. Increase it before testing the real update path.`
+    });
+  }
+  if (version.relation === "invalid") {
+    findings.push({
+      id: "extension-version-invalid",
+      level: "high",
+      message: "At least one extension version cannot be compared using Chrome's one-to-four integer version rules. Correct it before testing an update."
+    });
+  }
   if (changes.requiredPermissions.added.length > 0) {
     findings.push({
       id: "required-permission-expansion",
