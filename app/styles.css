@@ -86,6 +86,28 @@ form {
   box-shadow: 0 0.35rem 1.2rem rgb(20 32 51 / 7%);
 }
 
+.tester-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.25rem 0;
+  border-left: 0.35rem solid var(--accent);
+}
+
+.tester-guide h2 { margin: 0.15rem 0 0.65rem; }
+.tester-guide ol { margin: 0.5rem 0; padding-left: 1.25rem; }
+.tester-guide > p { grid-column: 1 / -1; margin: 0; }
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 form.card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -321,6 +343,8 @@ hr {
   form.card { grid-template-columns: 1fr; }
   .form-actions { display: grid; }
   .form-actions button { width: 100%; }
+  .tester-guide { grid-template-columns: 1fr; }
+  .tester-guide button { width: 100%; }
 
   .checklist-item {
     align-items: center;

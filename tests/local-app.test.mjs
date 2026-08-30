@@ -676,6 +676,25 @@ test("finding filters reset for every new result and do not alter exports", asyn
   assert.doesNotMatch(source, /filter\([^\n]*buildComparisonMarkdown/);
 });
 
+test("the app includes a private, self-guided tester session", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /10-minute tester session/);
+  assert.match(html, /id="tester-guide-heading"/);
+  assert.match(html, /id="download-feedback-template"/);
+  assert.match(html, /id="feedback-template-status" role="status" aria-live="polite"/);
+  assert.match(html, /Do not include source code, account details, extension names, private URLs, or personal/);
+});
+
+test("feedback template is a user-triggered local Markdown download with privacy reminders", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /function buildFeedbackTemplate/);
+  assert.match(source, /mv3-replay-private-tester-notes\.md/);
+  assert.match(source, /Remove extension names, private URLs, source code, account details, and personal information/);
+  assert.match(source, /Do not add contact details or identifying information/);
+  assert.match(source, /feedbackTemplateButton\.addEventListener\("click"/);
+  assert.doesNotMatch(source, /fetch\([^\n]*feedback/);
+});
+
 test("report privacy metadata declares no outbound networking", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/api/analyze`, {

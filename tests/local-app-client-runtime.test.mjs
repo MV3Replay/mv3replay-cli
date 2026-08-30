@@ -37,6 +37,10 @@ class FakeElement {
   removeChild(child) {
     this.children = this.children.filter(candidate => candidate !== child);
   }
+
+  click() {
+    this.clicked = true;
+  }
 }
 
 function collectText(node) {
@@ -46,6 +50,7 @@ function collectText(node) {
 async function createClientHarness() {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   const elements = new Map();
+  const createdElements = [];
   const document = {
     body: new FakeElement("body"),
     getElementById(id) {
@@ -53,7 +58,9 @@ async function createClientHarness() {
       return elements.get(id);
     },
     createElement() {
-      return new FakeElement();
+      const element = new FakeElement();
+      createdElements.push(element);
+      return element;
     }
   };
 
@@ -103,7 +110,7 @@ async function createClientHarness() {
     }
   });
   vm.runInContext(source, context, { filename: "app/app.js" });
-  return { elements, requests };
+  return { elements, requests, createdElements };
 }
 
 test("built-in analysis example executes the real client request and rendering path", async () => {
@@ -148,5 +155,16 @@ test("severity filters execute and hide non-matching rendered findings", async (
   assert.equal(findings.length, 2);
   assert.equal(findings.filter(node => node.hidden).length, 1);
   assert.match(elements.get("analysis-filter-status").textContent, /1 finding shown \(critical\)/);
+});
+
+test("feedback template downloads only after the tester clicks the local control", async () => {
+  const { elements, requests, createdElements } = await createClientHarness();
+  elements.get("download-feedback-template").listeners.get("click")();
+
+  const link = createdElements.find(element => element.download === "mv3-replay-private-tester-notes.md");
+  assert.ok(link);
+  assert.equal(link.clicked, true);
+  assert.equal(requests.length, 0);
+  assert.match(elements.get("feedback-template-status").textContent, /downloaded locally/);
 });
 

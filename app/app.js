@@ -42,6 +42,8 @@ const EXAMPLE_CANDIDATE_MANIFEST = {
 };
 
 const form = document.getElementById("analyze-form");
+const feedbackTemplateButton = document.getElementById("download-feedback-template");
+const feedbackTemplateStatusEl = document.getElementById("feedback-template-status");
 const analyzeSubmitButton = document.getElementById("analyze-submit");
 const analyzeExampleButton = document.getElementById("analyze-example-button");
 const fileInput = document.getElementById("manifest-file");
@@ -418,6 +420,48 @@ function downloadLocalFile(filename, content, mimeType) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+function buildFeedbackTemplate() {
+  return [
+    "# MV3 Replay private tester notes",
+    "",
+    "> Keep this file local until you intentionally choose to share it.",
+    "> Remove extension names, private URLs, source code, account details, and personal information.",
+    "",
+    "## What I tried",
+    "- [ ] Built-in analysis example",
+    "- [ ] My local manifest",
+    "- [ ] Previous-to-candidate comparison",
+    "",
+    "## What was useful?",
+    "",
+    "",
+    "## What was confusing or incorrect?",
+    "",
+    "",
+    "## What result did I expect?",
+    "",
+    "",
+    "## Would I use this before a release? Why or why not?",
+    "",
+    "",
+    "## Optional non-identifying context",
+    "- Browser family: Chrome / Edge / Other / Prefer not to say",
+    "- Extension shape: popup / service worker / content scripts / other",
+    "",
+    "Do not add contact details or identifying information.",
+    ""
+  ].join("\n");
+}
+
+feedbackTemplateButton.addEventListener("click", () => {
+  downloadLocalFile(
+    "mv3-replay-private-tester-notes.md",
+    buildFeedbackTemplate(),
+    "text/markdown"
+  );
+  feedbackTemplateStatusEl.textContent = "Private feedback template downloaded locally.";
+});
 
 // Deterministically neutralizes a dynamic text value for inclusion in the
 // generated Markdown exports. Manifest- and report-controlled strings must

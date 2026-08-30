@@ -16,6 +16,26 @@
     tracked, or sent to any other destination.
   </p>
 
+  <section class="card tester-guide" aria-labelledby="tester-guide-heading">
+    <div>
+      <p class="eyebrow">10-minute tester session</p>
+      <h2 id="tester-guide-heading">Try the workflow without sharing private data</h2>
+      <ol>
+        <li>Run the built-in analysis example and inspect the suggested test lanes.</li>
+        <li>Analyze one local MV3 manifest and mark any checks you can complete.</li>
+        <li>Compare two releases if available, then note what was useful or confusing.</li>
+      </ol>
+      <p>
+        Do not include source code, account details, extension names, private URLs, or personal
+        information in feedback. The downloaded template stays on your device.
+      </p>
+    </div>
+    <button type="button" id="download-feedback-template" class="secondary-button">
+      Download private feedback template
+    </button>
+    <p id="feedback-template-status" role="status" aria-live="polite"></p>
+  </section>
+
   <form id="analyze-form" class="card">
     <div class="field">
       <label for="manifest-file">Local manifest.json</label>
