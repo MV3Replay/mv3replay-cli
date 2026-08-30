@@ -163,7 +163,8 @@ const SURFACE_NAMES = [
   ["identity", "identityAccess"],
   ["downloads", "downloads"],
   ["clipboard", "clipboard"],
-  ["browser-page-override", "chromeUrlOverrides"]
+  ["browser-page-override", "chromeUrlOverrides"],
+  ["browser-settings-override", "chromeSettingsOverrides"]
 ];
 
 function surfaceDiff(previousSurfaces, currentSurfaces) {
@@ -262,6 +263,15 @@ function declarationChanges(previousManifest, currentManifest) {
         : null
     );
   }
+  pushIfChanged(
+    "chrome_settings_overrides",
+    previousManifest.chrome_settings_overrides && typeof previousManifest.chrome_settings_overrides === "object"
+      ? stableValue(previousManifest.chrome_settings_overrides)
+      : null,
+    currentManifest.chrome_settings_overrides && typeof currentManifest.chrome_settings_overrides === "object"
+      ? stableValue(currentManifest.chrome_settings_overrides)
+      : null
+  );
   pushIfChanged(
     "content_security_policy.extension_pages",
     presentString(previousManifest.content_security_policy?.extension_pages)
@@ -387,6 +397,12 @@ export function analyzeManifest(manifest) {
     permissions.includes(permission) || optionalPermissions.includes(permission));
   const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
     presentString(manifest.chrome_url_overrides?.[page]));
+  const chromeSettingsOverrides = Boolean(
+    manifest.chrome_settings_overrides
+    && typeof manifest.chrome_settings_overrides === "object"
+    && !Array.isArray(manifest.chrome_settings_overrides)
+    && Object.keys(manifest.chrome_settings_overrides).length > 0
+  );
 
   const surfaces = {
     actionPopup,
@@ -413,6 +429,7 @@ export function analyzeManifest(manifest) {
     downloads,
     clipboard,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
+    chromeSettingsOverrides,
     incognitoMode
   };
 
@@ -460,6 +477,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "browser-page-override", "high",
       `The extension replaces a built-in Chrome page (${chromeUrlOverridePages.join(", ")}).`,
       ["Open the overridden page from its normal browser entry point", "Verify fast loading and a clear page title", "Test normal and incognito behavior where supported"]);
+  }
+  if (chromeSettingsOverrides) {
+    addLane(lanes, "browser-settings-override", "critical",
+      "The extension declares browser homepage, startup-page, or search-provider overrides.",
+      ["Verify the fresh-install confirmation and the exact resulting settings", "Test every declared homepage, startup, and search path", "Remove or disable the extension and verify settings recover as expected"]);
   }
   if (hostPermissions.length > 0 || optionalHostPermissions.length > 0) {
     addLane(lanes, "permission-boundaries", "high",
@@ -603,6 +625,9 @@ export function analyzeManifest(manifest) {
   }
   if (chromeUrlOverridePages.length > 0) {
     riskFlags.push({ id: "browser-page-override", level: "high", message: "A built-in Chrome page is replaced; verify navigation, performance, focus, and incognito behavior." });
+  }
+  if (chromeSettingsOverrides) {
+    riskFlags.push({ id: "browser-settings-override", level: "critical", message: "Browser settings are overridden; verify explicit user confirmation, the exact resulting settings, and recovery after disable or removal." });
   }
 
   const report = {
@@ -818,6 +843,13 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "browser-page-override-change",
       level: "high",
       message: "A built-in Chrome page override changed. Test the affected browser entry point, loading speed, title, focus, navigation, and supported incognito behavior."
+    });
+  }
+  if (declarations.some(item => item.field === "chrome_settings_overrides")) {
+    findings.push({
+      id: "browser-settings-override-change",
+      level: "critical",
+      message: "Browser setting overrides changed. Verify the install confirmation, every affected homepage, startup, and search path, plus recovery after disable or removal."
     });
   }
   if (changes.surfaces.added.length > 0 || changes.surfaces.removed.length > 0 || uiDeclarationsChanged) {

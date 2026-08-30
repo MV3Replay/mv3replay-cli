@@ -33,6 +33,7 @@ const richManifest = {
   options_ui: { page: "options.html" },
   side_panel: { default_path: "side-panel.html" },
   chrome_url_overrides: { newtab: "newtab.html" },
+  chrome_settings_overrides: { homepage: "https://example.test/home" },
   commands: { _execute_action: { suggested_key: { default: "Ctrl+Shift+Y" } } },
   declarative_net_request: { rule_resources: [{ id: "base", enabled: true, path: "rules.json" }] },
   web_accessible_resources: [{ resources: ["injected.js"], matches: ["<all_urls>"] }],
@@ -56,6 +57,7 @@ test("builds a deterministic plan from MV3 surfaces", () => {
   assert.equal(first.surfaces.contentScripts, 1);
   assert.equal(first.surfaces.storage, true);
   assert.equal(first.surfaces.chromeUrlOverrides, true);
+  assert.equal(first.surfaces.chromeSettingsOverrides, true);
   assert.deepEqual(first.privacy, {
     localOnly: true,
     sourceFilesRead: false,
@@ -73,6 +75,7 @@ test("builds a deterministic plan from MV3 surfaces", () => {
   assert.ok(laneIds.includes("web-accessible-resources"));
   assert.ok(laneIds.includes("external-messaging"));
   assert.ok(laneIds.includes("browser-page-override"));
+  assert.ok(laneIds.includes("browser-settings-override"));
 
   const riskIds = first.riskFlags.map(flag => flag.id);
   assert.ok(riskIds.includes("broad-host-scope"));
@@ -81,6 +84,7 @@ test("builds a deterministic plan from MV3 surfaces", () => {
   assert.ok(riskIds.includes("ephemeral-worker"));
   assert.ok(riskIds.includes("broad-web-accessible-resources"));
   assert.ok(riskIds.includes("browser-page-override"));
+  assert.ok(riskIds.includes("browser-settings-override"));
 });
 
 test("detects lifecycle and trust-boundary surfaces", () => {
@@ -582,6 +586,31 @@ test("detects built-in Chrome page override changes", () => {
     && change.current === "newtab.html"));
   assert.ok(report.findings.some(item => item.id === "browser-page-override-change"));
   assert.ok(report.findings.some(item => item.id === "extension-surface-change"));
+});
+
+test("detects browser setting override changes", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Settings fixture",
+    version: "1.0.0"
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    chrome_settings_overrides: {
+      homepage: "https://example.test/home",
+      startup_pages: ["https://example.test/start"]
+    }
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["browser-settings-override"]);
+  assert.ok(report.changes.declarations.some(change =>
+    change.field === "chrome_settings_overrides"
+    && change.previous === null
+    && change.current.homepage === "https://example.test/home"));
+  assert.ok(report.findings.some(item => item.id === "browser-settings-override-change"));
+  assert.equal(report.requiresManualUpdateValidation, true);
 });
 
 test("normalizes command description and every suggested_key platform entry deterministically", () => {

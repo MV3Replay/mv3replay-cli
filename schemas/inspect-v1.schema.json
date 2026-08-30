@@ -46,6 +46,7 @@
         "downloads",
         "clipboard",
         "chromeUrlOverrides",
+        "chromeSettingsOverrides",
         "incognitoMode"
       ],
       "properties": {
@@ -73,6 +74,7 @@
         "downloads": { "type": "boolean" },
         "clipboard": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
+        "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }
       }
     },
