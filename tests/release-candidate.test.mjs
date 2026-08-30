@@ -22,11 +22,16 @@ test("the package version is exactly 0.1.0-rc1", () => {
 });
 
 test("the normal test gate integrates the local-interface tests exactly once", () => {
-  assert.equal(packageJson.scripts["test:app"], "node --test tests/local-app.test.mjs");
+  assert.equal(
+    packageJson.scripts["test:app"],
+    "node --test tests/local-app.test.mjs tests/local-app-client-runtime.test.mjs"
+  );
   const testScript = packageJson.scripts.test;
   const occurrences = testScript.split("tests/local-app.test.mjs").length - 1;
   assert.equal(occurrences, 1, "tests/local-app.test.mjs must run exactly once from npm test");
   assert.match(testScript, /tests\/local-app\.test\.mjs/);
+  const runtimeOccurrences = testScript.split("tests/local-app-client-runtime.test.mjs").length - 1;
+  assert.equal(runtimeOccurrences, 1, "client runtime tests must run exactly once from npm test");
 });
 
 test("release notes distinguish implemented behavior from future ideas", () => {
