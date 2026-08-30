@@ -121,6 +121,9 @@ Synthetic browser-data fixtures also cover cookies, history, bookmarks,
 browsing-data removal, navigation metadata, and web-request observation.
 Reversible critical lanes cover per-site content settings, privacy controls,
 and proxy configuration in disposable profiles with exact restoration checks.
+Zero-retention lanes cover geolocation, desktop and page capture, while
+active-tab and scripting lanes verify user gestures, host boundaries, target
+frames, execution worlds, and access revocation after navigation.
 
 The public-safety check rejects likely secrets, email addresses, personal
 Windows paths, and parent-directory traversal. Unrelated private-project terms

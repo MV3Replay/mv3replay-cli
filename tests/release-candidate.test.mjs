@@ -95,6 +95,8 @@ test("the compact release-candidate record distinguishes public source from an u
       "privacy-safe browser data and web-request test lanes",
       "synthetic browser-data regression fixture",
       "reversible content, privacy, and proxy setting controls",
+      "zero-retention capture and geolocation boundaries",
+      "active-tab gesture and programmatic-injection boundaries",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",
