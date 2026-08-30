@@ -150,6 +150,21 @@ test("compares a previous and candidate MV3 manifest via POST", async () => {
   });
 });
 
+test("compare endpoint returns both the comparison report and the candidate analysis report", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous: richManifest, current: candidateManifest })
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.report.to.version, "1.1.0");
+    assert.equal(data.candidateAnalysis.identity.version, "1.1.0");
+    assert.ok(Array.isArray(data.candidateAnalysis.lanes));
+  });
+});
+
 test("rejects non-POST requests to the compare endpoint", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/api/compare`, { method: "GET" });
@@ -280,6 +295,33 @@ test("index.html includes an accessible checklist section and export control", a
   assert.match(html, /id="checklist-progress"/);
   assert.match(html, /id="export-checklist"/);
   assert.match(html, /aria-labelledby="checklist-heading"/);
+});
+
+test("index.html includes an accessible candidate-release checklist section and export control", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="candidate-checklist"/);
+  assert.match(html, /id="candidate-checklist-progress"/);
+  assert.match(html, /id="export-comparison"/);
+  assert.match(html, /aria-labelledby="candidate-checklist-heading"/);
+});
+
+test("app.js renders the candidate-release checklist as accessible checkboxes with labels", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /renderCandidateChecklist/);
+  assert.match(source, /candidateChecklistListEl/);
+  assert.match(source, /candidateChecklistProgressEl/);
+});
+
+test("app.js resets candidate checklist state on each new comparison", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /let candidateChecklistState = \[\];/);
+  assert.match(source, /candidateChecklistState = \[\];[\s\S]*const previousFile = previousFileInput\.files\[0\]/);
+});
+
+test("app.js exports the comparison and candidate checklist only via a user-triggered local download", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /exportComparisonButton\.addEventListener\("click"/);
+  assert.doesNotMatch(source, /fetch\(\s*["'`]\/api\/export/);
 });
 
 test("applies a restrictive local Content-Security-Policy", async () => {

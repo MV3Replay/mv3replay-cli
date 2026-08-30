@@ -175,8 +175,9 @@ async function handleCompare(req, res) {
 
   try {
     const report = compareManifests(previous, current);
+    const candidateAnalysis = analyzeManifest(current);
     setSecurityHeaders(res);
-    sendJson(res, 200, { report });
+    sendJson(res, 200, { report, candidateAnalysis });
   } catch (error) {
     setSecurityHeaders(res);
     if (error.code === "UNSUPPORTED_MANIFEST_VERSION") {

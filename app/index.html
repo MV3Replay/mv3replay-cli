@@ -53,6 +53,16 @@
   <p id="compare-status" role="status"></p>
   <section id="compare-report" hidden></section>
 
+  <section id="candidate-checklist" hidden aria-labelledby="candidate-checklist-heading">
+    <h2 id="candidate-checklist-heading">Candidate-release checklist</h2>
+    <p id="candidate-checklist-progress" role="status"></p>
+    <ul id="candidate-checklist-list"></ul>
+    <button type="button" id="export-comparison" disabled>
+      Download comparison + candidate checklist (JSON)
+    </button>
+    <p id="export-comparison-status" role="status"></p>
+  </section>
+
   <footer>
     <p>
       This tool inspects manifest structure only. It does not read extension source

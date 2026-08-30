@@ -19,6 +19,17 @@ const candidateFileInput = document.getElementById("candidate-manifest-file");
 const compareStatusEl = document.getElementById("compare-status");
 const compareReportEl = document.getElementById("compare-report");
 
+const candidateChecklistEl = document.getElementById("candidate-checklist");
+const candidateChecklistListEl = document.getElementById("candidate-checklist-list");
+const candidateChecklistProgressEl = document.getElementById("candidate-checklist-progress");
+const exportComparisonButton = document.getElementById("export-comparison");
+const exportComparisonStatusEl = document.getElementById("export-comparison-status");
+
+// Candidate checklist state exists only for the lifetime of this page.
+let currentCompareReport = null;
+let currentCandidateAnalysis = null;
+let candidateChecklistState = [];
+
 function setStatus(message) {
   statusEl.textContent = message;
 }
@@ -266,10 +277,83 @@ function renderCompareReport(report) {
   }));
 }
 
+function updateCandidateChecklistProgress() {
+  const total = candidateChecklistState.length;
+  const completed = candidateChecklistState.filter(item => item.done).length;
+  candidateChecklistProgressEl.textContent = total === 0
+    ? "No candidate-release checklist items for this comparison."
+    : `${completed} of ${total} candidate-release checklist items completed.`;
+}
+
+function renderCandidateChecklist(candidateAnalysis) {
+  candidateChecklistListEl.textContent = "";
+  candidateChecklistState = [];
+
+  candidateAnalysis.lanes.forEach((lane, laneIndex) => {
+    lane.checks.forEach((check, checkIndex) => {
+      const id = `candidate-checklist-item-${laneIndex}-${checkIndex}`;
+      candidateChecklistState.push({ id, laneId: lane.id, check, done: false });
+
+      const item = el("li", { className: "checklist-item" });
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.id = id;
+      checkbox.addEventListener("change", () => {
+        const entry = candidateChecklistState.find(candidate => candidate.id === id);
+        if (entry) entry.done = checkbox.checked;
+        updateCandidateChecklistProgress();
+      });
+      const label = document.createElement("label");
+      label.htmlFor = id;
+      label.textContent = `${lane.id}: ${check}`;
+
+      item.appendChild(checkbox);
+      item.appendChild(label);
+      candidateChecklistListEl.appendChild(item);
+    });
+  });
+
+  candidateChecklistEl.hidden = candidateChecklistState.length === 0;
+  exportComparisonButton.disabled = candidateChecklistState.length === 0;
+  exportComparisonStatusEl.textContent = "";
+  updateCandidateChecklistProgress();
+}
+
+exportComparisonButton.addEventListener("click", () => {
+  if (!currentCompareReport || !currentCandidateAnalysis) return;
+
+  const exportPayload = {
+    exportedAt: new Date().toISOString(),
+    comparisonReport: currentCompareReport,
+    candidateAnalysis: currentCandidateAnalysis,
+    candidateChecklist: candidateChecklistState.map(({ id, laneId, check, done }) => ({ id, laneId, check, done }))
+  };
+
+  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "mv3-replay-comparison-checklist.json";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  exportComparisonStatusEl.textContent = "Comparison and candidate checklist exported to a local JSON file.";
+});
+
 compareForm.addEventListener("submit", async event => {
   event.preventDefault();
   compareReportEl.hidden = true;
   compareReportEl.textContent = "";
+  candidateChecklistEl.hidden = true;
+  candidateChecklistListEl.textContent = "";
+  candidateChecklistProgressEl.textContent = "";
+  exportComparisonStatusEl.textContent = "";
+  exportComparisonButton.disabled = true;
+  currentCompareReport = null;
+  currentCandidateAnalysis = null;
+  candidateChecklistState = [];
 
   const previousFile = previousFileInput.files[0];
   const candidateFile = candidateFileInput.files[0];
@@ -314,7 +398,10 @@ compareForm.addEventListener("submit", async event => {
       return;
     }
     setCompareStatus("Comparison complete.");
+    currentCompareReport = data.report;
+    currentCandidateAnalysis = data.candidateAnalysis;
     renderCompareReport(data.report);
+    renderCandidateChecklist(data.candidateAnalysis);
   } catch {
     setCompareStatus("The local comparison endpoint could not be reached.");
   }
