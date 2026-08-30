@@ -653,6 +653,29 @@ test("readiness gates refresh whenever a checklist checkbox changes", async () =
   assert.match(css, /\.readiness-blocked/);
 });
 
+test("analysis and comparison provide accessible finding severity filters", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(html, /id="analysis-severity-filter"/);
+  assert.match(html, /id="comparison-severity-filter"/);
+  assert.match(html, /id="analysis-filter-status" role="status" aria-live="polite"/);
+  assert.match(html, /id="comparison-filter-status" role="status" aria-live="polite"/);
+  assert.match(source, /function applyFindingFilter/);
+  assert.match(source, /entry\.node\.hidden = !matches/);
+  assert.match(source, /analysisSeverityFilterEl\.addEventListener\("change"/);
+  assert.match(source, /comparisonSeverityFilterEl\.addEventListener\("change"/);
+});
+
+test("finding filters reset for every new result and do not alter exports", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /analysisSeverityFilterEl\.value = "all"/);
+  assert.match(source, /comparisonSeverityFilterEl\.value = "all"/);
+  assert.match(source, /analysisFilterControlsEl\.hidden = report\.riskFlags\.length === 0/);
+  assert.match(source, /comparisonFilterControlsEl\.hidden = report\.findings\.length === 0/);
+  assert.doesNotMatch(source, /filter\([^\n]*buildAnalysisMarkdown/);
+  assert.doesNotMatch(source, /filter\([^\n]*buildComparisonMarkdown/);
+});
+
 test("report privacy metadata declares no outbound networking", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/api/analyze`, {

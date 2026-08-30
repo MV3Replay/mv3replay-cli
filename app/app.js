@@ -51,6 +51,9 @@ const reportEl = document.getElementById("report");
 const reportSummaryEl = document.getElementById("report-summary");
 const analysisReadinessEl = document.getElementById("analysis-readiness");
 const reportDetailsEl = document.getElementById("report-details");
+const analysisFilterControlsEl = document.getElementById("analysis-filter-controls");
+const analysisSeverityFilterEl = document.getElementById("analysis-severity-filter");
+const analysisFilterStatusEl = document.getElementById("analysis-filter-status");
 
 const checklistEl = document.getElementById("checklist");
 const checklistListEl = document.getElementById("checklist-list");
@@ -62,6 +65,7 @@ const exportStatusEl = document.getElementById("export-status");
 // Checklist state exists only for the lifetime of this page.
 let currentReport = null;
 let checklistState = [];
+let analysisFindingNodes = [];
 
 const compareForm = document.getElementById("compare-form");
 const compareSubmitButton = document.getElementById("compare-submit");
@@ -75,6 +79,9 @@ const compareReportEl = document.getElementById("compare-report");
 const compareReportSummaryEl = document.getElementById("compare-report-summary");
 const comparisonReadinessEl = document.getElementById("comparison-readiness");
 const compareReportDetailsEl = document.getElementById("compare-report-details");
+const comparisonFilterControlsEl = document.getElementById("comparison-filter-controls");
+const comparisonSeverityFilterEl = document.getElementById("comparison-severity-filter");
+const comparisonFilterStatusEl = document.getElementById("comparison-filter-status");
 
 const candidateChecklistEl = document.getElementById("candidate-checklist");
 const candidateChecklistListEl = document.getElementById("candidate-checklist-list");
@@ -87,6 +94,7 @@ const exportComparisonStatusEl = document.getElementById("export-comparison-stat
 let currentCompareReport = null;
 let currentCandidateAnalysis = null;
 let candidateChecklistState = [];
+let comparisonFindingNodes = [];
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -291,8 +299,28 @@ function renderFinding(flag) {
   return container;
 }
 
+function applyFindingFilter(entries, filterValue, statusEl) {
+  let visible = 0;
+  for (const entry of entries) {
+    const matches = filterValue === "all" || entry.level === filterValue;
+    entry.node.hidden = !matches;
+    if (matches) visible += 1;
+  }
+  const label = filterValue === "all" ? "all severities" : filterValue;
+  statusEl.textContent = `${visible} finding${visible === 1 ? "" : "s"} shown (${label}).`;
+}
+
+analysisSeverityFilterEl.addEventListener("change", () => {
+  applyFindingFilter(analysisFindingNodes, analysisSeverityFilterEl.value, analysisFilterStatusEl);
+});
+
+comparisonSeverityFilterEl.addEventListener("change", () => {
+  applyFindingFilter(comparisonFindingNodes, comparisonSeverityFilterEl.value, comparisonFilterStatusEl);
+});
+
 function renderReport(report) {
   reportDetailsEl.textContent = "";
+  analysisFindingNodes = [];
   reportEl.hidden = false;
 
   reportDetailsEl.appendChild(el("h2", { text: "Identity" }));
@@ -318,8 +346,15 @@ function renderReport(report) {
   if (report.riskFlags.length === 0) {
     reportDetailsEl.appendChild(el("p", { text: "No risk flags were detected in this static analysis." }));
   } else {
-    for (const flag of report.riskFlags) reportDetailsEl.appendChild(renderFinding(flag));
+    for (const flag of report.riskFlags) {
+      const node = renderFinding(flag);
+      analysisFindingNodes.push({ level: flag.level, node });
+      reportDetailsEl.appendChild(node);
+    }
   }
+  analysisFilterControlsEl.hidden = report.riskFlags.length === 0;
+  analysisSeverityFilterEl.value = "all";
+  applyFindingFilter(analysisFindingNodes, "all", analysisFilterStatusEl);
 
   reportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
   reportDetailsEl.appendChild(el("p", {
@@ -546,6 +581,10 @@ function resetAnalysisResults() {
   reportSummaryEl.textContent = "";
   reportDetailsEl.textContent = "";
   analysisReadinessEl.textContent = "";
+  analysisFilterControlsEl.hidden = true;
+  analysisSeverityFilterEl.value = "all";
+  analysisFilterStatusEl.textContent = "";
+  analysisFindingNodes = [];
   checklistEl.hidden = true;
   checklistListEl.textContent = "";
   checklistProgressEl.textContent = "";
@@ -627,6 +666,7 @@ function renderListDiff(title, diff) {
 
 function renderCompareReport(report) {
   compareReportDetailsEl.textContent = "";
+  comparisonFindingNodes = [];
   compareReportEl.hidden = false;
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Release identity" }));
@@ -645,8 +685,15 @@ function renderCompareReport(report) {
   if (report.findings.length === 0) {
     compareReportDetailsEl.appendChild(el("p", { text: "No comparison findings were detected in this static analysis." }));
   } else {
-    for (const finding of report.findings) compareReportDetailsEl.appendChild(renderFinding(finding));
+    for (const finding of report.findings) {
+      const node = renderFinding(finding);
+      comparisonFindingNodes.push({ level: finding.level, node });
+      compareReportDetailsEl.appendChild(node);
+    }
   }
+  comparisonFilterControlsEl.hidden = report.findings.length === 0;
+  comparisonSeverityFilterEl.value = "all";
+  applyFindingFilter(comparisonFindingNodes, "all", comparisonFilterStatusEl);
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Key changes" }));
   compareReportDetailsEl.appendChild(renderListDiff("Required permissions", report.changes.requiredPermissions));
@@ -808,6 +855,10 @@ function resetComparisonResults() {
   compareReportSummaryEl.textContent = "";
   compareReportDetailsEl.textContent = "";
   comparisonReadinessEl.textContent = "";
+  comparisonFilterControlsEl.hidden = true;
+  comparisonSeverityFilterEl.value = "all";
+  comparisonFilterStatusEl.textContent = "";
+  comparisonFindingNodes = [];
   candidateChecklistEl.hidden = true;
   candidateChecklistListEl.textContent = "";
   candidateChecklistProgressEl.textContent = "";

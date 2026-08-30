@@ -62,7 +62,10 @@ async function createClientHarness() {
     identity: { name: "Built-in example extension", version: "1.0.0", manifestVersion: 3 },
     surfaces: { serviceWorker: true, popup: true },
     lanes: [{ id: "startup", priority: "high", reason: "Worker startup", checks: ["Restart the worker"] }],
-    riskFlags: [],
+    riskFlags: [
+      { id: "broad-host", level: "critical", message: "Broad host access" },
+      { id: "notification", level: "low", message: "Notification permission" }
+    ],
     privacy: { localOnly: true, browserConnected: false }
   };
   const comparisonReport = {
@@ -131,5 +134,19 @@ test("built-in comparison example renders an explicit manual-validation gate", a
   assert.equal(elements.get("compare-report").hidden, false);
   assert.equal(elements.get("compare-submit").disabled, false);
   assert.equal(elements.get("compare-example-button").attributes.get("aria-busy"), "false");
+});
+
+test("severity filters execute and hide non-matching rendered findings", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const filter = elements.get("analysis-severity-filter");
+  filter.value = "critical";
+  filter.listeners.get("change")();
+
+  const findings = elements.get("report-details").children.filter(child => child.className === "finding");
+  assert.equal(findings.length, 2);
+  assert.equal(findings.filter(node => node.hidden).length, 1);
+  assert.match(elements.get("analysis-filter-status").textContent, /1 finding shown \(critical\)/);
 });
 
