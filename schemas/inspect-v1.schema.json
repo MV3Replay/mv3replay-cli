@@ -40,6 +40,11 @@
         "sandboxPages",
         "nativeMessaging",
         "userScripts",
+        "debuggerAccess",
+        "management",
+        "identityAccess",
+        "downloads",
+        "clipboard",
         "incognitoMode"
       ],
       "properties": {
@@ -61,6 +66,11 @@
         "sandboxPages": { "type": "integer", "minimum": 0 },
         "nativeMessaging": { "type": "boolean" },
         "userScripts": { "type": "boolean" },
+        "debuggerAccess": { "type": "boolean" },
+        "management": { "type": "boolean" },
+        "identityAccess": { "type": "boolean" },
+        "downloads": { "type": "boolean" },
+        "clipboard": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }
       }
     },

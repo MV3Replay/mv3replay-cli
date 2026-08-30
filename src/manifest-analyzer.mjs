@@ -133,7 +133,12 @@ const SURFACE_NAMES = [
   ["omnibox", "omnibox"],
   ["sandbox-pages", "sandboxPages"],
   ["native-messaging", "nativeMessaging"],
-  ["user-scripts", "userScripts"]
+  ["user-scripts", "userScripts"],
+  ["debugger", "debuggerAccess"],
+  ["extension-management", "management"],
+  ["identity", "identityAccess"],
+  ["downloads", "downloads"],
+  ["clipboard", "clipboard"]
 ];
 
 function surfaceDiff(previousSurfaces, currentSurfaces) {
@@ -303,6 +308,14 @@ export function analyzeManifest(manifest) {
   const sandboxPages = sortedUnique(asStrings(manifest.sandbox?.pages));
   const nativeMessaging = permissions.includes("nativeMessaging") || optionalPermissions.includes("nativeMessaging");
   const userScripts = permissions.includes("userScripts") || optionalPermissions.includes("userScripts");
+  const debuggerAccess = permissions.includes("debugger") || optionalPermissions.includes("debugger");
+  const management = permissions.includes("management") || optionalPermissions.includes("management");
+  const identityAccess = permissions.some(permission => permission === "identity" || permission === "identity.email")
+    || optionalPermissions.some(permission => permission === "identity" || permission === "identity.email")
+    || Boolean(manifest.oauth2 && typeof manifest.oauth2 === "object");
+  const downloads = permissions.includes("downloads") || optionalPermissions.includes("downloads");
+  const clipboard = ["clipboardRead", "clipboardWrite"].some(permission =>
+    permissions.includes(permission) || optionalPermissions.includes(permission));
 
   const surfaces = {
     actionPopup,
@@ -323,6 +336,11 @@ export function analyzeManifest(manifest) {
     sandboxPages: sandboxPages.length,
     nativeMessaging,
     userScripts,
+    debuggerAccess,
+    management,
+    identityAccess,
+    downloads,
+    clipboard,
     incognitoMode
   };
 
@@ -437,6 +455,31 @@ export function analyzeManifest(manifest) {
       "User scripts introduce dynamically registered code and separate permission state.",
       ["Register and execute a minimal user script", "Verify allowed and denied host states", "Remove registered scripts and confirm no stale execution"]);
   }
+  if (debuggerAccess) {
+    addLane(lanes, "debugger-protocol", "critical",
+      "The debugger API can attach to tabs and expose protocol-level browser capabilities.",
+      ["Attach only after the intended user action", "Handle an occupied or denied debugging target", "Detach cleanly and verify no session remains active"]);
+  }
+  if (management) {
+    addLane(lanes, "extension-management", "critical",
+      "The management API can inspect or change the state of other installed extensions.",
+      ["Exercise read-only listing separately from state changes", "Require explicit confirmation before a reversible state change", "Verify protected or unsupported targets fail safely"]);
+  }
+  if (identityAccess) {
+    addLane(lanes, "identity-flow", "high",
+      "Identity flows depend on user choice, token lifetime, and provider failure states.",
+      ["Complete the intended interactive sign-in", "Cancel or deny the flow", "Verify expired or revoked access returns to a recoverable state"]);
+  }
+  if (downloads) {
+    addLane(lanes, "downloads", "high",
+      "Download behavior crosses browser prompts, filenames, conflicts, and local filesystem state.",
+      ["Download a harmless test file", "Exercise filename conflict and cancellation", "Verify failure behavior without exposing local paths"]);
+  }
+  if (clipboard) {
+    addLane(lanes, "clipboard-boundary", "high",
+      "Clipboard access handles data outside the extension and can fail without focus or user activation.",
+      ["Exercise the intended user-initiated clipboard action", "Handle unavailable or denied clipboard access", "Verify copied or read content is not retained unexpectedly"]);
+  }
 
   const riskFlags = [];
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
@@ -471,6 +514,15 @@ export function analyzeManifest(manifest) {
   }
   if (permissions.includes("userScripts")) {
     riskFlags.push({ id: "required-user-scripts", level: "high", message: "userScripts is required; verify explicit user control, host scope, and removal of dynamically registered scripts." });
+  }
+  if (permissions.includes("debugger")) {
+    riskFlags.push({ id: "required-debugger-access", level: "critical", message: "debugger is required; verify explicit user intent, target selection, protocol error handling, and reliable detachment." });
+  }
+  if (permissions.includes("management")) {
+    riskFlags.push({ id: "required-extension-management", level: "critical", message: "management is required; verify that actions affecting other extensions are explicit, reversible where possible, and safely rejected for protected targets." });
+  }
+  if (permissions.includes("clipboardRead")) {
+    riskFlags.push({ id: "required-clipboard-read", level: "high", message: "clipboardRead is required; verify user expectations, unavailable states, and that clipboard content is not retained unexpectedly." });
   }
 
   const report = {

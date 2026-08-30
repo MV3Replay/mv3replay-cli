@@ -106,7 +106,8 @@ repository root on Windows and POSIX shells. Representative manifests live in
 scripts, optional and required permissions, host permissions, declarative
 net request rulesets, side panel, risky external messaging, malformed JSON,
 omnibox input, sandboxed pages, native messaging, user scripts, and non-MV3
-input.
+input. Specialized lanes also cover debugger sessions, extension management,
+identity flows, downloads, and clipboard boundaries.
 
 The public-safety check rejects likely secrets, email addresses, personal
 Windows paths, and parent-directory traversal. Unrelated private-project terms

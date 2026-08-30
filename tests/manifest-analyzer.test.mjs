@@ -599,6 +599,20 @@ const fixtureExpectations = {
     }
     assert.ok(report.riskFlags.some(flag => flag.id === "required-native-messaging" && flag.level === "critical"));
     assert.ok(report.riskFlags.some(flag => flag.id === "required-user-scripts" && flag.level === "high"));
+  },
+  "sensitive-permissions": report => {
+    assert.equal(report.surfaces.debuggerAccess, true);
+    assert.equal(report.surfaces.management, true);
+    assert.equal(report.surfaces.identityAccess, true);
+    assert.equal(report.surfaces.downloads, true);
+    assert.equal(report.surfaces.clipboard, true);
+    for (const lane of ["debugger-protocol", "extension-management", "identity-flow", "downloads", "clipboard-boundary"]) {
+      assert.ok(report.lanes.some(item => item.id === lane));
+    }
+    assert.ok(report.riskFlags.some(flag => flag.id === "required-debugger-access" && flag.level === "critical"));
+    assert.ok(report.riskFlags.some(flag => flag.id === "required-extension-management" && flag.level === "critical"));
+    assert.ok(report.riskFlags.some(flag => flag.id === "required-clipboard-read" && flag.level === "high"));
+    assert.ok(!report.riskFlags.some(flag => flag.id.includes("downloads") || flag.id.includes("identity")));
   }
 };
 

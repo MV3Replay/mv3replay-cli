@@ -92,6 +92,11 @@ function printHuman(report, file) {
     `- Sandboxed pages: ${report.surfaces.sandboxPages}`,
     `- Native messaging: ${yesNo(report.surfaces.nativeMessaging)}`,
     `- User scripts: ${yesNo(report.surfaces.userScripts)}`,
+    `- Debugger access: ${yesNo(report.surfaces.debuggerAccess)}`,
+    `- Extension management: ${yesNo(report.surfaces.management)}`,
+    `- Identity flow: ${yesNo(report.surfaces.identityAccess)}`,
+    `- Downloads: ${yesNo(report.surfaces.downloads)}`,
+    `- Clipboard access: ${yesNo(report.surfaces.clipboard)}`,
     "",
     "Recommended regression lanes"
   ];

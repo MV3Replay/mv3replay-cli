@@ -39,6 +39,9 @@ public for testing, but no package, tag, or GitHub Release exists.
   and Windows on Node.js 20, 22, and 24.
 - Regression lanes for omnibox input, sandboxed pages, native messaging, and
   dynamically registered user scripts, including required-access risk flags.
+- Specialized permission lanes for debugger sessions, extension management,
+  identity flows, downloads, and clipboard boundaries, with stronger flags
+  only when sensitive access is required rather than optional.
 
 ### Future ideas (not implemented)
 
