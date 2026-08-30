@@ -88,6 +88,14 @@ async function createClientHarness() {
       optionalHosts: { added: [], removed: [] },
       oauthScopes: { added: ["profile"], removed: [] },
       contentScriptMatches: { added: [], removed: [] },
+      contentScripts: {
+        added: [{
+          matches: ["https://example.test/*"], excludeMatches: [], files: ["new-content.js"],
+          runAt: "document_start", allFrames: true, world: "MAIN",
+          matchAboutBlank: false, matchOriginAsFallback: false
+        }],
+        removed: []
+      },
       commands: { added: [], removed: [] },
       surfaces: { added: ["native-messaging"], removed: [] },
       declarations: [
@@ -147,6 +155,7 @@ test("built-in comparison example renders an explicit manual-validation gate", a
   assert.match(collectText(elements.get("comparison-readiness")), /Update-path validation required/);
   assert.match(collectText(elements.get("compare-report-details")), /omnibox\.keyword: not declared → mv3/);
   assert.match(collectText(elements.get("compare-report-details")), /Extension surfaces Added: native-messaging/);
+  assert.match(collectText(elements.get("compare-report-details")), /Added: files=new-content\.js; matches=https:\/\/example\.test\/\*/);
   assert.equal(elements.get("compare-report").hidden, false);
   assert.equal(elements.get("compare-submit").disabled, false);
   assert.equal(elements.get("compare-example-button").attributes.get("aria-busy"), "false");

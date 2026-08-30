@@ -760,6 +760,30 @@ function renderListDiff(title, diff) {
   return container;
 }
 
+function formatContentScriptRegistration(registration) {
+  const files = registration.files.length > 0 ? registration.files.join(", ") : "none";
+  const matches = registration.matches.length > 0 ? registration.matches.join(", ") : "none";
+  return `files=${files}; matches=${matches}; runAt=${registration.runAt || "default"}; world=${registration.world}; allFrames=${registration.allFrames}`;
+}
+
+function renderContentScriptChanges(diff) {
+  const container = el("div", { className: "declaration-changes" });
+  container.appendChild(el("strong", { text: "Content-script registrations" }));
+  if (diff.added.length === 0 && diff.removed.length === 0) {
+    container.appendChild(el("p", { text: "No content-script registration changed." }));
+    return container;
+  }
+  const list = el("ul");
+  for (const registration of diff.added) {
+    list.appendChild(el("li", { text: `Added: ${formatContentScriptRegistration(registration)}` }));
+  }
+  for (const registration of diff.removed) {
+    list.appendChild(el("li", { text: `Removed: ${formatContentScriptRegistration(registration)}` }));
+  }
+  container.appendChild(list);
+  return container;
+}
+
 function formatDeclarationValue(value) {
   if (value === null || value === undefined) return "not declared";
   if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "none";
@@ -825,6 +849,7 @@ function renderCompareReport(report) {
   compareReportDetailsEl.appendChild(renderListDiff("Optional host access", report.changes.optionalHosts));
   compareReportDetailsEl.appendChild(renderListDiff("OAuth scopes", report.changes.oauthScopes));
   compareReportDetailsEl.appendChild(renderListDiff("Content-script match scope", report.changes.contentScriptMatches));
+  compareReportDetailsEl.appendChild(renderContentScriptChanges(report.changes.contentScripts));
   compareReportDetailsEl.appendChild(renderListDiff("Keyboard commands", report.changes.commands));
   compareReportDetailsEl.appendChild(renderListDiff("Extension surfaces", report.changes.surfaces));
   compareReportDetailsEl.appendChild(renderDeclarationChanges(report.changes.declarations));
@@ -944,6 +969,18 @@ function buildComparisonMarkdown(report, checklist) {
       ? diff.removed.map(escapeMarkdownText).join(", ")
       : "none";
     lines.push(`- ${title} — Added: ${added}; Removed: ${removed}`);
+  }
+  lines.push("");
+  lines.push("### Content-script registrations");
+  if (report.changes.contentScripts.added.length === 0 && report.changes.contentScripts.removed.length === 0) {
+    lines.push("No content-script registration changed.");
+  } else {
+    for (const registration of report.changes.contentScripts.added) {
+      lines.push(`- Added: ${escapeMarkdownText(formatContentScriptRegistration(registration))}`);
+    }
+    for (const registration of report.changes.contentScripts.removed) {
+      lines.push(`- Removed: ${escapeMarkdownText(formatContentScriptRegistration(registration))}`);
+    }
   }
   lines.push("");
   lines.push("### Entry-point declarations");

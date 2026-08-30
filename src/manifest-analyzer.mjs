@@ -797,6 +797,13 @@ export function compareManifests(previousManifest, currentManifest) {
       message: `Extension surfaces changed (added: ${changes.surfaces.added.join(", ") || "none"}; removed: ${changes.surfaces.removed.join(", ") || "none"}${uiDeclarationsChanged ? "; declarations changed" : ""}). Verify each affected surface through its browser entry point.`
     });
   }
+  if (changes.contentScripts.added.length > 0 || changes.contentScripts.removed.length > 0) {
+    findings.push({
+      id: "content-script-registration-change",
+      level: "high",
+      message: `Content-script registrations changed (added: ${changes.contentScripts.added.length}; removed: ${changes.contentScripts.removed.length}). Verify timing, frame coverage, execution world, matched pages, and injected files.`
+    });
+  }
   if (changes.contentScriptMatches.added.length > 0) {
     findings.push({
       id: "content-script-scope-expansion",

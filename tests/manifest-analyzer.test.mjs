@@ -297,9 +297,12 @@ test("compares content-script registrations deterministically", () => {
   assert.deepEqual(newRegistration.matches, ["https://other.example.org/*"]);
   assert.deepEqual(newRegistration.files, ["style.css"]);
   assert.equal(newRegistration.matchOriginAsFallback, true);
+  assert.ok(report.findings.some(item => item.id === "content-script-registration-change"));
+  assert.ok(report.findings.some(item => item.id === "content-script-scope-expansion"));
 
   const identical = compareManifests(previous, structuredClone(previous));
   assert.deepEqual(identical.changes.contentScripts, { added: [], removed: [] });
+  assert.ok(!identical.findings.some(item => item.id === "content-script-registration-change"));
 });
 
 test("compares commands, DNR rulesets, external messaging, web-accessible resources, and surfaces", () => {
