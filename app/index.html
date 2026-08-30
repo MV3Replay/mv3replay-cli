@@ -81,6 +81,16 @@
   <section id="checklist" class="card" hidden aria-labelledby="checklist-heading">
     <h2 id="checklist-heading">Release checklist</h2>
     <p id="checklist-progress" role="status" aria-live="polite"></p>
+    <div id="checklist-controls" class="checklist-controls" hidden>
+      <label for="checklist-filter">Show checks</label>
+      <select id="checklist-filter">
+        <option value="all">All checks</option>
+        <option value="open">Incomplete only</option>
+        <option value="done">Completed only</option>
+      </select>
+      <button type="button" id="reset-checklist" class="secondary-button">Reset checks</button>
+      <span id="checklist-filter-status" role="status" aria-live="polite"></span>
+    </div>
     <ul id="checklist-list"></ul>
     <div class="export-actions">
       <button type="button" id="export-checklist" disabled>
@@ -154,6 +164,16 @@
   <section id="candidate-checklist" class="card" hidden aria-labelledby="candidate-checklist-heading">
     <h2 id="candidate-checklist-heading">Candidate-release checklist</h2>
     <p id="candidate-checklist-progress" role="status" aria-live="polite"></p>
+    <div id="candidate-checklist-controls" class="checklist-controls" hidden>
+      <label for="candidate-checklist-filter">Show checks</label>
+      <select id="candidate-checklist-filter">
+        <option value="all">All checks</option>
+        <option value="open">Incomplete only</option>
+        <option value="done">Completed only</option>
+      </select>
+      <button type="button" id="reset-candidate-checklist" class="secondary-button">Reset checks</button>
+      <span id="candidate-checklist-filter-status" role="status" aria-live="polite"></span>
+    </div>
     <ul id="candidate-checklist-list"></ul>
     <div class="export-actions">
       <button type="button" id="export-comparison" disabled>

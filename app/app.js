@@ -63,6 +63,10 @@ const analysisFilterStatusEl = document.getElementById("analysis-filter-status")
 const checklistEl = document.getElementById("checklist");
 const checklistListEl = document.getElementById("checklist-list");
 const checklistProgressEl = document.getElementById("checklist-progress");
+const checklistControlsEl = document.getElementById("checklist-controls");
+const checklistFilterEl = document.getElementById("checklist-filter");
+const checklistFilterStatusEl = document.getElementById("checklist-filter-status");
+const resetChecklistButton = document.getElementById("reset-checklist");
 const exportButton = document.getElementById("export-checklist");
 const exportMarkdownButton = document.getElementById("export-checklist-markdown");
 const exportStatusEl = document.getElementById("export-status");
@@ -91,6 +95,10 @@ const comparisonFilterStatusEl = document.getElementById("comparison-filter-stat
 const candidateChecklistEl = document.getElementById("candidate-checklist");
 const candidateChecklistListEl = document.getElementById("candidate-checklist-list");
 const candidateChecklistProgressEl = document.getElementById("candidate-checklist-progress");
+const candidateChecklistControlsEl = document.getElementById("candidate-checklist-controls");
+const candidateChecklistFilterEl = document.getElementById("candidate-checklist-filter");
+const candidateChecklistFilterStatusEl = document.getElementById("candidate-checklist-filter-status");
+const resetCandidateChecklistButton = document.getElementById("reset-candidate-checklist");
 const exportComparisonButton = document.getElementById("export-comparison");
 const exportComparisonMarkdownButton = document.getElementById("export-comparison-markdown");
 const exportComparisonStatusEl = document.getElementById("export-comparison-status");
@@ -378,7 +386,38 @@ function updateChecklistProgress() {
     ? "No checklist items for this manifest."
     : `${completed} of ${total} checklist items completed.`;
   updateAnalysisReadiness();
+  applyChecklistFilter(checklistState, checklistFilterEl.value, checklistFilterStatusEl);
 }
+
+function applyChecklistFilter(state, filterValue, statusEl) {
+  let visible = 0;
+  for (const entry of state) {
+    const matches = filterValue === "all"
+      || (filterValue === "open" && !entry.done)
+      || (filterValue === "done" && entry.done);
+    entry.node.hidden = !matches;
+    if (matches) visible += 1;
+  }
+  const label = filterValue === "open" ? "incomplete" : (filterValue === "done" ? "completed" : "all");
+  statusEl.textContent = `${visible} of ${state.length} checks shown (${label}).`;
+}
+
+function resetChecklist(state, filterEl, updateProgress) {
+  for (const entry of state) {
+    entry.done = false;
+    entry.checkbox.checked = false;
+  }
+  filterEl.value = "all";
+  updateProgress();
+}
+
+checklistFilterEl.addEventListener("change", () => {
+  applyChecklistFilter(checklistState, checklistFilterEl.value, checklistFilterStatusEl);
+});
+
+resetChecklistButton.addEventListener("click", () => {
+  resetChecklist(checklistState, checklistFilterEl, updateChecklistProgress);
+});
 
 function renderChecklist(report) {
   checklistListEl.textContent = "";
@@ -387,8 +426,6 @@ function renderChecklist(report) {
   report.lanes.forEach((lane, laneIndex) => {
     lane.checks.forEach((check, checkIndex) => {
       const id = `checklist-item-${laneIndex}-${checkIndex}`;
-      checklistState.push({ id, laneId: lane.id, check, done: false });
-
       const item = el("li", { className: "checklist-item" });
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
@@ -402,6 +439,8 @@ function renderChecklist(report) {
       label.htmlFor = id;
       label.textContent = `${lane.id}: ${check}`;
 
+      checklistState.push({ id, laneId: lane.id, check, done: false, node: item, checkbox });
+
       item.appendChild(checkbox);
       item.appendChild(label);
       checklistListEl.appendChild(item);
@@ -409,6 +448,8 @@ function renderChecklist(report) {
   });
 
   checklistEl.hidden = checklistState.length === 0;
+  checklistControlsEl.hidden = checklistState.length === 0;
+  checklistFilterEl.value = "all";
   exportButton.disabled = checklistState.length === 0;
   exportMarkdownButton.disabled = checklistState.length === 0;
   exportStatusEl.textContent = "";
@@ -636,6 +677,8 @@ function resetAnalysisResults() {
   analysisFilterStatusEl.textContent = "";
   analysisFindingNodes = [];
   checklistEl.hidden = true;
+  checklistControlsEl.hidden = true;
+  checklistFilterStatusEl.textContent = "";
   checklistListEl.textContent = "";
   checklistProgressEl.textContent = "";
   exportStatusEl.textContent = "";
@@ -794,7 +837,20 @@ function updateCandidateChecklistProgress() {
     ? "No candidate-release checklist items for this comparison."
     : `${completed} of ${total} candidate-release checklist items completed.`;
   updateComparisonReadiness();
+  applyChecklistFilter(candidateChecklistState, candidateChecklistFilterEl.value, candidateChecklistFilterStatusEl);
 }
+
+candidateChecklistFilterEl.addEventListener("change", () => {
+  applyChecklistFilter(
+    candidateChecklistState,
+    candidateChecklistFilterEl.value,
+    candidateChecklistFilterStatusEl
+  );
+});
+
+resetCandidateChecklistButton.addEventListener("click", () => {
+  resetChecklist(candidateChecklistState, candidateChecklistFilterEl, updateCandidateChecklistProgress);
+});
 
 function renderCandidateChecklist(candidateAnalysis) {
   candidateChecklistListEl.textContent = "";
@@ -803,8 +859,6 @@ function renderCandidateChecklist(candidateAnalysis) {
   candidateAnalysis.lanes.forEach((lane, laneIndex) => {
     lane.checks.forEach((check, checkIndex) => {
       const id = `candidate-checklist-item-${laneIndex}-${checkIndex}`;
-      candidateChecklistState.push({ id, laneId: lane.id, check, done: false });
-
       const item = el("li", { className: "checklist-item" });
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
@@ -818,6 +872,8 @@ function renderCandidateChecklist(candidateAnalysis) {
       label.htmlFor = id;
       label.textContent = `${lane.id}: ${check}`;
 
+      candidateChecklistState.push({ id, laneId: lane.id, check, done: false, node: item, checkbox });
+
       item.appendChild(checkbox);
       item.appendChild(label);
       candidateChecklistListEl.appendChild(item);
@@ -825,6 +881,8 @@ function renderCandidateChecklist(candidateAnalysis) {
   });
 
   candidateChecklistEl.hidden = candidateChecklistState.length === 0;
+  candidateChecklistControlsEl.hidden = candidateChecklistState.length === 0;
+  candidateChecklistFilterEl.value = "all";
   exportComparisonButton.disabled = candidateChecklistState.length === 0;
   exportComparisonMarkdownButton.disabled = candidateChecklistState.length === 0;
   exportComparisonStatusEl.textContent = "";
@@ -950,6 +1008,8 @@ function resetComparisonResults() {
   comparisonFilterStatusEl.textContent = "";
   comparisonFindingNodes = [];
   candidateChecklistEl.hidden = true;
+  candidateChecklistControlsEl.hidden = true;
+  candidateChecklistFilterStatusEl.textContent = "";
   candidateChecklistListEl.textContent = "";
   candidateChecklistProgressEl.textContent = "";
   exportComparisonStatusEl.textContent = "";

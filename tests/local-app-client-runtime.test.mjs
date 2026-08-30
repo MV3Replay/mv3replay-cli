@@ -176,3 +176,24 @@ test("feedback template downloads only after the tester clicks the local control
   assert.match(elements.get("feedback-template-status").textContent, /downloaded locally/);
 });
 
+test("checklist completion filters and reset execute against in-memory state", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const checklistItem = elements.get("checklist-list").children[0];
+  const checkbox = checklistItem.children[0];
+  checkbox.checked = true;
+  checkbox.listeners.get("change")();
+
+  const filter = elements.get("checklist-filter");
+  filter.value = "done";
+  filter.listeners.get("change")();
+  assert.equal(checklistItem.hidden, false);
+  assert.match(elements.get("checklist-filter-status").textContent, /1 of 1 checks shown \(completed\)/);
+
+  elements.get("reset-checklist").listeners.get("click")();
+  assert.equal(checkbox.checked, false);
+  assert.equal(filter.value, "all");
+  assert.match(elements.get("checklist-progress").textContent, /0 of 1 checklist items completed/);
+});
+

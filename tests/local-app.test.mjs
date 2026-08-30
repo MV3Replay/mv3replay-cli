@@ -717,6 +717,29 @@ test("comparison summary counts nested and declaration changes", async () => {
   assert.match(source, /const changeCount = countChangeRecords\(report\.changes\)/);
 });
 
+test("both in-memory checklists have accessible completion filters and reset controls", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(html, /id="checklist-filter"/);
+  assert.match(html, /id="candidate-checklist-filter"/);
+  assert.match(html, /id="reset-checklist"/);
+  assert.match(html, /id="reset-candidate-checklist"/);
+  assert.match(html, /id="checklist-filter-status" role="status" aria-live="polite"/);
+  assert.match(html, /id="candidate-checklist-filter-status" role="status" aria-live="polite"/);
+  assert.match(source, /function applyChecklistFilter/);
+  assert.match(source, /function resetChecklist/);
+  assert.match(source, /entry\.node\.hidden = !matches/);
+  assert.match(source, /entry\.checkbox\.checked = false/);
+});
+
+test("checklist filtering never removes items from exports", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /buildAnalysisMarkdown\(currentReport, checklistState\)/);
+  assert.match(source, /buildComparisonMarkdown\(currentCompareReport, candidateChecklistState\)/);
+  assert.doesNotMatch(source, /buildAnalysisMarkdown\([^\n]*\.filter/);
+  assert.doesNotMatch(source, /buildComparisonMarkdown\([^\n]*\.filter/);
+});
+
 test("report privacy metadata declares no outbound networking", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/api/analyze`, {
