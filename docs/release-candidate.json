@@ -10,8 +10,8 @@
   "commitState": "public-source-snapshot",
   "localArtifact": {
     "path": "dist/mv3replay-cli-0.1.0-rc1.tgz",
-    "bytes": 32675,
-    "sha256": "2C07B1C31DD995F57F72E32D5C9EAEE3E041B24356F38FBA145F87EB08F1D884",
+    "bytes": 33044,
+    "sha256": "58B5B1120888E56817FA78DA556DC51B9F1D36009FF4B980EABBED047D9C6887",
     "published": false
   },
   "tests": [
