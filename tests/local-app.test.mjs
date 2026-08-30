@@ -332,6 +332,8 @@ test("app.js renders the candidate-release checklist as accessible checkboxes wi
   assert.match(source, /renderCandidateChecklist/);
   assert.match(source, /candidateChecklistListEl/);
   assert.match(source, /candidateChecklistProgressEl/);
+  assert.match(source, /comparisonReport\.findings\.forEach/);
+  assert.match(source, /`comparison-\$\{finding\.id\}`/);
 });
 
 test("app.js resets candidate checklist state on each new comparison", async () => {

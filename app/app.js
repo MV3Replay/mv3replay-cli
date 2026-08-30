@@ -921,31 +921,42 @@ resetCandidateChecklistButton.addEventListener("click", () => {
   resetChecklist(candidateChecklistState, candidateChecklistFilterEl, updateCandidateChecklistProgress);
 });
 
-function renderCandidateChecklist(candidateAnalysis) {
+function appendCandidateChecklistItem(id, laneId, check) {
+  const item = el("li", { className: "checklist-item" });
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.id = id;
+  checkbox.addEventListener("change", () => {
+    const entry = candidateChecklistState.find(candidate => candidate.id === id);
+    if (entry) entry.done = checkbox.checked;
+    updateCandidateChecklistProgress();
+  });
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = `${laneId}: ${check}`;
+
+  candidateChecklistState.push({ id, laneId, check, done: false, node: item, checkbox });
+  item.appendChild(checkbox);
+  item.appendChild(label);
+  candidateChecklistListEl.appendChild(item);
+}
+
+function renderCandidateChecklist(candidateAnalysis, comparisonReport) {
   candidateChecklistListEl.textContent = "";
   candidateChecklistState = [];
+
+  comparisonReport.findings.forEach((finding, findingIndex) => {
+    appendCandidateChecklistItem(
+      `candidate-comparison-item-${findingIndex}`,
+      `comparison-${finding.id}`,
+      finding.message
+    );
+  });
 
   candidateAnalysis.lanes.forEach((lane, laneIndex) => {
     lane.checks.forEach((check, checkIndex) => {
       const id = `candidate-checklist-item-${laneIndex}-${checkIndex}`;
-      const item = el("li", { className: "checklist-item" });
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.id = id;
-      checkbox.addEventListener("change", () => {
-        const entry = candidateChecklistState.find(candidate => candidate.id === id);
-        if (entry) entry.done = checkbox.checked;
-        updateCandidateChecklistProgress();
-      });
-      const label = document.createElement("label");
-      label.htmlFor = id;
-      label.textContent = `${lane.id}: ${check}`;
-
-      candidateChecklistState.push({ id, laneId: lane.id, check, done: false, node: item, checkbox });
-
-      item.appendChild(checkbox);
-      item.appendChild(label);
-      candidateChecklistListEl.appendChild(item);
+      appendCandidateChecklistItem(id, lane.id, check);
     });
   });
 
@@ -1150,7 +1161,7 @@ async function runComparison(previousManifest, currentManifest, isExample) {
     if (isExample) {
       compareReportSummaryEl.prepend(el("p", { className: "example-label", text: "Built-in example — not your extension" }));
     }
-    renderCandidateChecklist(data.candidateAnalysis);
+    renderCandidateChecklist(data.candidateAnalysis, data.report);
   } catch {
     setCompareStatus("The local comparison endpoint could not be reached.");
   }

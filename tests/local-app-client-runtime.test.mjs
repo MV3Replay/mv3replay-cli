@@ -171,6 +171,7 @@ test("built-in comparison example renders an explicit manual-validation gate", a
   assert.match(collectText(elements.get("compare-report-details")), /Static DNR rulesets Added: privacy Removed: none Changed: base/);
   assert.match(collectText(elements.get("compare-report-details")), /External messaging matches Added: https:\/\/caller\.example\/\*/);
   assert.match(collectText(elements.get("compare-report-details")), /Web-accessible resources Added: resources=injected\.js/);
+  assert.match(collectText(elements.get("candidate-checklist-list")), /comparison-permission-added: New powerful permission/);
   assert.equal(elements.get("compare-report").hidden, false);
   assert.equal(elements.get("compare-submit").disabled, false);
   assert.equal(elements.get("compare-example-button").attributes.get("aria-busy"), "false");
