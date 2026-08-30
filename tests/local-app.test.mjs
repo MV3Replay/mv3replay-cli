@@ -239,6 +239,49 @@ test("serves only the three allowlisted assets", async () => {
   });
 });
 
+test("app.js does not use localStorage, cookies, IndexedDB, or telemetry", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /localStorage/);
+  assert.doesNotMatch(source, /document\.cookie/);
+  assert.doesNotMatch(source, /indexedDB/i);
+  assert.doesNotMatch(source, /sendBeacon|analytics|telemetry/i);
+});
+
+test("app.js only requests the local analyze and compare endpoints", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  const fetchCalls = [...source.matchAll(/fetch\(\s*["'`]([^"'`]+)["'`]/g)].map(match => match[1]);
+  assert.deepEqual(fetchCalls.sort(), ["/api/analyze", "/api/compare"]);
+});
+
+test("app.js renders checklist items as accessible checkboxes with labels", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /checkbox\.type = "checkbox"/);
+  assert.match(source, /label\.htmlFor = id/);
+  assert.match(source, /checklistProgressEl/);
+});
+
+test("app.js exports checklist state only via a user-triggered local download", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /exportButton\.addEventListener\("click"/);
+  assert.match(source, /new Blob\(/);
+  assert.match(source, /URL\.createObjectURL/);
+  assert.doesNotMatch(source, /fetch\(\s*["'`]\/api\/export/);
+});
+
+test("app.js keeps checklist state in memory and resets it on each new analysis", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /let checklistState = \[\];/);
+  assert.match(source, /checklistState = \[\];[\s\S]*const file = fileInput\.files\[0\]/);
+});
+
+test("index.html includes an accessible checklist section and export control", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="checklist"/);
+  assert.match(html, /id="checklist-progress"/);
+  assert.match(html, /id="export-checklist"/);
+  assert.match(html, /aria-labelledby="checklist-heading"/);
+});
+
 test("applies a restrictive local Content-Security-Policy", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/`);

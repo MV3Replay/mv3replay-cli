@@ -25,6 +25,16 @@
   <p id="status" role="status"></p>
   <section id="report" hidden></section>
 
+  <section id="checklist" hidden aria-labelledby="checklist-heading">
+    <h2 id="checklist-heading">Release checklist</h2>
+    <p id="checklist-progress" role="status"></p>
+    <ul id="checklist-list"></ul>
+    <button type="button" id="export-checklist" disabled>
+      Download analysis + checklist (JSON)
+    </button>
+    <p id="export-status" role="status"></p>
+  </section>
+
   <hr>
 
   <h2>Compare a previous and candidate release</h2>

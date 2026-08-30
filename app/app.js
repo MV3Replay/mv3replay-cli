@@ -3,6 +3,16 @@ const fileInput = document.getElementById("manifest-file");
 const statusEl = document.getElementById("status");
 const reportEl = document.getElementById("report");
 
+const checklistEl = document.getElementById("checklist");
+const checklistListEl = document.getElementById("checklist-list");
+const checklistProgressEl = document.getElementById("checklist-progress");
+const exportButton = document.getElementById("export-checklist");
+const exportStatusEl = document.getElementById("export-status");
+
+// Checklist state exists only for the lifetime of this page.
+let currentReport = null;
+let checklistState = [];
+
 const compareForm = document.getElementById("compare-form");
 const previousFileInput = document.getElementById("previous-manifest-file");
 const candidateFileInput = document.getElementById("candidate-manifest-file");
@@ -75,6 +85,70 @@ function renderReport(report) {
   }));
 }
 
+function updateChecklistProgress() {
+  const total = checklistState.length;
+  const completed = checklistState.filter(item => item.done).length;
+  checklistProgressEl.textContent = total === 0
+    ? "No checklist items for this manifest."
+    : `${completed} of ${total} checklist items completed.`;
+}
+
+function renderChecklist(report) {
+  checklistListEl.textContent = "";
+  checklistState = [];
+
+  report.lanes.forEach((lane, laneIndex) => {
+    lane.checks.forEach((check, checkIndex) => {
+      const id = `checklist-item-${laneIndex}-${checkIndex}`;
+      checklistState.push({ id, laneId: lane.id, check, done: false });
+
+      const item = el("li", { className: "checklist-item" });
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.id = id;
+      checkbox.addEventListener("change", () => {
+        const entry = checklistState.find(candidate => candidate.id === id);
+        if (entry) entry.done = checkbox.checked;
+        updateChecklistProgress();
+      });
+      const label = document.createElement("label");
+      label.htmlFor = id;
+      label.textContent = `${lane.id}: ${check}`;
+
+      item.appendChild(checkbox);
+      item.appendChild(label);
+      checklistListEl.appendChild(item);
+    });
+  });
+
+  checklistEl.hidden = checklistState.length === 0;
+  exportButton.disabled = checklistState.length === 0;
+  exportStatusEl.textContent = "";
+  updateChecklistProgress();
+}
+
+exportButton.addEventListener("click", () => {
+  if (!currentReport) return;
+
+  const exportPayload = {
+    exportedAt: new Date().toISOString(),
+    report: currentReport,
+    checklist: checklistState.map(({ id, laneId, check, done }) => ({ id, laneId, check, done }))
+  };
+
+  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "mv3-replay-checklist.json";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  exportStatusEl.textContent = "Checklist exported to a local JSON file.";
+});
+
 async function readFileAsText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -88,6 +162,13 @@ form.addEventListener("submit", async event => {
   event.preventDefault();
   reportEl.hidden = true;
   reportEl.textContent = "";
+  checklistEl.hidden = true;
+  checklistListEl.textContent = "";
+  checklistProgressEl.textContent = "";
+  exportStatusEl.textContent = "";
+  exportButton.disabled = true;
+  currentReport = null;
+  checklistState = [];
 
   const file = fileInput.files[0];
   if (!file) {
@@ -123,7 +204,9 @@ form.addEventListener("submit", async event => {
       return;
     }
     setStatus("Analysis complete.");
+    currentReport = data.report;
     renderReport(data.report);
+    renderChecklist(data.report);
   } catch {
     setStatus("The local analyzer could not be reached.");
   }
