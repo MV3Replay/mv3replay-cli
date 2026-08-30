@@ -1,5 +1,49 @@
+// Small, hard-coded, valid MV3 manifests used only for the built-in
+// "try an example" flows below. These never leave the browser except via
+// the same local /api/analyze and /api/compare requests used for real files.
+const EXAMPLE_ANALYSIS_MANIFEST = {
+  manifest_version: 3,
+  name: "Built-in example extension",
+  version: "1.0.0",
+  permissions: ["storage", "notifications"],
+  host_permissions: ["https://example.com/*"],
+  background: { service_worker: "worker.js" },
+  action: { default_popup: "popup.html" },
+  options_page: "options.html",
+  content_scripts: [
+    { matches: ["https://example.com/*"], js: ["content.js"] }
+  ],
+  commands: {
+    "toggle-feature": {
+      suggested_key: { default: "Ctrl+Shift+Y" },
+      description: "Toggle the example feature"
+    }
+  }
+};
+
+const EXAMPLE_PREVIOUS_MANIFEST = {
+  manifest_version: 3,
+  name: "Built-in example extension",
+  version: "1.0.0",
+  permissions: ["storage"],
+  host_permissions: ["https://example.com/*"],
+  background: { service_worker: "worker.js" },
+  action: { default_popup: "popup.html" }
+};
+
+const EXAMPLE_CANDIDATE_MANIFEST = {
+  manifest_version: 3,
+  name: "Built-in example extension",
+  version: "2.0.0",
+  permissions: ["storage", "tabCapture"],
+  host_permissions: ["https://example.com/*", "<all_urls>"],
+  background: { service_worker: "worker.js" },
+  action: { default_popup: "popup.html" }
+};
+
 const form = document.getElementById("analyze-form");
 const analyzeSubmitButton = document.getElementById("analyze-submit");
+const analyzeExampleButton = document.getElementById("analyze-example-button");
 const fileInput = document.getElementById("manifest-file");
 const folderInput = document.getElementById("manifest-folder");
 const statusEl = document.getElementById("status");
@@ -20,6 +64,7 @@ let checklistState = [];
 
 const compareForm = document.getElementById("compare-form");
 const compareSubmitButton = document.getElementById("compare-submit");
+const compareExampleButton = document.getElementById("compare-example-button");
 const previousFileInput = document.getElementById("previous-manifest-file");
 const previousFolderInput = document.getElementById("previous-manifest-folder");
 const candidateFileInput = document.getElementById("candidate-manifest-file");
@@ -68,6 +113,12 @@ function setSubmitLoading(button, formEl, isLoading, loadingLabel, defaultLabel)
   button.setAttribute("aria-busy", isLoading ? "true" : "false");
   formEl.setAttribute("aria-busy", isLoading ? "true" : "false");
   button.textContent = isLoading ? loadingLabel : defaultLabel;
+}
+
+function setActionGroupLoading(primaryButton, exampleButton, formEl, isLoading, loadingLabel, defaultLabel) {
+  setSubmitLoading(primaryButton, formEl, isLoading, loadingLabel, defaultLabel);
+  exampleButton.disabled = isLoading;
+  exampleButton.setAttribute("aria-busy", isLoading ? "true" : "false");
 }
 
 function countByLevel(items) {
@@ -393,8 +444,33 @@ async function readFileAsText(file) {
   });
 }
 
-form.addEventListener("submit", async event => {
-  event.preventDefault();
+async function runAnalysis(manifest, isExample) {
+  setStatus(isExample ? "Analyzing built-in example locally..." : "Analyzing locally...");
+  try {
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(manifest)
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setStatus(data.error || "The manifest could not be analyzed.");
+      return;
+    }
+    setStatus(isExample ? "Built-in example analysis complete — this is sample data." : "Analysis complete.");
+    currentReport = data.report;
+    renderReport(data.report);
+    renderAnalysisSummary(data.report);
+    if (isExample) {
+      reportSummaryEl.prepend(el("p", { className: "example-label", text: "Built-in example — not your extension" }));
+    }
+    renderChecklist(data.report);
+  } catch {
+    setStatus("The local analyzer could not be reached.");
+  }
+}
+
+function resetAnalysisResults() {
   reportEl.hidden = true;
   reportSummaryEl.textContent = "";
   reportDetailsEl.textContent = "";
@@ -406,8 +482,13 @@ form.addEventListener("submit", async event => {
   exportMarkdownButton.disabled = true;
   currentReport = null;
   checklistState = [];
+}
 
-  setSubmitLoading(analyzeSubmitButton, form, true, "Analyzing...", "Analyze locally");
+form.addEventListener("submit", async event => {
+  event.preventDefault();
+  resetAnalysisResults();
+
+  setActionGroupLoading(analyzeSubmitButton, analyzeExampleButton, form, true, "Analyzing...", "Analyze locally");
   try {
     let file = fileInput.files[0];
     if (!file && folderInput.files.length > 0) {
@@ -438,28 +519,21 @@ form.addEventListener("submit", async event => {
       return;
     }
 
-    setStatus("Analyzing locally...");
-    try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(manifest)
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setStatus(data.error || "The manifest could not be analyzed.");
-        return;
-      }
-      setStatus("Analysis complete.");
-      currentReport = data.report;
-      renderReport(data.report);
-      renderAnalysisSummary(data.report);
-      renderChecklist(data.report);
-    } catch {
-      setStatus("The local analyzer could not be reached.");
-    }
+    await runAnalysis(manifest, false);
   } finally {
-    setSubmitLoading(analyzeSubmitButton, form, false, "Analyzing...", "Analyze locally");
+    setActionGroupLoading(analyzeSubmitButton, analyzeExampleButton, form, false, "Analyzing...", "Analyze locally");
+  }
+});
+
+analyzeExampleButton.addEventListener("click", async () => {
+  resetAnalysisResults();
+  fileInput.value = "";
+  folderInput.value = "";
+  setActionGroupLoading(analyzeSubmitButton, analyzeExampleButton, form, true, "Analyzing...", "Analyze locally");
+  try {
+    await runAnalysis(EXAMPLE_ANALYSIS_MANIFEST, true);
+  } finally {
+    setActionGroupLoading(analyzeSubmitButton, analyzeExampleButton, form, false, "Analyzing...", "Analyze locally");
   }
 });
 
@@ -656,8 +730,7 @@ exportComparisonMarkdownButton.addEventListener("click", () => {
   exportComparisonStatusEl.textContent = "Comparison and candidate checklist exported to a local Markdown file.";
 });
 
-compareForm.addEventListener("submit", async event => {
-  event.preventDefault();
+function resetComparisonResults() {
   compareReportEl.hidden = true;
   compareReportSummaryEl.textContent = "";
   compareReportDetailsEl.textContent = "";
@@ -670,8 +743,40 @@ compareForm.addEventListener("submit", async event => {
   currentCompareReport = null;
   currentCandidateAnalysis = null;
   candidateChecklistState = [];
+}
 
-  setSubmitLoading(compareSubmitButton, compareForm, true, "Comparing...", "Compare locally");
+async function runComparison(previousManifest, currentManifest, isExample) {
+  setCompareStatus(isExample ? "Comparing built-in example releases locally..." : "Comparing locally...");
+  try {
+    const response = await fetch("/api/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous: previousManifest, current: currentManifest })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setCompareStatus(data.error || "The manifests could not be compared.");
+      return;
+    }
+    setCompareStatus(isExample ? "Built-in example comparison complete — this is sample data." : "Comparison complete.");
+    currentCompareReport = data.report;
+    currentCandidateAnalysis = data.candidateAnalysis;
+    renderCompareReport(data.report);
+    renderComparisonSummary(data.report);
+    if (isExample) {
+      compareReportSummaryEl.prepend(el("p", { className: "example-label", text: "Built-in example — not your extension" }));
+    }
+    renderCandidateChecklist(data.candidateAnalysis);
+  } catch {
+    setCompareStatus("The local comparison endpoint could not be reached.");
+  }
+}
+
+compareForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  resetComparisonResults();
+
+  setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, true, "Comparing...", "Compare locally");
   try {
   let previousFile = previousFileInput.files[0];
   if (!previousFile && previousFolderInput.files.length > 0) {
@@ -721,28 +826,22 @@ compareForm.addEventListener("submit", async event => {
     return;
   }
 
-  setCompareStatus("Comparing locally...");
-  try {
-    const response = await fetch("/api/compare", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ previous: previousManifest, current: currentManifest })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setCompareStatus(data.error || "The manifests could not be compared.");
-      return;
-    }
-    setCompareStatus("Comparison complete.");
-    currentCompareReport = data.report;
-    currentCandidateAnalysis = data.candidateAnalysis;
-    renderCompareReport(data.report);
-    renderComparisonSummary(data.report);
-    renderCandidateChecklist(data.candidateAnalysis);
-  } catch {
-    setCompareStatus("The local comparison endpoint could not be reached.");
-  }
+  await runComparison(previousManifest, currentManifest, false);
   } finally {
-    setSubmitLoading(compareSubmitButton, compareForm, false, "Comparing...", "Compare locally");
+    setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, false, "Comparing...", "Compare locally");
+  }
+});
+
+compareExampleButton.addEventListener("click", async () => {
+  resetComparisonResults();
+  previousFileInput.value = "";
+  previousFolderInput.value = "";
+  candidateFileInput.value = "";
+  candidateFolderInput.value = "";
+  setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, true, "Comparing...", "Compare locally");
+  try {
+    await runComparison(EXAMPLE_PREVIOUS_MANIFEST, EXAMPLE_CANDIDATE_MANIFEST, true);
+  } finally {
+    setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, false, "Comparing...", "Compare locally");
   }
 });

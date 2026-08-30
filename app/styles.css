@@ -131,7 +131,30 @@ input:focus-visible {
   outline-offset: 2px;
 }
 
-form.card > button { grid-column: 1 / -1; justify-self: start; }
+.form-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.secondary-button {
+  background: transparent;
+  color: var(--accent);
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: var(--surface-muted);
+  color: var(--accent-strong);
+}
+
+.example-label {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px dashed var(--accent);
+  border-radius: 0.35rem;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 .summary {
   padding-bottom: 0.85rem;
@@ -250,7 +273,8 @@ hr {
   }
 
   form.card { grid-template-columns: 1fr; }
-  form.card > button { width: 100%; }
+  .form-actions { display: grid; }
+  .form-actions button { width: 100%; }
 
   .checklist-item {
     align-items: center;

@@ -587,8 +587,8 @@ test("local app links every matching file and folder input exclusively", async (
 
 test("analysis and comparison restore loading controls in finally blocks", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
-  assert.match(source, /finally \{\s*setSubmitLoading\(analyzeSubmitButton, form, false/);
-  assert.match(source, /finally \{\s*setSubmitLoading\(compareSubmitButton, compareForm, false/);
+  assert.match(source, /finally \{\s*setActionGroupLoading\(analyzeSubmitButton, analyzeExampleButton, form, false/);
+  assert.match(source, /finally \{\s*setActionGroupLoading\(compareSubmitButton, compareExampleButton, compareForm, false/);
   assert.match(source, /renderAnalysisSummary\(data\.report\)/);
   assert.match(source, /renderComparisonSummary\(data\.report\)/);
 });
@@ -600,6 +600,34 @@ test("technical interface styles summaries, badges, focus, and responsive forms"
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-color-scheme: dark/);
   assert.match(css, /form\.card \{ grid-template-columns: 1fr; \}/);
+});
+
+test("local app offers accessible built-in analysis and comparison examples", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="analyze-example-button"[^>]*aria-busy="false"/);
+  assert.match(html, /id="compare-example-button"[^>]*aria-busy="false"/);
+  assert.match(html, /Try built-in example/);
+  assert.match(html, /Try built-in release comparison/);
+});
+
+test("built-in examples are valid MV3 shapes and clearly remain sample data", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /const EXAMPLE_ANALYSIS_MANIFEST = \{[\s\S]*?manifest_version: 3/);
+  assert.match(source, /const EXAMPLE_PREVIOUS_MANIFEST = \{[\s\S]*?manifest_version: 3/);
+  assert.match(source, /const EXAMPLE_CANDIDATE_MANIFEST = \{[\s\S]*?manifest_version: 3/);
+  assert.match(source, /permissions: \["storage", "tabCapture"\]/);
+  assert.match(source, /host_permissions: \["https:\/\/example\.com\/\*", "<all_urls>"\]/);
+  assert.match(source, /Built-in example — not your extension/);
+  assert.match(source, /this is sample data/);
+});
+
+test("examples and real files share the same local execution paths", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.equal((source.match(/fetch\("\/api\/analyze"/g) || []).length, 1);
+  assert.equal((source.match(/fetch\("\/api\/compare"/g) || []).length, 1);
+  assert.match(source, /runAnalysis\(EXAMPLE_ANALYSIS_MANIFEST, true\)/);
+  assert.match(source, /runComparison\(EXAMPLE_PREVIOUS_MANIFEST, EXAMPLE_CANDIDATE_MANIFEST, true\)/);
+  assert.match(source, /setActionGroupLoading/);
 });
 
 test("report privacy metadata declares no outbound networking", async () => {

@@ -26,7 +26,12 @@
       <input type="file" id="manifest-folder" webkitdirectory directory multiple
         aria-describedby="manifest-folder-help">
     </div>
-    <button type="submit" id="analyze-submit" aria-busy="false">Analyze locally</button>
+    <div class="form-actions">
+      <button type="submit" id="analyze-submit" aria-busy="false">Analyze locally</button>
+      <button type="button" id="analyze-example-button" class="secondary-button" aria-busy="false">
+        Try built-in example
+      </button>
+    </div>
   </form>
   <p id="manifest-folder-help" class="folder-help">
     Choose one of the two inputs above. Selecting one clears the other so the selection stays
@@ -82,7 +87,12 @@
       <input type="file" id="candidate-manifest-folder" webkitdirectory directory multiple
         aria-describedby="compare-folder-help">
     </div>
-    <button type="submit" id="compare-submit" aria-busy="false">Compare locally</button>
+    <div class="form-actions">
+      <button type="submit" id="compare-submit" aria-busy="false">Compare locally</button>
+      <button type="button" id="compare-example-button" class="secondary-button" aria-busy="false">
+        Try built-in release comparison
+      </button>
+    </div>
   </form>
   <p id="compare-folder-help" class="folder-help">
     For each release, choose either the file input or the folder input; selecting one clears the
