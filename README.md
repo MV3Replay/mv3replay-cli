@@ -75,7 +75,10 @@ The interface also provides:
   external messaging, and web-accessible resource changes;
 - dedicated checks for built-in browser page replacements and homepage,
   startup-page, or search-provider overrides;
-- user-triggered JSON and escaped Markdown report downloads; and
+- toolbar-action coverage for both popup and direct click-event flows, including
+  declared icon and accessible-title changes;
+- user-triggered JSON and escaped Markdown report downloads, including the
+  detected-surface and manifest-count inventory; and
 - a private 10-minute tester guide with a local feedback-notes template that
   asks users not to include identifying or sensitive information.
 
