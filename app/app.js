@@ -5,6 +5,7 @@ const folderInput = document.getElementById("manifest-folder");
 const statusEl = document.getElementById("status");
 const reportEl = document.getElementById("report");
 const reportSummaryEl = document.getElementById("report-summary");
+const reportDetailsEl = document.getElementById("report-details");
 
 const checklistEl = document.getElementById("checklist");
 const checklistListEl = document.getElementById("checklist-list");
@@ -26,6 +27,7 @@ const candidateFolderInput = document.getElementById("candidate-manifest-folder"
 const compareStatusEl = document.getElementById("compare-status");
 const compareReportEl = document.getElementById("compare-report");
 const compareReportSummaryEl = document.getElementById("compare-report-summary");
+const compareReportDetailsEl = document.getElementById("compare-report-details");
 
 const candidateChecklistEl = document.getElementById("candidate-checklist");
 const candidateChecklistListEl = document.getElementById("candidate-checklist-list");
@@ -169,37 +171,37 @@ function renderFinding(flag) {
 }
 
 function renderReport(report) {
-  reportEl.textContent = "";
+  reportDetailsEl.textContent = "";
   reportEl.hidden = false;
 
-  reportEl.appendChild(el("h2", { text: "Identity" }));
-  reportEl.appendChild(el("p", {
+  reportDetailsEl.appendChild(el("h2", { text: "Identity" }));
+  reportDetailsEl.appendChild(el("p", {
     text: `${report.identity.name} — version ${report.identity.version} (Manifest V${report.identity.manifestVersion})`
   }));
 
-  reportEl.appendChild(el("h2", { text: "Detected surfaces" }));
+  reportDetailsEl.appendChild(el("h2", { text: "Detected surfaces" }));
   const surfaceList = el("ul");
   for (const [key, value] of Object.entries(report.surfaces)) {
     surfaceList.appendChild(el("li", { text: `${key}: ${String(value)}` }));
   }
-  reportEl.appendChild(surfaceList);
+  reportDetailsEl.appendChild(surfaceList);
 
-  reportEl.appendChild(el("h2", { text: "Test lanes" }));
+  reportDetailsEl.appendChild(el("h2", { text: "Test lanes" }));
   if (report.lanes.length === 0) {
-    reportEl.appendChild(el("p", { text: "No test lanes were derived from this manifest." }));
+    reportDetailsEl.appendChild(el("p", { text: "No test lanes were derived from this manifest." }));
   } else {
-    for (const lane of report.lanes) reportEl.appendChild(renderLane(lane));
+    for (const lane of report.lanes) reportDetailsEl.appendChild(renderLane(lane));
   }
 
-  reportEl.appendChild(el("h2", { text: "Findings" }));
+  reportDetailsEl.appendChild(el("h2", { text: "Findings" }));
   if (report.riskFlags.length === 0) {
-    reportEl.appendChild(el("p", { text: "No risk flags were detected in this static analysis." }));
+    reportDetailsEl.appendChild(el("p", { text: "No risk flags were detected in this static analysis." }));
   } else {
-    for (const flag of report.riskFlags) reportEl.appendChild(renderFinding(flag));
+    for (const flag of report.riskFlags) reportDetailsEl.appendChild(renderFinding(flag));
   }
 
-  reportEl.appendChild(el("h2", { text: "Limitations" }));
-  reportEl.appendChild(el("p", {
+  reportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
+  reportDetailsEl.appendChild(el("p", {
     text: "This is a static manifest analysis only. The extension has not been loaded, executed, or "
       + "tested in a browser. It does not read extension source files or verify runtime behavior."
   }));
@@ -394,7 +396,8 @@ async function readFileAsText(file) {
 form.addEventListener("submit", async event => {
   event.preventDefault();
   reportEl.hidden = true;
-  reportEl.textContent = "";
+  reportSummaryEl.textContent = "";
+  reportDetailsEl.textContent = "";
   checklistEl.hidden = true;
   checklistListEl.textContent = "";
   checklistProgressEl.textContent = "";
@@ -404,53 +407,59 @@ form.addEventListener("submit", async event => {
   currentReport = null;
   checklistState = [];
 
-  let file = fileInput.files[0];
-  if (!file && folderInput.files.length > 0) {
-    const { file: folderManifest, error } = findRootManifestInFolder(folderInput.files);
-    if (error) {
-      setStatus(error);
+  setSubmitLoading(analyzeSubmitButton, form, true, "Analyzing...", "Analyze locally");
+  try {
+    let file = fileInput.files[0];
+    if (!file && folderInput.files.length > 0) {
+      const { file: folderManifest, error } = findRootManifestInFolder(folderInput.files);
+      if (error) {
+        setStatus(error);
+        return;
+      }
+      file = folderManifest;
+    }
+    if (!file) {
+      setStatus("Select a local manifest.json file or an unpacked extension folder first.");
       return;
     }
-    file = folderManifest;
-  }
-  if (!file) {
-    setStatus("Select a local manifest.json file or an unpacked extension folder first.");
-    return;
-  }
 
-  setStatus("Reading local file...");
-  let manifest;
-  try {
-    const text = await readFileAsText(file);
-    manifest = JSON.parse(text);
-  } catch {
-    setStatus("The selected file is not valid JSON.");
-    return;
-  }
-
-  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
-    setStatus("The selected file must contain a JSON object.");
-    return;
-  }
-
-  setStatus("Analyzing locally...");
-  try {
-    const response = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(manifest)
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setStatus(data.error || "The manifest could not be analyzed.");
+    setStatus("Reading local file...");
+    let manifest;
+    try {
+      const text = await readFileAsText(file);
+      manifest = JSON.parse(text);
+    } catch {
+      setStatus("The selected file is not valid JSON.");
       return;
     }
-    setStatus("Analysis complete.");
-    currentReport = data.report;
-    renderReport(data.report);
-    renderChecklist(data.report);
-  } catch {
-    setStatus("The local analyzer could not be reached.");
+
+    if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+      setStatus("The selected file must contain a JSON object.");
+      return;
+    }
+
+    setStatus("Analyzing locally...");
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(manifest)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setStatus(data.error || "The manifest could not be analyzed.");
+        return;
+      }
+      setStatus("Analysis complete.");
+      currentReport = data.report;
+      renderReport(data.report);
+      renderAnalysisSummary(data.report);
+      renderChecklist(data.report);
+    } catch {
+      setStatus("The local analyzer could not be reached.");
+    }
+  } finally {
+    setSubmitLoading(analyzeSubmitButton, form, false, "Analyzing...", "Analyze locally");
   }
 });
 
@@ -471,38 +480,38 @@ function renderListDiff(title, diff) {
 }
 
 function renderCompareReport(report) {
-  compareReportEl.textContent = "";
+  compareReportDetailsEl.textContent = "";
   compareReportEl.hidden = false;
 
-  compareReportEl.appendChild(el("h2", { text: "Release identity" }));
-  compareReportEl.appendChild(el("p", {
+  compareReportDetailsEl.appendChild(el("h2", { text: "Release identity" }));
+  compareReportDetailsEl.appendChild(el("p", {
     text: `From ${report.from.name} v${report.from.version} to ${report.to.name} v${report.to.version}`
   }));
 
-  compareReportEl.appendChild(el("h2", { text: "Manual update validation" }));
-  compareReportEl.appendChild(el("p", {
+  compareReportDetailsEl.appendChild(el("h2", { text: "Manual update validation" }));
+  compareReportDetailsEl.appendChild(el("p", {
     text: report.requiresManualUpdateValidation
       ? "This release requires manual update-path validation before it ships."
       : "No critical-level findings were detected, but review the findings below before shipping."
   }));
 
-  compareReportEl.appendChild(el("h2", { text: "Findings" }));
+  compareReportDetailsEl.appendChild(el("h2", { text: "Findings" }));
   if (report.findings.length === 0) {
-    compareReportEl.appendChild(el("p", { text: "No comparison findings were detected in this static analysis." }));
+    compareReportDetailsEl.appendChild(el("p", { text: "No comparison findings were detected in this static analysis." }));
   } else {
-    for (const finding of report.findings) compareReportEl.appendChild(renderFinding(finding));
+    for (const finding of report.findings) compareReportDetailsEl.appendChild(renderFinding(finding));
   }
 
-  compareReportEl.appendChild(el("h2", { text: "Key changes" }));
-  compareReportEl.appendChild(renderListDiff("Required permissions", report.changes.requiredPermissions));
-  compareReportEl.appendChild(renderListDiff("Optional permissions", report.changes.optionalPermissions));
-  compareReportEl.appendChild(renderListDiff("Required host access", report.changes.requiredHosts));
-  compareReportEl.appendChild(renderListDiff("Optional host access", report.changes.optionalHosts));
-  compareReportEl.appendChild(renderListDiff("Content-script match scope", report.changes.contentScriptMatches));
-  compareReportEl.appendChild(renderListDiff("Keyboard commands", report.changes.commands));
+  compareReportDetailsEl.appendChild(el("h2", { text: "Key changes" }));
+  compareReportDetailsEl.appendChild(renderListDiff("Required permissions", report.changes.requiredPermissions));
+  compareReportDetailsEl.appendChild(renderListDiff("Optional permissions", report.changes.optionalPermissions));
+  compareReportDetailsEl.appendChild(renderListDiff("Required host access", report.changes.requiredHosts));
+  compareReportDetailsEl.appendChild(renderListDiff("Optional host access", report.changes.optionalHosts));
+  compareReportDetailsEl.appendChild(renderListDiff("Content-script match scope", report.changes.contentScriptMatches));
+  compareReportDetailsEl.appendChild(renderListDiff("Keyboard commands", report.changes.commands));
 
-  compareReportEl.appendChild(el("h2", { text: "Limitations" }));
-  compareReportEl.appendChild(el("p", {
+  compareReportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
+  compareReportDetailsEl.appendChild(el("p", {
     text: "This is a static comparison of two manifest files only. Neither release has been loaded, "
       + "executed, or tested in a browser. It does not read extension source files or verify runtime behavior."
   }));
@@ -650,7 +659,8 @@ exportComparisonMarkdownButton.addEventListener("click", () => {
 compareForm.addEventListener("submit", async event => {
   event.preventDefault();
   compareReportEl.hidden = true;
-  compareReportEl.textContent = "";
+  compareReportSummaryEl.textContent = "";
+  compareReportDetailsEl.textContent = "";
   candidateChecklistEl.hidden = true;
   candidateChecklistListEl.textContent = "";
   candidateChecklistProgressEl.textContent = "";
@@ -661,6 +671,8 @@ compareForm.addEventListener("submit", async event => {
   currentCandidateAnalysis = null;
   candidateChecklistState = [];
 
+  setSubmitLoading(compareSubmitButton, compareForm, true, "Comparing...", "Compare locally");
+  try {
   let previousFile = previousFileInput.files[0];
   if (!previousFile && previousFolderInput.files.length > 0) {
     const { file: folderManifest, error } = findRootManifestInFolder(previousFolderInput.files);
@@ -725,8 +737,12 @@ compareForm.addEventListener("submit", async event => {
     currentCompareReport = data.report;
     currentCandidateAnalysis = data.candidateAnalysis;
     renderCompareReport(data.report);
+    renderComparisonSummary(data.report);
     renderCandidateChecklist(data.candidateAnalysis);
   } catch {
     setCompareStatus("The local comparison endpoint could not be reached.");
+  }
+  } finally {
+    setSubmitLoading(compareSubmitButton, compareForm, false, "Comparing...", "Compare locally");
   }
 });

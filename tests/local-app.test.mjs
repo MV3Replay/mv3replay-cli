@@ -504,7 +504,7 @@ test("index.html accurately explains folder selection privacy", async () => {
   assert.match(html, /only its root/);
   assert.match(html, /manifest\.json.{0,80}content is read/s);
   assert.match(html, /Relative paths are checked only to find it/);
-  assert.match(html, /no other file content or path is sent anywhere/);
+  assert.match(html, /no\s+other file content or path is sent\s+anywhere/);
 });
 
 test("app.js locates exactly one root manifest.json using webkitRelativePath", async () => {
@@ -562,6 +562,44 @@ test("both Markdown builders escape every dynamic report and checklist field", a
   }
   assert.match(source, /diff\.added\.map\(escapeMarkdownText\)/);
   assert.match(source, /diff\.removed\.map\(escapeMarkdownText\)/);
+});
+
+test("local app exposes accessible summaries and busy submit controls", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="report-summary"/);
+  assert.match(html, /id="compare-report-summary"/);
+  assert.match(html, /id="analyze-submit"[^>]*aria-busy="false"/);
+  assert.match(html, /id="compare-submit"[^>]*aria-busy="false"/);
+  assert.match(html, /role="status" aria-live="polite"/);
+});
+
+test("local app links every matching file and folder input exclusively", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  for (const pair of [
+    "fileInput, folderInput", "folderInput, fileInput",
+    "previousFileInput, previousFolderInput", "previousFolderInput, previousFileInput",
+    "candidateFileInput, candidateFolderInput", "candidateFolderInput, candidateFileInput"
+  ]) {
+    assert.match(source, new RegExp(`linkMutuallyExclusiveInputs\\(${pair}\\)`));
+  }
+  assert.match(source, /otherInput\.value = ""/);
+});
+
+test("analysis and comparison restore loading controls in finally blocks", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /finally \{\s*setSubmitLoading\(analyzeSubmitButton, form, false/);
+  assert.match(source, /finally \{\s*setSubmitLoading\(compareSubmitButton, compareForm, false/);
+  assert.match(source, /renderAnalysisSummary\(data\.report\)/);
+  assert.match(source, /renderComparisonSummary\(data\.report\)/);
+});
+
+test("technical interface styles summaries, badges, focus, and responsive forms", async () => {
+  const css = await readFile(new URL("../app/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.summary/);
+  assert.match(css, /\.badge-critical/);
+  assert.match(css, /:focus-visible/);
+  assert.match(css, /prefers-color-scheme: dark/);
+  assert.match(css, /form\.card \{ grid-template-columns: 1fr; \}/);
 });
 
 test("report privacy metadata declares no outbound networking", async () => {
