@@ -38,7 +38,8 @@ mv3replay compare ./previous-release ./candidate-release --json > compare-report
 ```
 
 `inspect` lists detected extension surfaces and a suggested regression plan.
-`compare` reports access or entry-point changes between two versions.
+`compare` reports access, update-policy, content-script, network-rule, and
+entry-point changes between two versions.
 Without `--json`, output is human-readable text; diagnostics always go to
 stderr, and exit codes are listed below. From a repository checkout the same
 commands run without installation as `node src/cli.mjs inspect ...`.
@@ -67,8 +68,11 @@ The interface also provides:
 - built-in analysis and comparison examples that are always labeled as sample
   data;
 - summaries, severity filters, and explicit manual-validation gates;
-- in-memory regression checklists that update readiness for manual browser
-  testing without claiming runtime success;
+- in-memory regression checklists, including comparison-specific findings,
+  that update readiness for manual browser testing without claiming runtime
+  success;
+- detailed local views of content-script registrations, static DNR rulesets,
+  external messaging, and web-accessible resource changes;
 - user-triggered JSON and escaped Markdown report downloads; and
 - a private 10-minute tester guide with a local feedback-notes template that
   asks users not to include identifying or sensitive information.

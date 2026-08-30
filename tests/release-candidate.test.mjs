@@ -87,6 +87,8 @@ test("the compact release-candidate record distinguishes public source from an u
       "finding severity filters",
       "checklist completion filters and local reset controls",
       "Chrome extension version-order validation",
+      "comparison-specific candidate checklist items",
+      "content-script and network-boundary change details",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",
