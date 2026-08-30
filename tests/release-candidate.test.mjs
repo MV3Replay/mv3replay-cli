@@ -89,6 +89,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "Chrome extension version-order validation",
       "comparison-specific candidate checklist items",
       "content-script and network-boundary change details",
+      "browser page and settings override coverage",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",

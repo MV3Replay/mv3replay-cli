@@ -73,6 +73,8 @@ The interface also provides:
   success;
 - detailed local views of content-script registrations, static DNR rulesets,
   external messaging, and web-accessible resource changes;
+- dedicated checks for built-in browser page replacements and homepage,
+  startup-page, or search-provider overrides;
 - user-triggered JSON and escaped Markdown report downloads; and
 - a private 10-minute tester guide with a local feedback-notes template that
   asks users not to include identifying or sensitive information.
