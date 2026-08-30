@@ -117,6 +117,8 @@ net request rulesets, side panel, risky external messaging, malformed JSON,
 omnibox input, sandboxed pages, native messaging, user scripts, and non-MV3
 input. Specialized lanes also cover debugger sessions, extension management,
 identity flows, downloads, and clipboard boundaries.
+Synthetic browser-data fixtures also cover cookies, history, bookmarks,
+browsing-data removal, navigation metadata, and web-request observation.
 
 The public-safety check rejects likely secrets, email addresses, personal
 Windows paths, and parent-directory traversal. Unrelated private-project terms

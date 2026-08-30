@@ -886,6 +886,20 @@ const fixtureExpectations = {
     assert.ok(report.riskFlags.some(flag => flag.id === "required-extension-management" && flag.level === "critical"));
     assert.ok(report.riskFlags.some(flag => flag.id === "required-clipboard-read" && flag.level === "high"));
     assert.ok(!report.riskFlags.some(flag => flag.id.includes("downloads") || flag.id.includes("identity")));
+  },
+  "browser-data-permissions": report => {
+    for (const surface of [
+      "cookies", "historyAccess", "bookmarksAccess", "browsingDataAccess",
+      "navigationMetadataAccess", "webRequestAccess"
+    ]) {
+      assert.equal(report.surfaces[surface], true);
+    }
+    for (const lane of [
+      "cookie-boundary", "history-boundary", "bookmarks-boundary",
+      "browsing-data-removal", "navigation-metadata", "web-request-boundary"
+    ]) {
+      assert.ok(report.lanes.some(item => item.id === lane));
+    }
   }
 };
 

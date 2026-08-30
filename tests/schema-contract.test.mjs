@@ -101,7 +101,8 @@ const INSPECT_FIXTURES = [
   "side-panel",
   "risky-external-messaging",
   "advanced-entry-points",
-  "sensitive-permissions"
+  "sensitive-permissions",
+  "browser-data-permissions"
 ];
 
 for (const fixture of INSPECT_FIXTURES) {
