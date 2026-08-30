@@ -10,8 +10,8 @@
   "commitState": "public-source-snapshot",
   "localArtifact": {
     "path": "dist/mv3replay-cli-0.1.0-rc1.tgz",
-    "bytes": 16771,
-    "sha256": "3E2FF50EC839D31B7DCD5D530D9254D198BF67B3AA52417F4A1987399C326FAC",
+    "bytes": 31774,
+    "sha256": "0E4702CF24F03618496FBC06F4A689412A9D3137B71A67CDBC133512E101F42F",
     "published": false
   },
   "tests": [
@@ -56,11 +56,17 @@
       "inspect",
       "compare",
       "in-memory regression checklists",
+      "unpacked-extension directory selection",
+      "built-in sample analysis and comparison",
+      "finding severity filters",
+      "manual-test readiness gates",
       "JSON export",
-      "Markdown export"
+      "Markdown export",
+      "private tester-notes template"
     ],
     "testCommand": "npm run test:app",
     "integratedIntoNormalTestGate": true,
+    "clientRuntimeSmokeTested": true,
     "runtimeBrowserTested": false
   },
   "blockers": [],

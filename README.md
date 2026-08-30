@@ -56,13 +56,26 @@ npm run start:app
 
 This runs `node app/server.mjs`, which binds only to `127.0.0.1` on a
 random free port and prints the exact loopback address to open manually in a
-browser. To inspect a manifest, select its JSON file in the page and submit;
-to compare two releases, select both manifest files and submit. The browser
-reads only the selected files and sends their parsed JSON to the loopback
-server. Every request stays local: there is no external network call or browser
-automation. Stop the
-interface with `Ctrl+C` in the terminal that ran the command; no shutdown
-button or endpoint exists.
+browser. For each release, choose either its `manifest.json` file or its
+unpacked extension directory. When a directory is selected, relative paths
+are checked only to locate the root manifest; only that manifest's contents
+are read. The parsed JSON is sent to the loopback server, never to an external
+destination.
+
+The interface also provides:
+
+- built-in analysis and comparison examples that are always labeled as sample
+  data;
+- summaries, severity filters, and explicit manual-validation gates;
+- in-memory regression checklists that update readiness for manual browser
+  testing without claiming runtime success;
+- user-triggered JSON and escaped Markdown report downloads; and
+- a private 10-minute tester guide with a local feedback-notes template that
+  asks users not to include identifying or sensitive information.
+
+There is no external network call or browser automation. Stop the interface
+with `Ctrl+C` in the terminal that ran the command; no shutdown button or
+endpoint exists.
 
 Privacy limitations: the local page holds only the selected manifest data in
 memory for that browser tab; it does not persist reports, read other files, or
@@ -70,8 +83,11 @@ send data anywhere outside `127.0.0.1`. Anyone with local access
 to the same machine and port while the server runs could also reach it, so
 treat the loopback session as no more private than any other local process.
 The local interface and its privacy boundary are covered by the normal
-`npm test` gate via `tests/local-app.test.mjs` (also runnable alone as
-`npm run test:app`); no separate manual test process exists for it.
+`npm test` gate via `tests/local-app.test.mjs` and the dependency-free client
+runtime harness in `tests/local-app-client-runtime.test.mjs` (both runnable as
+`npm run test:app`). These automated checks execute the built-in example,
+filter, readiness, and local-download interactions without controlling a real
+browser; manual browser testing remains separate and is never implied.
 
 ## Development
 

@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 const ROOT = path.resolve(".");
@@ -125,6 +126,29 @@ test(
         `packed installation missing local interface asset: ${asset}`
       );
     }
+
+    const installedHtml = await readFile(path.join(installedAppDir, "index.html"), "utf8");
+    assert.match(installedHtml, /id="analyze-example-button"/);
+    assert.match(installedHtml, /id="analysis-severity-filter"/);
+    assert.match(installedHtml, /id="download-feedback-template"/);
+
+    const installedServerModule = await import(
+      `${pathToFileURL(path.join(installedAppDir, "server.mjs")).href}?installed-smoke=${Date.now()}`
+    );
+    const installedServer = await installedServerModule.startServer(0, "127.0.0.1");
+    t.after(() => new Promise(resolve => installedServer.close(resolve)));
+    const installedAddress = installedServer.address();
+    const installedBaseUrl = `http://127.0.0.1:${installedAddress.port}`;
+    const installedPageResponse = await fetch(installedBaseUrl);
+    assert.equal(installedPageResponse.status, 200);
+    const installedAnalyzeResponse = await fetch(`${installedBaseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ manifest_version: 3, name: "Install smoke", version: "1.0.0" })
+    });
+    assert.equal(installedAnalyzeResponse.status, 200);
+    const installedAnalysis = await installedAnalyzeResponse.json();
+    assert.equal(installedAnalysis.report.identity.name, "Install smoke");
 
     const helpViaBin = runShell(`${shellQuote(installedBinShim)} --help`, installDir);
     assert.equal(helpViaBin.status, 0, helpViaBin.stderr || helpViaBin.stdout);

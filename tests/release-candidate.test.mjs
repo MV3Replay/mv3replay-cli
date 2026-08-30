@@ -82,11 +82,17 @@ test("the compact release-candidate record distinguishes public source from an u
       "inspect",
       "compare",
       "in-memory regression checklists",
+      "unpacked-extension directory selection",
+      "built-in sample analysis and comparison",
+      "finding severity filters",
+      "manual-test readiness gates",
       "JSON export",
-      "Markdown export"
+      "Markdown export",
+      "private tester-notes template"
     ],
     testCommand: "npm run test:app",
     integratedIntoNormalTestGate: true,
+    clientRuntimeSmokeTested: true,
     runtimeBrowserTested: false
   });
   assert.ok(Array.isArray(candidate.tests) && candidate.tests.length >= 5);

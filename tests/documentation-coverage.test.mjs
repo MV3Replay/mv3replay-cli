@@ -44,3 +44,13 @@ test("README stays truthful about distribution and support", () => {
   assert.doesNotMatch(readme, /blazing|lightning-?fast|revolutionary|#1/i);
   assert.match(readme, /pre-release/i, "support status must state the pre-release reality");
 });
+
+test("README documents the current local interface without claiming browser execution", () => {
+  assert.match(readme, /built-in analysis and comparison examples/);
+  assert.match(readme, /severity filters/);
+  assert.match(readme, /manual-validation gates/);
+  assert.match(readme, /private 10-minute tester guide/);
+  assert.match(readme, /local-app-client-runtime\.test\.mjs/);
+  assert.match(readme, /without controlling a real\nbrowser/);
+  assert.match(readme, /manual browser testing remains separate and is never implied/);
+});
