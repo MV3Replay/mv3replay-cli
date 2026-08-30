@@ -324,6 +324,48 @@ test("app.js exports the comparison and candidate checklist only via a user-trig
   assert.doesNotMatch(source, /fetch\(\s*["'`]\/api\/export/);
 });
 
+test("index.html includes accessible Markdown export controls for analysis and comparison", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="export-checklist-markdown"/);
+  assert.match(html, /id="export-comparison-markdown"/);
+});
+
+test("app.js builds deterministic Markdown sections for the analysis checklist export", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /function buildAnalysisMarkdown/);
+  assert.match(source, /## Identity/);
+  assert.match(source, /## Findings/);
+  assert.match(source, /## Test checklist/);
+  assert.match(source, /## Limitations/);
+  assert.match(source, /\[\$\{item\.done \? "x" : " "\}\]/);
+});
+
+test("app.js builds deterministic Markdown sections for the comparison checklist export", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /function buildComparisonMarkdown/);
+  assert.match(source, /## Release identity/);
+  assert.match(source, /## Manual update validation/);
+  assert.match(source, /## Key changes/);
+  assert.match(source, /## Candidate-release checklist/);
+});
+
+test("app.js exports Markdown only via a user-triggered local download and disables buttons until a result exists", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /exportMarkdownButton\.addEventListener\("click"/);
+  assert.match(source, /exportComparisonMarkdownButton\.addEventListener\("click"/);
+  assert.match(source, /exportMarkdownButton\.disabled = checklistState\.length === 0;/);
+  assert.match(source, /exportComparisonMarkdownButton\.disabled = candidateChecklistState\.length === 0;/);
+  assert.match(source, /exportMarkdownButton\.disabled = true;/);
+  assert.match(source, /exportComparisonMarkdownButton\.disabled = true;/);
+  assert.doesNotMatch(source, /fetch\(\s*["'`]\/api\/export/);
+});
+
+test("app.js does not use clipboard access for exports", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /navigator\.clipboard/);
+  assert.doesNotMatch(source, /execCommand\(\s*["'`]copy["'`]/);
+});
+
 test("applies a restrictive local Content-Security-Policy", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/`);

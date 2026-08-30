@@ -7,6 +7,7 @@ const checklistEl = document.getElementById("checklist");
 const checklistListEl = document.getElementById("checklist-list");
 const checklistProgressEl = document.getElementById("checklist-progress");
 const exportButton = document.getElementById("export-checklist");
+const exportMarkdownButton = document.getElementById("export-checklist-markdown");
 const exportStatusEl = document.getElementById("export-status");
 
 // Checklist state exists only for the lifetime of this page.
@@ -23,6 +24,7 @@ const candidateChecklistEl = document.getElementById("candidate-checklist");
 const candidateChecklistListEl = document.getElementById("candidate-checklist-list");
 const candidateChecklistProgressEl = document.getElementById("candidate-checklist-progress");
 const exportComparisonButton = document.getElementById("export-comparison");
+const exportComparisonMarkdownButton = document.getElementById("export-comparison-markdown");
 const exportComparisonStatusEl = document.getElementById("export-comparison-status");
 
 // Candidate checklist state exists only for the lifetime of this page.
@@ -134,8 +136,55 @@ function renderChecklist(report) {
 
   checklistEl.hidden = checklistState.length === 0;
   exportButton.disabled = checklistState.length === 0;
+  exportMarkdownButton.disabled = checklistState.length === 0;
   exportStatusEl.textContent = "";
   updateChecklistProgress();
+}
+
+function downloadLocalFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function buildAnalysisMarkdown(report, checklist) {
+  const lines = [];
+  lines.push("# MV3 Replay analysis report");
+  lines.push("");
+  lines.push(`Exported: ${new Date().toISOString()}`);
+  lines.push("");
+  lines.push("## Identity");
+  lines.push(`- Name: ${report.identity.name}`);
+  lines.push(`- Version: ${report.identity.version}`);
+  lines.push(`- Manifest version: ${report.identity.manifestVersion}`);
+  lines.push("");
+  lines.push("## Findings");
+  if (report.riskFlags.length === 0) {
+    lines.push("No risk flags were detected in this static analysis.");
+  } else {
+    for (const flag of report.riskFlags) lines.push(`- **${flag.id}** (${flag.level}): ${flag.message}`);
+  }
+  lines.push("");
+  lines.push("## Test checklist");
+  if (checklist.length === 0) {
+    lines.push("No checklist items for this manifest.");
+  } else {
+    for (const item of checklist) lines.push(`- [${item.done ? "x" : " "}] ${item.laneId}: ${item.check}`);
+  }
+  lines.push("");
+  lines.push("## Limitations");
+  lines.push(
+    "This is a static manifest analysis only. The extension has not been loaded, executed, or "
+      + "tested in a browser. It does not read extension source files or verify runtime behavior."
+  );
+  lines.push("");
+  return lines.join("\n");
 }
 
 exportButton.addEventListener("click", () => {
@@ -147,17 +196,22 @@ exportButton.addEventListener("click", () => {
     checklist: checklistState.map(({ id, laneId, check, done }) => ({ id, laneId, check, done }))
   };
 
-  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "mv3-replay-checklist.json";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadLocalFile(
+    "mv3-replay-checklist.json",
+    JSON.stringify(exportPayload, null, 2),
+    "application/json"
+  );
 
   exportStatusEl.textContent = "Checklist exported to a local JSON file.";
+});
+
+exportMarkdownButton.addEventListener("click", () => {
+  if (!currentReport) return;
+
+  const markdown = buildAnalysisMarkdown(currentReport, checklistState);
+  downloadLocalFile("mv3-replay-checklist.md", markdown, "text/markdown");
+
+  exportStatusEl.textContent = "Checklist exported to a local Markdown file.";
 });
 
 async function readFileAsText(file) {
@@ -178,6 +232,7 @@ form.addEventListener("submit", async event => {
   checklistProgressEl.textContent = "";
   exportStatusEl.textContent = "";
   exportButton.disabled = true;
+  exportMarkdownButton.disabled = true;
   currentReport = null;
   checklistState = [];
 
@@ -315,8 +370,65 @@ function renderCandidateChecklist(candidateAnalysis) {
 
   candidateChecklistEl.hidden = candidateChecklistState.length === 0;
   exportComparisonButton.disabled = candidateChecklistState.length === 0;
+  exportComparisonMarkdownButton.disabled = candidateChecklistState.length === 0;
   exportComparisonStatusEl.textContent = "";
   updateCandidateChecklistProgress();
+}
+
+function buildComparisonMarkdown(report, checklist) {
+  const lines = [];
+  lines.push("# MV3 Replay comparison report");
+  lines.push("");
+  lines.push(`Exported: ${new Date().toISOString()}`);
+  lines.push("");
+  lines.push("## Release identity");
+  lines.push(`- From: ${report.from.name} v${report.from.version}`);
+  lines.push(`- To: ${report.to.name} v${report.to.version}`);
+  lines.push("");
+  lines.push("## Manual update validation");
+  lines.push(
+    report.requiresManualUpdateValidation
+      ? "This release requires manual update-path validation before it ships."
+      : "No critical-level findings were detected, but review the findings below before shipping."
+  );
+  lines.push("");
+  lines.push("## Findings");
+  if (report.findings.length === 0) {
+    lines.push("No comparison findings were detected in this static analysis.");
+  } else {
+    for (const finding of report.findings) lines.push(`- **${finding.id}** (${finding.level}): ${finding.message}`);
+  }
+  lines.push("");
+  lines.push("## Key changes");
+  const changeTitles = [
+    ["requiredPermissions", "Required permissions"],
+    ["optionalPermissions", "Optional permissions"],
+    ["requiredHosts", "Required host access"],
+    ["optionalHosts", "Optional host access"],
+    ["contentScriptMatches", "Content-script match scope"],
+    ["commands", "Keyboard commands"]
+  ];
+  for (const [key, title] of changeTitles) {
+    const diff = report.changes[key];
+    const added = diff && diff.added && diff.added.length ? diff.added.join(", ") : "none";
+    const removed = diff && diff.removed && diff.removed.length ? diff.removed.join(", ") : "none";
+    lines.push(`- ${title} — Added: ${added}; Removed: ${removed}`);
+  }
+  lines.push("");
+  lines.push("## Candidate-release checklist");
+  if (checklist.length === 0) {
+    lines.push("No candidate-release checklist items for this comparison.");
+  } else {
+    for (const item of checklist) lines.push(`- [${item.done ? "x" : " "}] ${item.laneId}: ${item.check}`);
+  }
+  lines.push("");
+  lines.push("## Limitations");
+  lines.push(
+    "This is a static comparison of two manifest files only. Neither release has been loaded, "
+      + "executed, or tested in a browser. It does not read extension source files or verify runtime behavior."
+  );
+  lines.push("");
+  return lines.join("\n");
 }
 
 exportComparisonButton.addEventListener("click", () => {
@@ -329,17 +441,22 @@ exportComparisonButton.addEventListener("click", () => {
     candidateChecklist: candidateChecklistState.map(({ id, laneId, check, done }) => ({ id, laneId, check, done }))
   };
 
-  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "mv3-replay-comparison-checklist.json";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadLocalFile(
+    "mv3-replay-comparison-checklist.json",
+    JSON.stringify(exportPayload, null, 2),
+    "application/json"
+  );
 
   exportComparisonStatusEl.textContent = "Comparison and candidate checklist exported to a local JSON file.";
+});
+
+exportComparisonMarkdownButton.addEventListener("click", () => {
+  if (!currentCompareReport || !currentCandidateAnalysis) return;
+
+  const markdown = buildComparisonMarkdown(currentCompareReport, candidateChecklistState);
+  downloadLocalFile("mv3-replay-comparison-checklist.md", markdown, "text/markdown");
+
+  exportComparisonStatusEl.textContent = "Comparison and candidate checklist exported to a local Markdown file.";
 });
 
 compareForm.addEventListener("submit", async event => {
@@ -351,6 +468,7 @@ compareForm.addEventListener("submit", async event => {
   candidateChecklistProgressEl.textContent = "";
   exportComparisonStatusEl.textContent = "";
   exportComparisonButton.disabled = true;
+  exportComparisonMarkdownButton.disabled = true;
   currentCompareReport = null;
   currentCandidateAnalysis = null;
   candidateChecklistState = [];
