@@ -177,6 +177,9 @@ export function createServer() {
 }
 
 export function startServer(port = 0, host = "127.0.0.1") {
+  if (host !== "127.0.0.1") {
+    return Promise.reject(new Error("The local interface may bind only to 127.0.0.1."));
+  }
   const server = createServer();
   return new Promise((resolve, reject) => {
     server.once("error", reject);
