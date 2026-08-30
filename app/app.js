@@ -6,6 +6,7 @@ const EXAMPLE_ANALYSIS_MANIFEST = {
   name: "Built-in example extension",
   version: "1.0.0",
   permissions: ["storage", "notifications"],
+  optional_permissions: ["nativeMessaging", "userScripts"],
   host_permissions: ["https://example.com/*"],
   background: { service_worker: "worker.js" },
   action: { default_popup: "popup.html" },
@@ -18,7 +19,9 @@ const EXAMPLE_ANALYSIS_MANIFEST = {
       suggested_key: { default: "Ctrl+Shift+Y" },
       description: "Toggle the example feature"
     }
-  }
+  },
+  omnibox: { keyword: "mv3" },
+  sandbox: { pages: ["sandbox.html"] }
 };
 
 const EXAMPLE_PREVIOUS_MANIFEST = {

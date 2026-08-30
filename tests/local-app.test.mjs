@@ -613,6 +613,9 @@ test("local app offers accessible built-in analysis and comparison examples", as
 test("built-in examples are valid MV3 shapes and clearly remain sample data", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /const EXAMPLE_ANALYSIS_MANIFEST = \{[\s\S]*?manifest_version: 3/);
+  assert.match(source, /optional_permissions: \["nativeMessaging", "userScripts"\]/);
+  assert.match(source, /omnibox: \{ keyword: "mv3" \}/);
+  assert.match(source, /sandbox: \{ pages: \["sandbox\.html"\] \}/);
   assert.match(source, /const EXAMPLE_PREVIOUS_MANIFEST = \{[\s\S]*?manifest_version: 3/);
   assert.match(source, /const EXAMPLE_CANDIDATE_MANIFEST = \{[\s\S]*?manifest_version: 3/);
   assert.match(source, /permissions: \["storage", "tabCapture"\]/);
