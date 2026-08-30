@@ -24,6 +24,10 @@
     "packageContents": [
       "LICENSE",
       "README.md",
+      "app/app.js",
+      "app/index.html",
+      "app/server.mjs",
+      "app/styles.css",
       "package.json",
       "schemas/compare-v1.schema.json",
       "schemas/inspect-v1.schema.json",
@@ -42,6 +46,12 @@
     "Comparisons do not predict Chrome Web Store review outcomes or prove an update is safe.",
     "Manifests larger than 1 MiB are rejected and non-MV3 manifests exit with code 6."
   ],
+  "localApp": {
+    "included": true,
+    "published": false,
+    "launchCommand": "npm run start:app",
+    "opensAutomatically": false
+  },
   "blockers": [],
   "review": {
     "claudeReview": "completed-no-blockers",

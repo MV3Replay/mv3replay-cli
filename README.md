@@ -43,6 +43,33 @@ Without `--json`, output is human-readable text; diagnostics always go to
 stderr, and exit codes are listed below. From a repository checkout the same
 commands run without installation as `node src/cli.mjs inspect ...`.
 
+## Local interface (not published)
+
+A validated local MV3 Replay interface lives in `app/` for `inspect` and
+`compare` workflows in a browser tab. It is included in local package builds
+but is not published and has no dependency, installer, or auto-opening browser
+command. From a repository checkout, start it with:
+
+```sh
+npm run start:app
+```
+
+This runs `node app/server.mjs`, which binds only to `127.0.0.1` on a
+random free port and prints the exact loopback address to open manually in a
+browser. To inspect a manifest, select its JSON file in the page and submit;
+to compare two releases, select both manifest files and submit. The browser
+reads only the selected files and sends their parsed JSON to the loopback
+server. Every request stays local: there is no external network call or browser
+automation. Stop the
+interface with `Ctrl+C` in the terminal that ran the command; no shutdown
+button or endpoint exists.
+
+Privacy limitations: the local page holds only the selected manifest data in
+memory for that browser tab; it does not persist reports, read other files, or
+send data anywhere outside `127.0.0.1`. Anyone with local access
+to the same machine and port while the server runs could also reach it, so
+treat the loopback session as no more private than any other local process.
+
 ## Development
 
 Requires Node.js 20 or newer.

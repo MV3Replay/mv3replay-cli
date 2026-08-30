@@ -49,6 +49,10 @@ test("the compact release-candidate record distinguishes public source from an u
     [
       "LICENSE",
       "README.md",
+      "app/app.js",
+      "app/index.html",
+      "app/server.mjs",
+      "app/styles.css",
       "package.json",
       "schemas/compare-v1.schema.json",
       "schemas/inspect-v1.schema.json",
@@ -56,6 +60,12 @@ test("the compact release-candidate record distinguishes public source from an u
       "src/manifest-analyzer.mjs"
     ]
   );
+  assert.deepEqual(candidate.localApp, {
+    included: true,
+    published: false,
+    launchCommand: "npm run start:app",
+    opensAutomatically: false
+  });
   assert.ok(Array.isArray(candidate.tests) && candidate.tests.length >= 4);
   assert.deepEqual(
     candidate.tests,

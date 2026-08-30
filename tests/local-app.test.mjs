@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createServer, startServer } from "../app/server.mjs";
 
@@ -31,6 +32,12 @@ async function withServer(run) {
     await new Promise(resolve => server.close(resolve));
   }
 }
+
+test("the npm start:app script launches the local server entry point", async () => {
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(packageJson.scripts["start:app"], "node app/server.mjs");
+  assert.equal(packageJson.scripts.inspect, "node src/cli.mjs inspect");
+});
 
 test("binds only to the local loopback address", async () => {
   await withServer(async baseUrl => {

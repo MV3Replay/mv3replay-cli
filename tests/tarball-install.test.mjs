@@ -11,6 +11,10 @@ const FIXTURE = path.join(ROOT, "fixtures", "minimal-mv3");
 const EXPECTED_PACKAGE_CONTENTS = [
   "LICENSE",
   "README.md",
+  "app/app.js",
+  "app/index.html",
+  "app/server.mjs",
+  "app/styles.css",
   "package.json",
   "schemas/compare-v1.schema.json",
   "schemas/inspect-v1.schema.json",
@@ -113,6 +117,14 @@ test(
       "cli.mjs"
     );
     assert.ok(existsSync(installedCli), "installed CLI entry point missing");
+
+    const installedAppDir = path.join(installDir, "node_modules", "mv3replay-cli", "app");
+    for (const asset of ["server.mjs", "index.html", "app.js", "styles.css"]) {
+      assert.ok(
+        existsSync(path.join(installedAppDir, asset)),
+        `packed installation missing local interface asset: ${asset}`
+      );
+    }
 
     const helpViaBin = runShell(`${shellQuote(installedBinShim)} --help`, installDir);
     assert.equal(helpViaBin.status, 0, helpViaBin.stderr || helpViaBin.stdout);
