@@ -52,6 +52,9 @@
         "webRequestAccess",
         "browsingDataAccess",
         "navigationMetadataAccess",
+        "contentSettingsAccess",
+        "privacySettingsAccess",
+        "proxyAccess",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -87,6 +90,9 @@
         "webRequestAccess": { "type": "boolean" },
         "browsingDataAccess": { "type": "boolean" },
         "navigationMetadataAccess": { "type": "boolean" },
+        "contentSettingsAccess": { "type": "boolean" },
+        "privacySettingsAccess": { "type": "boolean" },
+        "proxyAccess": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }

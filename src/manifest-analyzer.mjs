@@ -170,6 +170,9 @@ const SURFACE_NAMES = [
   ["web-request", "webRequestAccess"],
   ["browsing-data", "browsingDataAccess"],
   ["navigation-metadata", "navigationMetadataAccess"],
+  ["content-settings", "contentSettingsAccess"],
+  ["privacy-settings", "privacySettingsAccess"],
+  ["proxy-settings", "proxyAccess"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -425,6 +428,9 @@ export function analyzeManifest(manifest) {
   const browsingDataAccess = permissions.includes("browsingData") || optionalPermissions.includes("browsingData");
   const navigationMetadataAccess = ["tabs", "topSites", "webNavigation"].some(permission =>
     permissions.includes(permission) || optionalPermissions.includes(permission));
+  const contentSettingsAccess = permissions.includes("contentSettings") || optionalPermissions.includes("contentSettings");
+  const privacySettingsAccess = permissions.includes("privacy") || optionalPermissions.includes("privacy");
+  const proxyAccess = permissions.includes("proxy") || optionalPermissions.includes("proxy");
   const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
     presentString(manifest.chrome_url_overrides?.[page]));
   const chromeSettingsOverrides = Boolean(
@@ -465,6 +471,9 @@ export function analyzeManifest(manifest) {
     webRequestAccess,
     browsingDataAccess,
     navigationMetadataAccess,
+    contentSettingsAccess,
+    privacySettingsAccess,
+    proxyAccess,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -651,6 +660,21 @@ export function analyzeManifest(manifest) {
       "Tab, top-site, or navigation access can expose visited URLs and navigation behavior.",
       ["Use a disposable profile containing only synthetic tabs and visits", "Verify event and query results stay within the intended feature scope", "Confirm URLs and titles are not persisted, exported, or logged"]);
   }
+  if (contentSettingsAccess) {
+    addLane(lanes, "content-settings-control", "critical",
+      "Content-setting access can change per-site controls such as cookies, JavaScript, location, camera, and microphone.",
+      ["Use only a disposable profile and explicitly authorized synthetic origins", "Record the synthetic baseline, apply the narrowest primary and secondary patterns, then verify the effective setting", "Clear the test rule and verify the exact baseline is restored"]);
+  }
+  if (privacySettingsAccess) {
+    addLane(lanes, "privacy-settings-control", "critical",
+      "Privacy-setting access can read or change browser-wide privacy controls and may be superseded by policy or another extension.",
+      ["Use only a disposable profile and record the synthetic baseline", "Check levelOfControl before setting a reversible test value", "Clear the test value and verify baseline restoration plus policy and competing-extension behavior"]);
+  }
+  if (proxyAccess) {
+    addLane(lanes, "proxy-control", "critical",
+      "Proxy access can redirect browser traffic and can be controlled by policy or another extension.",
+      ["Use only a disposable profile with a local synthetic endpoint and no real credentials", "Verify direct, unavailable, invalid, and controlled-by-policy states without bypassing failures", "Clear the test configuration and verify exact network restoration"]);
+  }
 
   const riskFlags = [];
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
@@ -722,6 +746,15 @@ export function analyzeManifest(manifest) {
   const requiredNavigationMetadata = ["tabs", "topSites", "webNavigation"].filter(permission => permissions.includes(permission));
   if (requiredNavigationMetadata.length > 0) {
     riskFlags.push({ id: "required-navigation-metadata", level: "high", message: `Navigation metadata permissions are required: ${requiredNavigationMetadata.join(", ")}. Use only synthetic tabs and visits, and do not retain URLs or titles.` });
+  }
+  if (permissions.includes("contentSettings")) {
+    riskFlags.push({ id: "required-content-settings-control", level: "critical", message: "Content-setting control is required; use a disposable profile, narrow synthetic patterns, and verify exact restoration." });
+  }
+  if (permissions.includes("privacy")) {
+    riskFlags.push({ id: "required-privacy-settings-control", level: "critical", message: "Privacy-setting control is required; verify levelOfControl, policy conflicts, reversible changes, and exact restoration." });
+  }
+  if (permissions.includes("proxy")) {
+    riskFlags.push({ id: "required-proxy-control", level: "critical", message: "Proxy control is required; use only a local synthetic endpoint without credentials and verify exact network restoration." });
   }
 
   const report = {
@@ -976,6 +1009,15 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "web-request-surface-expansion",
       level: "high",
       message: "Web-request observation was added. Test only authorized synthetic hosts, verify URL and initiator boundaries, and do not persist request details."
+    });
+  }
+  const addedSettingControlSurfaces = changes.surfaces.added.filter(surface =>
+    ["content-settings", "privacy-settings", "proxy-settings"].includes(surface));
+  if (addedSettingControlSurfaces.length > 0) {
+    findings.push({
+      id: "browser-setting-control-expansion",
+      level: "critical",
+      message: `Browser-setting control surfaces added: ${addedSettingControlSurfaces.join(", ")}. Use a disposable profile, test policy conflicts, and verify exact restoration before release.`
     });
   }
   if (changes.contentScripts.added.length > 0 || changes.contentScripts.removed.length > 0) {

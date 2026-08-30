@@ -198,6 +198,31 @@ test("builds a toolbar-action lane when no popup is declared", () => {
   assert.ok(!report.lanes.some(lane => lane.id === "action-popup"));
 });
 
+test("builds reversible lanes for browser setting controls", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Setting controls",
+    version: "1.0.0",
+    permissions: ["contentSettings", "privacy", "proxy"]
+  });
+
+  assert.equal(report.surfaces.contentSettingsAccess, true);
+  assert.equal(report.surfaces.privacySettingsAccess, true);
+  assert.equal(report.surfaces.proxyAccess, true);
+  const laneIds = report.lanes.map(lane => lane.id);
+  assert.ok(laneIds.includes("content-settings-control"));
+  assert.ok(laneIds.includes("privacy-settings-control"));
+  assert.ok(laneIds.includes("proxy-control"));
+  const riskIds = report.riskFlags.map(flag => flag.id);
+  assert.ok(riskIds.includes("required-content-settings-control"));
+  assert.ok(riskIds.includes("required-privacy-settings-control"));
+  assert.ok(riskIds.includes("required-proxy-control"));
+  for (const laneId of ["content-settings-control", "privacy-settings-control", "proxy-control"]) {
+    const lane = report.lanes.find(item => item.id === laneId);
+    assert.ok(lane.checks.some(check => /restor/i.test(check)));
+  }
+});
+
 test("compares extension versions using Chrome update ordering", () => {
   const base = {
     manifest_version: 3,
@@ -713,6 +738,24 @@ test("flags newly added browser-data and web-request surfaces", () => {
   assert.ok(report.findings.some(item => item.id === "browser-data-surface-expansion"));
   assert.ok(report.findings.some(item => item.id === "web-request-surface-expansion"));
   assert.equal(report.requiresManualUpdateValidation, false);
+});
+
+test("gates newly added browser setting controls", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Settings expansion",
+    version: "1.0.0"
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    permissions: ["contentSettings", "privacy", "proxy"]
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["content-settings", "privacy-settings", "proxy-settings"]);
+  assert.ok(report.findings.some(item => item.id === "browser-setting-control-expansion"));
+  assert.equal(report.requiresManualUpdateValidation, true);
 });
 
 test("normalizes command description and every suggested_key platform entry deterministically", () => {
