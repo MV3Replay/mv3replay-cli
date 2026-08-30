@@ -32,6 +32,35 @@ function setSecurityHeaders(res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+}
+
+function getLoopbackOrigin(req) {
+  const port = req.socket && req.socket.localPort;
+  if (!port) return null;
+  return `127.0.0.1:${port}`;
+}
+
+function isValidHost(req) {
+  const expected = getLoopbackOrigin(req);
+  if (!expected) return false;
+  return req.headers.host === expected;
+}
+
+function isValidOrigin(req) {
+  const origin = req.headers.origin;
+  if (origin === undefined) return true;
+  const expected = getLoopbackOrigin(req);
+  if (!expected) return false;
+  return origin === `http://${expected}`;
+}
+
+function isJsonContentType(req) {
+  const contentType = req.headers["content-type"];
+  if (!contentType) return false;
+  return contentType.split(";")[0].trim().toLowerCase() === "application/json";
 }
 
 function sendJson(res, status, body) {
@@ -126,6 +155,18 @@ async function handleAnalyze(req, res) {
     return;
   }
 
+  if (!isValidOrigin(req)) {
+    setSecurityHeaders(res);
+    sendJson(res, 403, { error: "Request origin is not permitted." });
+    return;
+  }
+
+  if (!isJsonContentType(req)) {
+    setSecurityHeaders(res);
+    sendJson(res, 415, { error: "Request content type must be application/json." });
+    return;
+  }
+
   const { value: manifest, error } = await readJsonBody(req, res);
   if (error) return;
 
@@ -154,6 +195,18 @@ async function handleCompare(req, res) {
     setSecurityHeaders(res);
     res.setHeader("Allow", "POST");
     sendJson(res, 405, { error: "This endpoint accepts POST only." });
+    return;
+  }
+
+  if (!isValidOrigin(req)) {
+    setSecurityHeaders(res);
+    sendJson(res, 403, { error: "Request origin is not permitted." });
+    return;
+  }
+
+  if (!isJsonContentType(req)) {
+    setSecurityHeaders(res);
+    sendJson(res, 415, { error: "Request content type must be application/json." });
     return;
   }
 
@@ -190,6 +243,12 @@ async function handleCompare(req, res) {
 
 export function createServer() {
   return createHttpServer((req, res) => {
+    if (!isValidHost(req)) {
+      setSecurityHeaders(res);
+      sendJson(res, 400, { error: "Request host is not permitted." });
+      return;
+    }
+
     let url;
     try {
       url = new URL(req.url, "http://127.0.0.1");

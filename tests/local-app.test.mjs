@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { request } from "node:http";
 import test from "node:test";
 import { createServer, startServer } from "../app/server.mjs";
 
@@ -31,6 +32,27 @@ async function withServer(run) {
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
+}
+
+function requestWithHost(baseUrl, host) {
+  const target = new URL(baseUrl);
+  return new Promise((resolve, reject) => {
+    const req = request({
+      hostname: target.hostname,
+      port: target.port,
+      path: "/",
+      headers: { Host: host }
+    }, res => {
+      const chunks = [];
+      res.on("data", chunk => chunks.push(chunk));
+      res.on("end", () => resolve({
+        status: res.statusCode,
+        body: Buffer.concat(chunks).toString("utf8")
+      }));
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 test("the npm start:app script launches the local server entry point", async () => {
@@ -373,6 +395,94 @@ test("applies a restrictive local Content-Security-Policy", async () => {
     assert.match(csp, /default-src 'none'/);
     assert.match(csp, /connect-src 'self'/);
     assert.doesNotMatch(csp, /https?:/);
+  });
+});
+
+test("rejects requests with a Host header that does not match the loopback origin", async () => {
+  await withServer(async baseUrl => {
+    const response = await requestWithHost(baseUrl, "example.com");
+    assert.equal(response.status, 400);
+    const data = JSON.parse(response.body);
+    assert.equal(data.error, "Request host is not permitted.");
+  });
+});
+
+test("rejects analyze requests with a foreign Origin header", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://evil.example" },
+      body: JSON.stringify(richManifest)
+    });
+    assert.equal(response.status, 403);
+    const data = await response.json();
+    assert.equal(data.error, "Request origin is not permitted.");
+  });
+});
+
+test("allows analyze requests whose Origin matches the loopback server", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: baseUrl },
+      body: JSON.stringify(richManifest)
+    });
+    assert.equal(response.status, 200);
+  });
+});
+
+test("allows analyze requests with no Origin header for local non-browser clients", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(richManifest)
+    });
+    assert.equal(response.status, 200);
+  });
+});
+
+test("rejects compare requests with a foreign Origin header", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://evil.example" },
+      body: JSON.stringify({ previous: richManifest, current: candidateManifest })
+    });
+    assert.equal(response.status, 403);
+    const data = await response.json();
+    assert.equal(data.error, "Request origin is not permitted.");
+  });
+});
+
+test("rejects analyze and compare requests without a JSON content type", async () => {
+  await withServer(async baseUrl => {
+    const analyzeResponse = await fetch(`${baseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(richManifest)
+    });
+    assert.equal(analyzeResponse.status, 415);
+    const analyzeData = await analyzeResponse.json();
+    assert.equal(analyzeData.error, "Request content type must be application/json.");
+
+    const compareResponse = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ previous: richManifest, current: candidateManifest })
+    });
+    assert.equal(compareResponse.status, 415);
+    const compareData = await compareResponse.json();
+    assert.equal(compareData.error, "Request content type must be application/json.");
+  });
+});
+
+test("adds no-store caching and same-origin resource protections to responses", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/`);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("cross-origin-resource-policy"), "same-origin");
+    assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin");
   });
 });
 
