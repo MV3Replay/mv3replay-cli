@@ -119,6 +119,8 @@ input. Specialized lanes also cover debugger sessions, extension management,
 identity flows, downloads, and clipboard boundaries.
 Synthetic browser-data fixtures also cover cookies, history, bookmarks,
 browsing-data removal, navigation metadata, and web-request observation.
+Reversible critical lanes cover per-site content settings, privacy controls,
+and proxy configuration in disposable profiles with exact restoration checks.
 
 The public-safety check rejects likely secrets, email addresses, personal
 Windows paths, and parent-directory traversal. Unrelated private-project terms
