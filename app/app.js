@@ -1,8 +1,10 @@
 const form = document.getElementById("analyze-form");
+const analyzeSubmitButton = document.getElementById("analyze-submit");
 const fileInput = document.getElementById("manifest-file");
 const folderInput = document.getElementById("manifest-folder");
 const statusEl = document.getElementById("status");
 const reportEl = document.getElementById("report");
+const reportSummaryEl = document.getElementById("report-summary");
 
 const checklistEl = document.getElementById("checklist");
 const checklistListEl = document.getElementById("checklist-list");
@@ -16,12 +18,14 @@ let currentReport = null;
 let checklistState = [];
 
 const compareForm = document.getElementById("compare-form");
+const compareSubmitButton = document.getElementById("compare-submit");
 const previousFileInput = document.getElementById("previous-manifest-file");
 const previousFolderInput = document.getElementById("previous-manifest-folder");
 const candidateFileInput = document.getElementById("candidate-manifest-file");
 const candidateFolderInput = document.getElementById("candidate-manifest-folder");
 const compareStatusEl = document.getElementById("compare-status");
 const compareReportEl = document.getElementById("compare-report");
+const compareReportSummaryEl = document.getElementById("compare-report-summary");
 
 const candidateChecklistEl = document.getElementById("candidate-checklist");
 const candidateChecklistListEl = document.getElementById("candidate-checklist-list");
@@ -37,6 +41,106 @@ let candidateChecklistState = [];
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+// Keeps a file input and its matching folder input mutually exclusive so the
+// selected manifest source is always unambiguous.
+function linkMutuallyExclusiveInputs(primaryInput, otherInput) {
+  primaryInput.addEventListener("change", () => {
+    if (primaryInput.files.length > 0) otherInput.value = "";
+  });
+}
+
+linkMutuallyExclusiveInputs(fileInput, folderInput);
+linkMutuallyExclusiveInputs(folderInput, fileInput);
+linkMutuallyExclusiveInputs(previousFileInput, previousFolderInput);
+linkMutuallyExclusiveInputs(previousFolderInput, previousFileInput);
+linkMutuallyExclusiveInputs(candidateFileInput, candidateFolderInput);
+linkMutuallyExclusiveInputs(candidateFolderInput, candidateFileInput);
+
+// Disables a submit control, marks it and its form as busy, and shows a
+// plain-language loading label. Callers must always pass isLoading=false in
+// a finally block so controls are restored after success or failure.
+function setSubmitLoading(button, formEl, isLoading, loadingLabel, defaultLabel) {
+  button.disabled = isLoading;
+  button.setAttribute("aria-busy", isLoading ? "true" : "false");
+  formEl.setAttribute("aria-busy", isLoading ? "true" : "false");
+  button.textContent = isLoading ? loadingLabel : defaultLabel;
+}
+
+function countByLevel(items) {
+  const counts = {};
+  for (const item of items) {
+    counts[item.level] = (counts[item.level] || 0) + 1;
+  }
+  return counts;
+}
+
+function renderCountBadges(container, counts) {
+  const levels = Object.keys(counts);
+  if (levels.length === 0) {
+    container.appendChild(el("span", { className: "badge badge-ok", text: "0 findings" }));
+    return;
+  }
+  for (const level of levels) {
+    container.appendChild(el("span", {
+      className: `badge badge-${level}`,
+      text: `${level}: ${counts[level]}`
+    }));
+  }
+}
+
+function renderAnalysisSummary(report) {
+  reportSummaryEl.textContent = "";
+
+  const identity = el("p", {
+    text: `${report.identity.name} — v${report.identity.version} (MV${report.identity.manifestVersion})`
+  });
+  reportSummaryEl.appendChild(identity);
+
+  const badgeRow = el("div", { className: "badge-row" });
+  renderCountBadges(badgeRow, countByLevel(report.riskFlags));
+  reportSummaryEl.appendChild(badgeRow);
+
+  const laneCount = report.lanes.length;
+  reportSummaryEl.appendChild(el("p", {
+    text: `${laneCount} test lane${laneCount === 1 ? "" : "s"} derived from this manifest.`
+  }));
+
+  const requiresManualValidation = report.riskFlags.some(flag => flag.level === "critical");
+  const manualBadge = el("span", {
+    className: `badge ${requiresManualValidation ? "badge-critical" : "badge-ok"}`,
+    text: requiresManualValidation ? "Manual validation required" : "No manual validation required"
+  });
+  reportSummaryEl.appendChild(el("p", {}, [manualBadge]));
+}
+
+function renderComparisonSummary(report) {
+  compareReportSummaryEl.textContent = "";
+
+  compareReportSummaryEl.appendChild(el("p", {
+    text: `${report.from.name} v${report.from.version} → ${report.to.name} v${report.to.version}`
+  }));
+
+  const badgeRow = el("div", { className: "badge-row" });
+  renderCountBadges(badgeRow, countByLevel(report.findings));
+  compareReportSummaryEl.appendChild(badgeRow);
+
+  const changeCount = Object.values(report.changes).reduce(
+    (total, diff) => total + (diff.added ? diff.added.length : 0) + (diff.removed ? diff.removed.length : 0),
+    0
+  );
+  compareReportSummaryEl.appendChild(el("p", {
+    text: `${changeCount} change${changeCount === 1 ? "" : "s"} across permissions, hosts, matches, and commands.`
+  }));
+
+  const manualBadge = el("span", {
+    className: `badge ${report.requiresManualUpdateValidation ? "badge-critical" : "badge-ok"}`,
+    text: report.requiresManualUpdateValidation
+      ? "Manual validation required"
+      : "No manual validation required"
+  });
+  compareReportSummaryEl.appendChild(el("p", {}, [manualBadge]));
 }
 
 function el(tag, options = {}, children = []) {
