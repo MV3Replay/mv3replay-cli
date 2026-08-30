@@ -51,6 +51,7 @@ test("builds a deterministic plan from MV3 surfaces", () => {
   const second = analyzeManifest(structuredClone(richManifest));
 
   assert.equal(first.fingerprint, second.fingerprint);
+  assert.equal(first.surfaces.action, true);
   assert.equal(first.surfaces.actionPopup, true);
   assert.equal(first.surfaces.optionsPage, true);
   assert.equal(first.surfaces.serviceWorker, true);
@@ -142,6 +143,23 @@ test("compares release manifests and gates required-access expansion", () => {
     "required-host-expansion",
     "service-worker-entry-change"
   ]);
+});
+
+test("builds a toolbar-action lane when no popup is declared", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Click action",
+    version: "1.0.0",
+    action: {
+      default_title: "Run the extension",
+      default_icon: { "16": "icon-16.png", "32": "icon-32.png" }
+    }
+  });
+
+  assert.equal(report.surfaces.action, true);
+  assert.equal(report.surfaces.actionPopup, false);
+  assert.ok(report.lanes.some(lane => lane.id === "toolbar-action"));
+  assert.ok(!report.lanes.some(lane => lane.id === "action-popup"));
 });
 
 test("compares extension versions using Chrome update ordering", () => {
@@ -370,19 +388,20 @@ test("compares commands, DNR rulesets, external messaging, web-accessible resour
   ]);
   assert.deepEqual(report.changes.webAccessibleResources.removed, []);
   assert.deepEqual(report.changes.surfaces.added, ["devtools", "options", "side-panel"]);
-  assert.deepEqual(report.changes.surfaces.removed, ["action-popup"]);
+  assert.deepEqual(report.changes.surfaces.removed, ["action-popup", "toolbar-action"]);
 
   assert.deepEqual(report.findings.map(item => item.id), [
     "commands-change",
     "dnr-ruleset-change",
     "external-messaging-expansion",
     "web-accessible-resources-change",
+    "toolbar-action-change",
     "extension-surface-change"
   ]);
   assert.equal(report.requiresManualUpdateValidation, true);
 
   const reversed = compareManifests(current, previous);
-  assert.deepEqual(reversed.changes.surfaces.added, ["action-popup"]);
+  assert.deepEqual(reversed.changes.surfaces.added, ["action-popup", "toolbar-action"]);
   assert.deepEqual(reversed.changes.surfaces.removed, ["devtools", "options", "side-panel"]);
   assert.deepEqual(reversed.changes.externalMessaging.matches.added, []);
   assert.ok(reversed.findings.some(item => item.id === "extension-version-decreased"));
@@ -611,6 +630,31 @@ test("detects browser setting override changes", () => {
     && change.current.homepage === "https://example.test/home"));
   assert.ok(report.findings.some(item => item.id === "browser-settings-override-change"));
   assert.equal(report.requiresManualUpdateValidation, true);
+});
+
+test("compares toolbar action title, icon, and activation mode", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Action fixture",
+    version: "1.0.0",
+    action: { default_title: "Run", default_icon: { "16": "old.png" } }
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    action: {
+      default_title: "Open controls",
+      default_icon: { "16": "new.png", "32": "new-32.png" },
+      default_popup: "popup.html"
+    }
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["action-popup"]);
+  assert.ok(report.changes.declarations.some(change => change.field === "action.default_title"));
+  assert.ok(report.changes.declarations.some(change => change.field === "action.default_icon"));
+  assert.ok(report.changes.declarations.some(change => change.field === "action.default_popup"));
+  assert.ok(report.findings.some(item => item.id === "toolbar-action-change"));
 });
 
 test("normalizes command description and every suggested_key platform entry deterministically", () => {

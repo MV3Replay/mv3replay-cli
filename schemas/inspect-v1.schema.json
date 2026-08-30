@@ -22,6 +22,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "action",
         "actionPopup",
         "optionsPage",
         "serviceWorker",
@@ -50,6 +51,7 @@
         "incognitoMode"
       ],
       "properties": {
+        "action": { "type": "boolean" },
         "actionPopup": { "type": "boolean" },
         "optionsPage": { "type": "boolean" },
         "serviceWorker": { "type": "boolean" },

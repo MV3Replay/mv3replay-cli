@@ -81,6 +81,7 @@ function printHuman(report, file) {
     `Report fingerprint: ${report.fingerprint}`,
     "",
     "Detected surfaces",
+    `- Toolbar action declared: ${yesNo(report.surfaces.action)}`,
     `- Action popup: ${yesNo(report.surfaces.actionPopup)}`,
     `- Options: ${yesNo(report.surfaces.optionsPage)}`,
     `- Service worker: ${yesNo(report.surfaces.serviceWorker)}`,

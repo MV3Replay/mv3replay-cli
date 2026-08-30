@@ -150,6 +150,7 @@ function declarationDiff(previousDeclarations, currentDeclarations) {
 }
 
 const SURFACE_NAMES = [
+  ["toolbar-action", "action"],
   ["action-popup", "actionPopup"],
   ["options", "optionsPage"],
   ["side-panel", "sidePanel"],
@@ -241,6 +242,20 @@ function declarationChanges(previousManifest, currentManifest) {
     "minimum_chrome_version",
     presentString(previousManifest.minimum_chrome_version) ? previousManifest.minimum_chrome_version : null,
     presentString(currentManifest.minimum_chrome_version) ? currentManifest.minimum_chrome_version : null
+  );
+  pushIfChanged(
+    "action.default_title",
+    presentString(previousManifest.action?.default_title) ? previousManifest.action.default_title : null,
+    presentString(currentManifest.action?.default_title) ? currentManifest.action.default_title : null
+  );
+  pushIfChanged(
+    "action.default_icon",
+    previousManifest.action?.default_icon && typeof previousManifest.action.default_icon === "object"
+      ? stableValue(previousManifest.action.default_icon)
+      : (presentString(previousManifest.action?.default_icon) ? previousManifest.action.default_icon : null),
+    currentManifest.action?.default_icon && typeof currentManifest.action.default_icon === "object"
+      ? stableValue(currentManifest.action.default_icon)
+      : (presentString(currentManifest.action?.default_icon) ? currentManifest.action.default_icon : null)
   );
   pushIfChanged(
     "update_url",
@@ -370,6 +385,7 @@ export function analyzeManifest(manifest) {
     externalExtensionIds
   } = manifestSignals(manifest);
 
+  const action = Boolean(manifest.action && typeof manifest.action === "object" && !Array.isArray(manifest.action));
   const actionPopup = presentString(manifest.action?.default_popup);
   const optionsPage = presentString(manifest.options_page)
     || presentString(manifest.options_ui?.page);
@@ -405,6 +421,7 @@ export function analyzeManifest(manifest) {
   );
 
   const surfaces = {
+    action,
     actionPopup,
     optionsPage,
     serviceWorker,
@@ -457,6 +474,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "action-popup", "high",
       "The extension declares an action popup.",
       ["Open the popup through the browser action", "Exercise its critical path", "Reopen it and verify persisted state"]);
+  }
+  if (action && !actionPopup) {
+    addLane(lanes, "toolbar-action", "high",
+      "The extension declares a toolbar action without a popup, so activation depends on its click-event path.",
+      ["Pin or open the extension action from the browser toolbar", "Trigger the action on an allowed tab", "Verify disabled, unsupported, and repeated-click behavior"]);
   }
   if (optionsPage) {
     addLane(lanes, "options", "medium",
@@ -673,7 +695,9 @@ export function compareManifests(previousManifest, currentManifest) {
 
   const declarations = declarationChanges(previousManifest, currentManifest);
   const uiDeclarationFields = [
+    "action.default_icon",
     "action.default_popup",
+    "action.default_title",
     "devtools_page",
     "omnibox.keyword",
     "options_page",
@@ -829,6 +853,13 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "update-source-change",
       level: "critical",
       message: "The extension update URL changed. Verify the intended distribution source and test an authentic upgrade before release."
+    });
+  }
+  if (declarations.some(item => item.field.startsWith("action."))) {
+    findings.push({
+      id: "toolbar-action-change",
+      level: "high",
+      message: "The toolbar action declaration changed. Verify its icon and accessible title, then exercise either the popup or click-event path on allowed and unsupported tabs."
     });
   }
   if (declarations.some(item => item.field === "incognito")) {
