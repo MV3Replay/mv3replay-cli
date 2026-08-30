@@ -68,6 +68,8 @@ The interface also provides:
 - built-in analysis and comparison examples that are always labeled as sample
   data;
 - summaries, severity filters, and explicit manual-validation gates;
+- an exact structured comparison total with a category-by-category breakdown,
+  shown consistently in the interface and Markdown export;
 - in-memory regression checklists, including comparison-specific findings,
   that update readiness for manual browser testing without claiming runtime
   success;

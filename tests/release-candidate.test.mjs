@@ -85,6 +85,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "unpacked-extension directory selection",
       "built-in sample analysis and comparison",
       "finding severity filters",
+      "exact structured comparison count and breakdown",
       "checklist completion filters and local reset controls",
       "Chrome extension version-order validation",
       "comparison-specific candidate checklist items",
