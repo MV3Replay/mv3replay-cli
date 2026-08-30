@@ -752,6 +752,14 @@ test("comparison summary counts explicit change records without traversing neste
   assert.match(source, /Breakdown: \$\{breakdown\}/);
 });
 
+test("comparison Markdown exports the same structured change total and breakdown", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /## Structured change count/);
+  assert.match(source, /Total: \$\{countComparisonChanges\(report\.changes\)\}/);
+  assert.match(source, /comparisonChangeBreakdown\(report\.changes\)/);
+  assert.match(source, /escapeMarkdownText\(label\)/);
+});
+
 test("both in-memory checklists have accessible completion filters and reset controls", async () => {
   const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");

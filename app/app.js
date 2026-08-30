@@ -1035,6 +1035,12 @@ function buildComparisonMarkdown(report, checklist) {
   lines.push(`- To: ${escapeMarkdownText(report.to.name)} v${escapeMarkdownText(report.to.version)}`);
   lines.push(`- Chrome version ordering: ${escapeMarkdownText(report.changes.version.relation)}`);
   lines.push("");
+  lines.push("## Structured change count");
+  lines.push(`- Total: ${countComparisonChanges(report.changes)}`);
+  for (const [label, count] of comparisonChangeBreakdown(report.changes)) {
+    lines.push(`- ${escapeMarkdownText(label)}: ${count}`);
+  }
+  lines.push("");
   lines.push("## Manual update validation");
   lines.push(
     report.requiresManualUpdateValidation
