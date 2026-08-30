@@ -630,6 +630,29 @@ test("examples and real files share the same local execution paths", async () =>
   assert.match(source, /setActionGroupLoading/);
 });
 
+test("analysis and comparison expose honest live readiness gates", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(html, /id="analysis-readiness"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /id="comparison-readiness"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(source, /function updateAnalysisReadiness/);
+  assert.match(source, /function updateComparisonReadiness/);
+  assert.match(source, /Ready for manual browser testing/);
+  assert.match(source, /does not mean the extension has passed runtime testing/);
+  assert.match(source, /Runtime and update behavior are still unverified/);
+  assert.match(source, /requiresManualUpdateValidation/);
+});
+
+test("readiness gates refresh whenever a checklist checkbox changes", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /function updateChecklistProgress\(\)[\s\S]*?updateAnalysisReadiness\(\)/);
+  assert.match(source, /function updateCandidateChecklistProgress\(\)[\s\S]*?updateComparisonReadiness\(\)/);
+  const css = await readFile(new URL("../app/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.readiness-ready/);
+  assert.match(css, /\.readiness-pending/);
+  assert.match(css, /\.readiness-blocked/);
+});
+
 test("report privacy metadata declares no outbound networking", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/api/analyze`, {

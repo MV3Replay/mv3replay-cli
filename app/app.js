@@ -49,6 +49,7 @@ const folderInput = document.getElementById("manifest-folder");
 const statusEl = document.getElementById("status");
 const reportEl = document.getElementById("report");
 const reportSummaryEl = document.getElementById("report-summary");
+const analysisReadinessEl = document.getElementById("analysis-readiness");
 const reportDetailsEl = document.getElementById("report-details");
 
 const checklistEl = document.getElementById("checklist");
@@ -72,6 +73,7 @@ const candidateFolderInput = document.getElementById("candidate-manifest-folder"
 const compareStatusEl = document.getElementById("compare-status");
 const compareReportEl = document.getElementById("compare-report");
 const compareReportSummaryEl = document.getElementById("compare-report-summary");
+const comparisonReadinessEl = document.getElementById("comparison-readiness");
 const compareReportDetailsEl = document.getElementById("compare-report-details");
 
 const candidateChecklistEl = document.getElementById("candidate-checklist");
@@ -196,6 +198,74 @@ function renderComparisonSummary(report) {
   compareReportSummaryEl.appendChild(el("p", {}, [manualBadge]));
 }
 
+function setReadiness(container, state, title, detail) {
+  container.className = `readiness readiness-${state}`;
+  container.textContent = "";
+  container.appendChild(el("strong", { text: title }));
+  container.appendChild(el("span", { text: detail }));
+}
+
+function updateAnalysisReadiness() {
+  if (!currentReport) {
+    analysisReadinessEl.textContent = "";
+    return;
+  }
+  const criticalCount = currentReport.riskFlags.filter(flag => flag.level === "critical").length;
+  const remaining = checklistState.filter(item => !item.done).length;
+  if (criticalCount > 0) {
+    setReadiness(
+      analysisReadinessEl,
+      "blocked",
+      "Review required",
+      `${criticalCount} critical finding${criticalCount === 1 ? "" : "s"} must be reviewed before browser testing.`
+    );
+  } else if (remaining > 0) {
+    setReadiness(
+      analysisReadinessEl,
+      "pending",
+      "Checklist in progress",
+      `${remaining} manual check${remaining === 1 ? "" : "s"} remaining before browser testing.`
+    );
+  } else {
+    setReadiness(
+      analysisReadinessEl,
+      "ready",
+      "Ready for manual browser testing",
+      "The static checklist is complete. This does not mean the extension has passed runtime testing."
+    );
+  }
+}
+
+function updateComparisonReadiness() {
+  if (!currentCompareReport) {
+    comparisonReadinessEl.textContent = "";
+    return;
+  }
+  const remaining = candidateChecklistState.filter(item => !item.done).length;
+  if (currentCompareReport.requiresManualUpdateValidation) {
+    setReadiness(
+      comparisonReadinessEl,
+      "blocked",
+      "Update-path validation required",
+      "Permission or scope changes require a manual update test before this candidate can move forward."
+    );
+  } else if (remaining > 0) {
+    setReadiness(
+      comparisonReadinessEl,
+      "pending",
+      "Candidate checklist in progress",
+      `${remaining} manual check${remaining === 1 ? "" : "s"} remaining before browser testing.`
+    );
+  } else {
+    setReadiness(
+      comparisonReadinessEl,
+      "ready",
+      "Ready for manual browser testing",
+      "The static comparison checklist is complete. Runtime and update behavior are still unverified."
+    );
+  }
+}
+
 function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
   if (options.text !== undefined) node.textContent = options.text;
@@ -264,6 +334,7 @@ function updateChecklistProgress() {
   checklistProgressEl.textContent = total === 0
     ? "No checklist items for this manifest."
     : `${completed} of ${total} checklist items completed.`;
+  updateAnalysisReadiness();
 }
 
 function renderChecklist(report) {
@@ -474,6 +545,7 @@ function resetAnalysisResults() {
   reportEl.hidden = true;
   reportSummaryEl.textContent = "";
   reportDetailsEl.textContent = "";
+  analysisReadinessEl.textContent = "";
   checklistEl.hidden = true;
   checklistListEl.textContent = "";
   checklistProgressEl.textContent = "";
@@ -597,6 +669,7 @@ function updateCandidateChecklistProgress() {
   candidateChecklistProgressEl.textContent = total === 0
     ? "No candidate-release checklist items for this comparison."
     : `${completed} of ${total} candidate-release checklist items completed.`;
+  updateComparisonReadiness();
 }
 
 function renderCandidateChecklist(candidateAnalysis) {
@@ -734,6 +807,7 @@ function resetComparisonResults() {
   compareReportEl.hidden = true;
   compareReportSummaryEl.textContent = "";
   compareReportDetailsEl.textContent = "";
+  comparisonReadinessEl.textContent = "";
   candidateChecklistEl.hidden = true;
   candidateChecklistListEl.textContent = "";
   candidateChecklistProgressEl.textContent = "";

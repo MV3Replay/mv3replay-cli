@@ -156,6 +156,25 @@ input:focus-visible {
   letter-spacing: 0.04em;
 }
 
+.readiness {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.85rem 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-left-width: 0.35rem;
+  border-radius: 0.45rem;
+}
+
+.readiness span { color: var(--muted); }
+.readiness-ready { border-left-color: var(--ok-text); background: var(--ok-bg); }
+.readiness-pending { border-left-color: var(--medium-text); background: var(--medium-bg); }
+.readiness-blocked { border-left-color: var(--critical-text); background: var(--critical-bg); }
+
+.readiness-ready span,
+.readiness-pending span,
+.readiness-blocked span { color: inherit; }
+
 .summary {
   padding-bottom: 0.85rem;
   margin-bottom: 0.85rem;
