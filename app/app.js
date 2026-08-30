@@ -156,6 +156,32 @@ function downloadLocalFile(filename, content, mimeType) {
   URL.revokeObjectURL(url);
 }
 
+// Deterministically neutralizes a dynamic text value for inclusion in the
+// generated Markdown exports. Manifest- and report-controlled strings must
+// never be able to introduce headings, links, images, HTML, extra list
+// items, or line breaks into the exported document.
+function escapeMarkdownText(value) {
+  const text = value === undefined || value === null ? "" : String(value);
+  let result = "";
+  for (const ch of text) {
+    const code = ch.codePointAt(0);
+    // Replace control characters (including CR/LF) with a single space so
+    // embedded line breaks cannot start a new Markdown line.
+    if (code < 32 || code === 127) {
+      result += " ";
+      continue;
+    }
+    // Escape characters with Markdown/HTML significance so they render as
+    // literal punctuation instead of active syntax.
+    if ("\\`*_{}[]()#+-!<>|~".indexOf(ch) !== -1) {
+      result += "\\" + ch;
+      continue;
+    }
+    result += ch;
+  }
+  return result.replace(/\s+/g, " ").trim();
+}
+
 function buildAnalysisMarkdown(report, checklist) {
   const lines = [];
   lines.push("# MV3 Replay analysis report");
@@ -163,22 +189,30 @@ function buildAnalysisMarkdown(report, checklist) {
   lines.push(`Exported: ${new Date().toISOString()}`);
   lines.push("");
   lines.push("## Identity");
-  lines.push(`- Name: ${report.identity.name}`);
-  lines.push(`- Version: ${report.identity.version}`);
-  lines.push(`- Manifest version: ${report.identity.manifestVersion}`);
+  lines.push(`- Name: ${escapeMarkdownText(report.identity.name)}`);
+  lines.push(`- Version: ${escapeMarkdownText(report.identity.version)}`);
+  lines.push(`- Manifest version: ${escapeMarkdownText(report.identity.manifestVersion)}`);
   lines.push("");
   lines.push("## Findings");
   if (report.riskFlags.length === 0) {
     lines.push("No risk flags were detected in this static analysis.");
   } else {
-    for (const flag of report.riskFlags) lines.push(`- **${flag.id}** (${flag.level}): ${flag.message}`);
+    for (const flag of report.riskFlags) {
+      lines.push(
+        `- **${escapeMarkdownText(flag.id)}** (${escapeMarkdownText(flag.level)}): ${escapeMarkdownText(flag.message)}`
+      );
+    }
   }
   lines.push("");
   lines.push("## Test checklist");
   if (checklist.length === 0) {
     lines.push("No checklist items for this manifest.");
   } else {
-    for (const item of checklist) lines.push(`- [${item.done ? "x" : " "}] ${item.laneId}: ${item.check}`);
+    for (const item of checklist) {
+      lines.push(
+        `- [${item.done ? "x" : " "}] ${escapeMarkdownText(item.laneId)}: ${escapeMarkdownText(item.check)}`
+      );
+    }
   }
   lines.push("");
   lines.push("## Limitations");
@@ -420,8 +454,8 @@ function buildComparisonMarkdown(report, checklist) {
   lines.push(`Exported: ${new Date().toISOString()}`);
   lines.push("");
   lines.push("## Release identity");
-  lines.push(`- From: ${report.from.name} v${report.from.version}`);
-  lines.push(`- To: ${report.to.name} v${report.to.version}`);
+  lines.push(`- From: ${escapeMarkdownText(report.from.name)} v${escapeMarkdownText(report.from.version)}`);
+  lines.push(`- To: ${escapeMarkdownText(report.to.name)} v${escapeMarkdownText(report.to.version)}`);
   lines.push("");
   lines.push("## Manual update validation");
   lines.push(
@@ -434,7 +468,11 @@ function buildComparisonMarkdown(report, checklist) {
   if (report.findings.length === 0) {
     lines.push("No comparison findings were detected in this static analysis.");
   } else {
-    for (const finding of report.findings) lines.push(`- **${finding.id}** (${finding.level}): ${finding.message}`);
+    for (const finding of report.findings) {
+      lines.push(
+        `- **${escapeMarkdownText(finding.id)}** (${escapeMarkdownText(finding.level)}): ${escapeMarkdownText(finding.message)}`
+      );
+    }
   }
   lines.push("");
   lines.push("## Key changes");
@@ -448,8 +486,12 @@ function buildComparisonMarkdown(report, checklist) {
   ];
   for (const [key, title] of changeTitles) {
     const diff = report.changes[key];
-    const added = diff && diff.added && diff.added.length ? diff.added.join(", ") : "none";
-    const removed = diff && diff.removed && diff.removed.length ? diff.removed.join(", ") : "none";
+    const added = diff && diff.added && diff.added.length
+      ? diff.added.map(escapeMarkdownText).join(", ")
+      : "none";
+    const removed = diff && diff.removed && diff.removed.length
+      ? diff.removed.map(escapeMarkdownText).join(", ")
+      : "none";
     lines.push(`- ${title} — Added: ${added}; Removed: ${removed}`);
   }
   lines.push("");
@@ -457,7 +499,11 @@ function buildComparisonMarkdown(report, checklist) {
   if (checklist.length === 0) {
     lines.push("No candidate-release checklist items for this comparison.");
   } else {
-    for (const item of checklist) lines.push(`- [${item.done ? "x" : " "}] ${item.laneId}: ${item.check}`);
+    for (const item of checklist) {
+      lines.push(
+        `- [${item.done ? "x" : " "}] ${escapeMarkdownText(item.laneId)}: ${escapeMarkdownText(item.check)}`
+      );
+    }
   }
   lines.push("");
   lines.push("## Limitations");

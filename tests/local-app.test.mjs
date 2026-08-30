@@ -535,6 +535,35 @@ test("app.js still only requests the local analyze and compare endpoints after f
   assert.deepEqual(fetchCalls.sort(), ["/api/analyze", "/api/compare"]);
 });
 
+test("Markdown export escaping neutralizes adversarial dynamic text", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  const match = source.match(/function escapeMarkdownText\(value\) \{[\s\S]*?\r?\n\}/);
+  assert.ok(match, "escapeMarkdownText function should be present");
+  const escapeMarkdownText = Function(`${match[0]}; return escapeMarkdownText;`)();
+  const escaped = escapeMarkdownText("# title\n[link](https://example.test) ![image](x) <b>html</b>\n- [ ] extra\u0000");
+
+  assert.doesNotMatch(escaped, /\r|\n|\u0000/);
+  assert.doesNotMatch(escaped, /(^|\s)#\s/);
+  assert.doesNotMatch(escaped, /(?<!\\)\[[^\]]+\]\(/);
+  assert.doesNotMatch(escaped, /(?<!\\)!\[/);
+  assert.doesNotMatch(escaped, /(?<!\\)<[^>]+(?<!\\)>/);
+  assert.doesNotMatch(escaped, /(^|\s)- \[ \]/);
+});
+
+test("both Markdown builders escape every dynamic report and checklist field", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  for (const expression of [
+    "report.identity.name", "report.identity.version", "report.identity.manifestVersion",
+    "flag.id", "flag.level", "flag.message", "item.laneId", "item.check",
+    "report.from.name", "report.from.version", "report.to.name", "report.to.version",
+    "finding.id", "finding.level", "finding.message"
+  ]) {
+    assert.match(source, new RegExp(`escapeMarkdownText\\(${expression.replaceAll(".", "\\.")}\\)`));
+  }
+  assert.match(source, /diff\.added\.map\(escapeMarkdownText\)/);
+  assert.match(source, /diff\.removed\.map\(escapeMarkdownText\)/);
+});
+
 test("report privacy metadata declares no outbound networking", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/api/analyze`, {
