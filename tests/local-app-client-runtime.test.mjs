@@ -47,7 +47,7 @@ function collectText(node) {
   return [node.textContent, ...node.children.flatMap(collectText)].filter(Boolean).join(" ");
 }
 
-async function createClientHarness() {
+async function createClientHarness({ identicalComparison = false } = {}) {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   const elements = new Map();
   const createdElements = [];
@@ -116,6 +116,29 @@ async function createClientHarness() {
       ]
     }
   };
+  if (identicalComparison) {
+    comparisonReport.to.version = comparisonReport.from.version;
+    comparisonReport.findings = [];
+    comparisonReport.requiresManualUpdateValidation = false;
+    comparisonReport.changes.version = {
+      previous: comparisonReport.from.version,
+      current: comparisonReport.from.version,
+      relation: "same"
+    };
+    for (const key of [
+      "requiredPermissions", "optionalPermissions", "requiredHosts", "optionalHosts",
+      "oauthScopes", "contentScriptMatches", "contentScripts", "commands", "surfaces",
+      "webAccessibleResources"
+    ]) {
+      comparisonReport.changes[key] = { added: [], removed: [] };
+    }
+    comparisonReport.changes.staticRulesets = { added: [], removed: [], changed: [] };
+    comparisonReport.changes.externalMessaging = {
+      matches: { added: [], removed: [] },
+      ids: { added: [], removed: [] }
+    };
+    comparisonReport.changes.declarations = [];
+  }
 
   const context = vm.createContext({
     document,
@@ -180,6 +203,17 @@ test("built-in comparison example renders an explicit manual-validation gate", a
   assert.equal(elements.get("compare-report").hidden, false);
   assert.equal(elements.get("compare-submit").disabled, false);
   assert.equal(elements.get("compare-example-button").attributes.get("aria-busy"), "false");
+});
+
+test("an identical comparison renders zero structured changes without comparison findings", async () => {
+  const { elements } = await createClientHarness({ identicalComparison: true });
+  await elements.get("compare-example-button").listeners.get("click")();
+
+  const summary = collectText(elements.get("compare-report-summary"));
+  assert.match(summary, /0 structured change records/);
+  assert.match(summary, /Breakdown: no structured changes\./);
+  assert.match(collectText(elements.get("compare-report-details")), /No comparison findings were detected/);
+  assert.doesNotMatch(collectText(elements.get("candidate-checklist-list")), /comparison-/);
 });
 
 test("severity filters execute and hide non-matching rendered findings", async () => {
