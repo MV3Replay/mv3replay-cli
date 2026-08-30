@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Advanced entry points fixture",
+  "version": "1.0.0",
+  "permissions": ["nativeMessaging", "userScripts"],
+  "omnibox": { "keyword": "mv3" },
+  "sandbox": { "pages": ["sandbox.html", "embed.html"] }
+}

@@ -285,6 +285,10 @@ export function analyzeManifest(manifest) {
   const incognitoMode = ["spanning", "split", "not_allowed"].includes(manifest.incognito)
     ? manifest.incognito
     : "unspecified";
+  const omnibox = presentString(manifest.omnibox?.keyword);
+  const sandboxPages = sortedUnique(asStrings(manifest.sandbox?.pages));
+  const nativeMessaging = permissions.includes("nativeMessaging") || optionalPermissions.includes("nativeMessaging");
+  const userScripts = permissions.includes("userScripts") || optionalPermissions.includes("userScripts");
 
   const surfaces = {
     actionPopup,
@@ -301,6 +305,10 @@ export function analyzeManifest(manifest) {
     staticRulesets: staticRulesets.length,
     webAccessibleResourceDeclarations: webAccessibleResources.length,
     externallyConnectable: externalMatches.length > 0 || externalExtensionIds.length > 0,
+    omnibox,
+    sandboxPages: sandboxPages.length,
+    nativeMessaging,
+    userScripts,
     incognitoMode
   };
 
@@ -395,6 +403,26 @@ export function analyzeManifest(manifest) {
       "Incognito access is user-controlled and can change context isolation.",
       ["Verify behavior with incognito access disabled", `Verify the declared ${incognitoMode} behavior when enabled`, "Confirm no unintended state crosses the profile boundary"]);
   }
+  if (omnibox) {
+    addLane(lanes, "omnibox-input", "medium",
+      "Omnibox input is user-controlled and the keyword can conflict with normal navigation.",
+      ["Activate the declared keyword", "Exercise empty and unexpected input", "Verify navigation and suggestion behavior after an upgrade"]);
+  }
+  if (sandboxPages.length > 0) {
+    addLane(lanes, "sandboxed-pages", "high",
+      "Sandboxed extension pages run with a distinct origin and restricted extension API access.",
+      ["Open every declared sandbox page", "Verify messaging across the sandbox boundary", "Confirm restricted extension APIs fail safely"]);
+  }
+  if (nativeMessaging) {
+    addLane(lanes, "native-messaging", "critical",
+      "Native messaging crosses from the extension into a separately installed host process.",
+      ["Test with the intended host installed", "Handle a missing or disconnected host", "Reject malformed or unexpected host messages"]);
+  }
+  if (userScripts) {
+    addLane(lanes, "user-scripts", "critical",
+      "User scripts introduce dynamically registered code and separate permission state.",
+      ["Register and execute a minimal user script", "Verify allowed and denied host states", "Remove registered scripts and confirm no stale execution"]);
+  }
 
   const riskFlags = [];
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
@@ -424,6 +452,12 @@ export function analyzeManifest(manifest) {
   if (externalMatches.includes("<all_urls>")) {
     riskFlags.push({ id: "broad-external-messaging", level: "critical", message: "External messaging accepts <all_urls>; treat every message as untrusted input." });
   }
+  if (permissions.includes("nativeMessaging")) {
+    riskFlags.push({ id: "required-native-messaging", level: "critical", message: "nativeMessaging is required; verify the installed-host boundary, failure states, and user-facing disclosure." });
+  }
+  if (permissions.includes("userScripts")) {
+    riskFlags.push({ id: "required-user-scripts", level: "high", message: "userScripts is required; verify explicit user control, host scope, and removal of dynamically registered scripts." });
+  }
 
   const report = {
     schemaVersion: 1,
@@ -444,7 +478,8 @@ export function analyzeManifest(manifest) {
       staticRulesets: staticRulesets.length,
       webAccessibleResourceDeclarations: webAccessibleResources.length,
       externalMatchPatterns: externalMatches.length,
-      externalExtensionIds: externalExtensionIds.length
+      externalExtensionIds: externalExtensionIds.length,
+      sandboxPages: sandboxPages.length
     },
     lanes,
     riskFlags,

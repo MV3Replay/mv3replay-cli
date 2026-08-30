@@ -99,7 +99,8 @@ const INSPECT_FIXTURES = [
   "host-permissions",
   "declarative-net-request",
   "side-panel",
-  "risky-external-messaging"
+  "risky-external-messaging",
+  "advanced-entry-points"
 ];
 
 for (const fixture of INSPECT_FIXTURES) {

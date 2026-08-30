@@ -88,6 +88,10 @@ function printHuman(report, file) {
     `- Side panel: ${yesNo(report.surfaces.sidePanel)}`,
     `- DevTools page: ${yesNo(report.surfaces.devtoolsPage)}`,
     `- Storage access: ${yesNo(report.surfaces.storage)}`,
+    `- Omnibox keyword: ${yesNo(report.surfaces.omnibox)}`,
+    `- Sandboxed pages: ${report.surfaces.sandboxPages}`,
+    `- Native messaging: ${yesNo(report.surfaces.nativeMessaging)}`,
+    `- User scripts: ${yesNo(report.surfaces.userScripts)}`,
     "",
     "Recommended regression lanes"
   ];

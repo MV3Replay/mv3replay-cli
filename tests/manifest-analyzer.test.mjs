@@ -559,6 +559,18 @@ const fixtureExpectations = {
     assert.ok(riskIds.includes("broad-web-accessible-resources"));
     assert.ok(report.lanes.some(lane => lane.id === "external-messaging"));
     assert.ok(report.lanes.some(lane => lane.id === "web-accessible-resources"));
+  },
+  "advanced-entry-points": report => {
+    assert.equal(report.surfaces.omnibox, true);
+    assert.equal(report.surfaces.sandboxPages, 2);
+    assert.equal(report.surfaces.nativeMessaging, true);
+    assert.equal(report.surfaces.userScripts, true);
+    assert.equal(report.counts.sandboxPages, 2);
+    for (const lane of ["omnibox-input", "sandboxed-pages", "native-messaging", "user-scripts"]) {
+      assert.ok(report.lanes.some(item => item.id === lane));
+    }
+    assert.ok(report.riskFlags.some(flag => flag.id === "required-native-messaging" && flag.level === "critical"));
+    assert.ok(report.riskFlags.some(flag => flag.id === "required-user-scripts" && flag.level === "high"));
   }
 };
 

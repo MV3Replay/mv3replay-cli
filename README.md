@@ -105,7 +105,8 @@ repository root on Windows and POSIX shells. Representative manifests live in
 `fixtures/` and cover minimal MV3, popup, options, service worker, content
 scripts, optional and required permissions, host permissions, declarative
 net request rulesets, side panel, risky external messaging, malformed JSON,
-and non-MV3 input.
+omnibox input, sandboxed pages, native messaging, user scripts, and non-MV3
+input.
 
 The public-safety check rejects likely secrets, email addresses, personal
 Windows paths, and parent-directory traversal. Unrelated private-project terms

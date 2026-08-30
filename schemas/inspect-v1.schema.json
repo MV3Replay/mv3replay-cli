@@ -36,6 +36,10 @@
         "staticRulesets",
         "webAccessibleResourceDeclarations",
         "externallyConnectable",
+        "omnibox",
+        "sandboxPages",
+        "nativeMessaging",
+        "userScripts",
         "incognitoMode"
       ],
       "properties": {
@@ -53,6 +57,10 @@
         "staticRulesets": { "type": "integer", "minimum": 0 },
         "webAccessibleResourceDeclarations": { "type": "integer", "minimum": 0 },
         "externallyConnectable": { "type": "boolean" },
+        "omnibox": { "type": "boolean" },
+        "sandboxPages": { "type": "integer", "minimum": 0 },
+        "nativeMessaging": { "type": "boolean" },
+        "userScripts": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }
       }
     },
@@ -70,7 +78,8 @@
         "staticRulesets",
         "webAccessibleResourceDeclarations",
         "externalMatchPatterns",
-        "externalExtensionIds"
+        "externalExtensionIds",
+        "sandboxPages"
       ],
       "properties": {
         "permissions": { "type": "integer", "minimum": 0 },
@@ -83,7 +92,8 @@
         "staticRulesets": { "type": "integer", "minimum": 0 },
         "webAccessibleResourceDeclarations": { "type": "integer", "minimum": 0 },
         "externalMatchPatterns": { "type": "integer", "minimum": 0 },
-        "externalExtensionIds": { "type": "integer", "minimum": 0 }
+        "externalExtensionIds": { "type": "integer", "minimum": 0 },
+        "sandboxPages": { "type": "integer", "minimum": 0 }
       }
     },
     "lanes": {

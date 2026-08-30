@@ -37,6 +37,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   profile.
 - Zero runtime dependencies, Node.js 20 or newer, CI matrix across Ubuntu
   and Windows on Node.js 20, 22, and 24.
+- Regression lanes for omnibox input, sandboxed pages, native messaging, and
+  dynamically registered user scripts, including required-access risk flags.
 
 ### Future ideas (not implemented)
 
