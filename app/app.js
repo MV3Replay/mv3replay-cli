@@ -1,5 +1,6 @@
 const form = document.getElementById("analyze-form");
 const fileInput = document.getElementById("manifest-file");
+const folderInput = document.getElementById("manifest-folder");
 const statusEl = document.getElementById("status");
 const reportEl = document.getElementById("report");
 
@@ -16,7 +17,9 @@ let checklistState = [];
 
 const compareForm = document.getElementById("compare-form");
 const previousFileInput = document.getElementById("previous-manifest-file");
+const previousFolderInput = document.getElementById("previous-manifest-folder");
 const candidateFileInput = document.getElementById("candidate-manifest-file");
+const candidateFolderInput = document.getElementById("candidate-manifest-folder");
 const compareStatusEl = document.getElementById("compare-status");
 const compareReportEl = document.getElementById("compare-report");
 
@@ -214,6 +217,33 @@ exportMarkdownButton.addEventListener("click", () => {
   exportStatusEl.textContent = "Checklist exported to a local Markdown file.";
 });
 
+// Given a FileList from a webkitdirectory input, locate exactly one root
+// manifest.json (folderName/manifest.json). Relative paths are inspected only
+// to locate it; only this single File object's contents may be read later.
+function findRootManifestInFolder(fileList) {
+  const files = Array.from(fileList || []);
+  if (files.length === 0) {
+    return { file: null, error: null };
+  }
+
+  const rootManifests = files.filter(file => {
+    const relativePath = file.webkitRelativePath || "";
+    const segments = relativePath.split("/").filter(Boolean);
+    return segments.length === 2 && segments[1] === "manifest.json";
+  });
+
+  if (rootManifests.length === 0) {
+    return { file: null, error: "The selected folder must contain a root manifest.json file." };
+  }
+  if (rootManifests.length > 1) {
+    return {
+      file: null,
+      error: "The selected folder has more than one root manifest.json file; the selection is ambiguous."
+    };
+  }
+  return { file: rootManifests[0], error: null };
+}
+
 async function readFileAsText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -236,9 +266,17 @@ form.addEventListener("submit", async event => {
   currentReport = null;
   checklistState = [];
 
-  const file = fileInput.files[0];
+  let file = fileInput.files[0];
+  if (!file && folderInput.files.length > 0) {
+    const { file: folderManifest, error } = findRootManifestInFolder(folderInput.files);
+    if (error) {
+      setStatus(error);
+      return;
+    }
+    file = folderManifest;
+  }
   if (!file) {
-    setStatus("Select a local manifest.json file first.");
+    setStatus("Select a local manifest.json file or an unpacked extension folder first.");
     return;
   }
 
@@ -473,10 +511,28 @@ compareForm.addEventListener("submit", async event => {
   currentCandidateAnalysis = null;
   candidateChecklistState = [];
 
-  const previousFile = previousFileInput.files[0];
-  const candidateFile = candidateFileInput.files[0];
+  let previousFile = previousFileInput.files[0];
+  if (!previousFile && previousFolderInput.files.length > 0) {
+    const { file: folderManifest, error } = findRootManifestInFolder(previousFolderInput.files);
+    if (error) {
+      setCompareStatus(`Previous release: ${error}`);
+      return;
+    }
+    previousFile = folderManifest;
+  }
+
+  let candidateFile = candidateFileInput.files[0];
+  if (!candidateFile && candidateFolderInput.files.length > 0) {
+    const { file: folderManifest, error } = findRootManifestInFolder(candidateFolderInput.files);
+    if (error) {
+      setCompareStatus(`Candidate release: ${error}`);
+      return;
+    }
+    candidateFile = folderManifest;
+  }
+
   if (!previousFile || !candidateFile) {
-    setCompareStatus("Select both a previous and a candidate manifest.json file.");
+    setCompareStatus("Select both a previous and a candidate manifest.json file or folder.");
     return;
   }
 

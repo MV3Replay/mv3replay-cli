@@ -18,9 +18,17 @@
 
   <form id="analyze-form">
     <label for="manifest-file">Local manifest.json</label>
-    <input type="file" id="manifest-file" accept="application/json,.json" required>
+    <input type="file" id="manifest-file" accept="application/json,.json">
+    <label for="manifest-folder">Or unpacked extension folder</label>
+    <input type="file" id="manifest-folder" webkitdirectory directory multiple
+      aria-describedby="manifest-folder-help">
     <button type="submit">Analyze locally</button>
   </form>
+  <p id="manifest-folder-help" class="folder-help">
+    Choose one of the two inputs above. If you select a folder, only its root
+    <code>manifest.json</code> content is read. Relative paths are checked only to find it;
+    no other file content or path is sent anywhere.
+  </p>
 
   <p id="status" role="status"></p>
   <section id="report" hidden></section>
@@ -47,11 +55,22 @@
   </p>
   <form id="compare-form">
     <label for="previous-manifest-file">Previous manifest.json</label>
-    <input type="file" id="previous-manifest-file" accept="application/json,.json" required>
+    <input type="file" id="previous-manifest-file" accept="application/json,.json">
+    <label for="previous-manifest-folder">Or previous unpacked extension folder</label>
+    <input type="file" id="previous-manifest-folder" webkitdirectory directory multiple
+      aria-describedby="compare-folder-help">
     <label for="candidate-manifest-file">Candidate manifest.json</label>
-    <input type="file" id="candidate-manifest-file" accept="application/json,.json" required>
+    <input type="file" id="candidate-manifest-file" accept="application/json,.json">
+    <label for="candidate-manifest-folder">Or candidate unpacked extension folder</label>
+    <input type="file" id="candidate-manifest-folder" webkitdirectory directory multiple
+      aria-describedby="compare-folder-help">
     <button type="submit">Compare locally</button>
   </form>
+  <p id="compare-folder-help" class="folder-help">
+    For each release, choose either the file input or the folder input. If you select a folder,
+    only its root <code>manifest.json</code> content is read. Relative paths are checked only to find it;
+    no other file content or path is sent anywhere.
+  </p>
 
   <p id="compare-status" role="status"></p>
   <section id="compare-report" hidden></section>

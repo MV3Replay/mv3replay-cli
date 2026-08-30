@@ -308,7 +308,7 @@ test("app.js exports checklist state only via a user-triggered local download", 
 test("app.js keeps checklist state in memory and resets it on each new analysis", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /let checklistState = \[\];/);
-  assert.match(source, /checklistState = \[\];[\s\S]*const file = fileInput\.files\[0\]/);
+  assert.match(source, /checklistState = \[\];[\s\S]*let file = fileInput\.files\[0\]/);
 });
 
 test("index.html includes an accessible checklist section and export control", async () => {
@@ -337,7 +337,7 @@ test("app.js renders the candidate-release checklist as accessible checkboxes wi
 test("app.js resets candidate checklist state on each new comparison", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /let candidateChecklistState = \[\];/);
-  assert.match(source, /candidateChecklistState = \[\];[\s\S]*const previousFile = previousFileInput\.files\[0\]/);
+  assert.match(source, /candidateChecklistState = \[\];[\s\S]*let previousFile = previousFileInput\.files\[0\]/);
 });
 
 test("app.js exports the comparison and candidate checklist only via a user-triggered local download", async () => {
@@ -484,6 +484,55 @@ test("adds no-store caching and same-origin resource protections to responses", 
     assert.equal(response.headers.get("cross-origin-resource-policy"), "same-origin");
     assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin");
   });
+});
+
+test("index.html adds optional folder inputs alongside the existing file inputs", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="manifest-file"/);
+  assert.match(html, /id="manifest-folder"[\s\S]*webkitdirectory/);
+  assert.match(html, /id="previous-manifest-file"/);
+  assert.match(html, /id="previous-manifest-folder"[\s\S]*webkitdirectory/);
+  assert.match(html, /id="candidate-manifest-file"/);
+  assert.match(html, /id="candidate-manifest-folder"[\s\S]*webkitdirectory/);
+  assert.doesNotMatch(html, /id="manifest-file"[^>]*required/);
+  assert.doesNotMatch(html, /id="previous-manifest-file"[^>]*required/);
+  assert.doesNotMatch(html, /id="candidate-manifest-file"[^>]*required/);
+});
+
+test("index.html accurately explains folder selection privacy", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /only its root/);
+  assert.match(html, /manifest\.json.{0,80}content is read/s);
+  assert.match(html, /Relative paths are checked only to find it/);
+  assert.match(html, /no other file content or path is sent anywhere/);
+});
+
+test("app.js locates exactly one root manifest.json using webkitRelativePath", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /function findRootManifestInFolder/);
+  assert.match(source, /webkitRelativePath/);
+  assert.match(source, /segments\.length === 2 && segments\[1\] === "manifest\.json"/);
+});
+
+test("app.js rejects folder selections with a missing or ambiguous root manifest.json", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /must contain a root manifest\.json file/);
+  assert.match(source, /more than one root manifest\.json file; the selection is ambiguous/);
+});
+
+test("findRootManifestInFolder only ever selects the single root manifest.json file object", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  const match = source.match(/function findRootManifestInFolder\([\s\S]*?\r?\n}\r?\n/);
+  assert.ok(match, "findRootManifestInFolder function body should be present");
+  const body = match[0];
+  assert.match(body, /rootManifests\[0\]/);
+  assert.doesNotMatch(body, /readFileAsText/);
+});
+
+test("app.js still only requests the local analyze and compare endpoints after folder support", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  const fetchCalls = [...source.matchAll(/fetch\(\s*["'`]([^"'`]+)["'`]/g)].map(match => match[1]);
+  assert.deepEqual(fetchCalls.sort(), ["/api/analyze", "/api/compare"]);
 });
 
 test("report privacy metadata declares no outbound networking", async () => {
