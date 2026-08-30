@@ -11,6 +11,16 @@ const richManifest = {
   action: { default_popup: "popup.html" }
 };
 
+const candidateManifest = {
+  manifest_version: 3,
+  name: "Fixture extension",
+  version: "1.1.0",
+  permissions: ["storage", "tabCapture"],
+  host_permissions: ["https://example.com/*"],
+  background: { service_worker: "worker.js" },
+  action: { default_popup: "popup.html" }
+};
+
 async function withServer(run) {
   const server = await startServer(0, "127.0.0.1");
   const address = server.address();
@@ -112,6 +122,99 @@ test("rejects non-MV3 manifests with a generic error", async () => {
     assert.equal(response.status, 422);
     const data = await response.json();
     assert.equal(data.error, "MV3 Replay currently supports Manifest V3 only.");
+  });
+});
+
+test("compares a previous and candidate MV3 manifest via POST", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous: richManifest, current: candidateManifest })
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.report.from.version, "1.0.0");
+    assert.equal(data.report.to.version, "1.1.0");
+    assert.equal(data.report.requiresManualUpdateValidation, true);
+    assert.deepEqual(data.report.changes.requiredPermissions.added, ["tabCapture"]);
+    assert.equal(data.report.privacy.localOnly, true);
+    assert.equal(data.report.privacy.browserConnected, false);
+  });
+});
+
+test("rejects non-POST requests to the compare endpoint", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/compare`, { method: "GET" });
+    assert.equal(response.status, 405);
+    const data = await response.json();
+    assert.equal(data.error, "This endpoint accepts POST only.");
+  });
+});
+
+test("rejects malformed JSON on the compare endpoint", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{not json"
+    });
+    assert.equal(response.status, 400);
+    const data = await response.json();
+    assert.equal(data.error, "Request body must be valid JSON.");
+  });
+});
+
+test("rejects a compare payload missing previous or current manifests", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous: richManifest })
+    });
+    assert.equal(response.status, 400);
+    const data = await response.json();
+    assert.equal(data.error, "Request body must include previous and current manifest objects.");
+  });
+});
+
+test("rejects oversized compare requests", async () => {
+  await withServer(async baseUrl => {
+    const oversized = "a".repeat(1024 * 1024 + 1);
+    const response = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: oversized
+    });
+    assert.equal(response.status, 413);
+    const data = await response.json();
+    assert.equal(data.error, "Request body is too large.");
+  });
+});
+
+test("rejects non-MV3 manifests on the compare endpoint", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous: { manifest_version: 2 }, current: candidateManifest })
+    });
+    assert.equal(response.status, 422);
+    const data = await response.json();
+    assert.equal(data.error, "MV3 Replay currently supports Manifest V3 only.");
+  });
+});
+
+test("existing single-manifest inspection still works alongside comparison", async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(richManifest)
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.report.identity.name, "Fixture extension");
   });
 });
 

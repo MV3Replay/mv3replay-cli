@@ -3,6 +3,12 @@ const fileInput = document.getElementById("manifest-file");
 const statusEl = document.getElementById("status");
 const reportEl = document.getElementById("report");
 
+const compareForm = document.getElementById("compare-form");
+const previousFileInput = document.getElementById("previous-manifest-file");
+const candidateFileInput = document.getElementById("candidate-manifest-file");
+const compareStatusEl = document.getElementById("compare-status");
+const compareReportEl = document.getElementById("compare-report");
+
 function setStatus(message) {
   statusEl.textContent = message;
 }
@@ -120,5 +126,113 @@ form.addEventListener("submit", async event => {
     renderReport(data.report);
   } catch {
     setStatus("The local analyzer could not be reached.");
+  }
+});
+
+function setCompareStatus(message) {
+  compareStatusEl.textContent = message;
+}
+
+function renderListDiff(title, diff) {
+  const container = el("div", { className: "finding" });
+  container.appendChild(el("strong", { text: title }));
+  container.appendChild(el("p", {
+    text: `Added: ${diff.added && diff.added.length ? diff.added.join(", ") : "none"}`
+  }));
+  container.appendChild(el("p", {
+    text: `Removed: ${diff.removed && diff.removed.length ? diff.removed.join(", ") : "none"}`
+  }));
+  return container;
+}
+
+function renderCompareReport(report) {
+  compareReportEl.textContent = "";
+  compareReportEl.hidden = false;
+
+  compareReportEl.appendChild(el("h2", { text: "Release identity" }));
+  compareReportEl.appendChild(el("p", {
+    text: `From ${report.from.name} v${report.from.version} to ${report.to.name} v${report.to.version}`
+  }));
+
+  compareReportEl.appendChild(el("h2", { text: "Manual update validation" }));
+  compareReportEl.appendChild(el("p", {
+    text: report.requiresManualUpdateValidation
+      ? "This release requires manual update-path validation before it ships."
+      : "No critical-level findings were detected, but review the findings below before shipping."
+  }));
+
+  compareReportEl.appendChild(el("h2", { text: "Findings" }));
+  if (report.findings.length === 0) {
+    compareReportEl.appendChild(el("p", { text: "No comparison findings were detected in this static analysis." }));
+  } else {
+    for (const finding of report.findings) compareReportEl.appendChild(renderFinding(finding));
+  }
+
+  compareReportEl.appendChild(el("h2", { text: "Key changes" }));
+  compareReportEl.appendChild(renderListDiff("Required permissions", report.changes.requiredPermissions));
+  compareReportEl.appendChild(renderListDiff("Optional permissions", report.changes.optionalPermissions));
+  compareReportEl.appendChild(renderListDiff("Required host access", report.changes.requiredHosts));
+  compareReportEl.appendChild(renderListDiff("Optional host access", report.changes.optionalHosts));
+  compareReportEl.appendChild(renderListDiff("Content-script match scope", report.changes.contentScriptMatches));
+  compareReportEl.appendChild(renderListDiff("Keyboard commands", report.changes.commands));
+
+  compareReportEl.appendChild(el("h2", { text: "Limitations" }));
+  compareReportEl.appendChild(el("p", {
+    text: "This is a static comparison of two manifest files only. Neither release has been loaded, "
+      + "executed, or tested in a browser. It does not read extension source files or verify runtime behavior."
+  }));
+}
+
+compareForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  compareReportEl.hidden = true;
+  compareReportEl.textContent = "";
+
+  const previousFile = previousFileInput.files[0];
+  const candidateFile = candidateFileInput.files[0];
+  if (!previousFile || !candidateFile) {
+    setCompareStatus("Select both a previous and a candidate manifest.json file.");
+    return;
+  }
+
+  setCompareStatus("Reading local files...");
+  let previousManifest;
+  let currentManifest;
+  try {
+    const [previousText, candidateText] = await Promise.all([
+      readFileAsText(previousFile),
+      readFileAsText(candidateFile)
+    ]);
+    previousManifest = JSON.parse(previousText);
+    currentManifest = JSON.parse(candidateText);
+  } catch {
+    setCompareStatus("Both selected files must be valid JSON.");
+    return;
+  }
+
+  if (
+    !previousManifest || typeof previousManifest !== "object" || Array.isArray(previousManifest)
+    || !currentManifest || typeof currentManifest !== "object" || Array.isArray(currentManifest)
+  ) {
+    setCompareStatus("Both selected files must contain a JSON object.");
+    return;
+  }
+
+  setCompareStatus("Comparing locally...");
+  try {
+    const response = await fetch("/api/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous: previousManifest, current: currentManifest })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setCompareStatus(data.error || "The manifests could not be compared.");
+      return;
+    }
+    setCompareStatus("Comparison complete.");
+    renderCompareReport(data.report);
+  } catch {
+    setCompareStatus("The local comparison endpoint could not be reached.");
   }
 });

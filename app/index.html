@@ -25,6 +25,24 @@
   <p id="status" role="status"></p>
   <section id="report" hidden></section>
 
+  <hr>
+
+  <h2>Compare a previous and candidate release</h2>
+  <p>
+    Select two local <code>manifest.json</code> files. Only the two parsed manifest
+    objects are sent to the local comparison endpoint.
+  </p>
+  <form id="compare-form">
+    <label for="previous-manifest-file">Previous manifest.json</label>
+    <input type="file" id="previous-manifest-file" accept="application/json,.json" required>
+    <label for="candidate-manifest-file">Candidate manifest.json</label>
+    <input type="file" id="candidate-manifest-file" accept="application/json,.json" required>
+    <button type="submit">Compare locally</button>
+  </form>
+
+  <p id="compare-status" role="status"></p>
+  <section id="compare-report" hidden></section>
+
   <footer>
     <p>
       This tool inspects manifest structure only. It does not read extension source

@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { analyzeManifest } from "../src/manifest-analyzer.mjs";
+import { analyzeManifest, compareManifests } from "../src/manifest-analyzer.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -88,14 +88,11 @@ function readBody(req) {
   });
 }
 
-async function handleAnalyze(req, res) {
-  if (req.method !== "POST") {
-    setSecurityHeaders(res);
-    res.setHeader("Allow", "POST");
-    sendJson(res, 405, { error: "This endpoint accepts POST only." });
-    return;
-  }
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
+async function readJsonBody(req, res) {
   let body;
   try {
     body = await readBody(req);
@@ -106,19 +103,33 @@ async function handleAnalyze(req, res) {
     } else {
       sendJson(res, 400, { error: "Request body could not be read." });
     }
-    return;
+    return { error: true };
   }
 
-  let manifest;
+  let parsed;
   try {
-    manifest = JSON.parse(body.toString("utf8"));
+    parsed = JSON.parse(body.toString("utf8"));
   } catch {
     setSecurityHeaders(res);
     sendJson(res, 400, { error: "Request body must be valid JSON." });
+    return { error: true };
+  }
+
+  return { value: parsed };
+}
+
+async function handleAnalyze(req, res) {
+  if (req.method !== "POST") {
+    setSecurityHeaders(res);
+    res.setHeader("Allow", "POST");
+    sendJson(res, 405, { error: "This endpoint accepts POST only." });
     return;
   }
 
-  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+  const { value: manifest, error } = await readJsonBody(req, res);
+  if (error) return;
+
+  if (!isPlainObject(manifest)) {
     setSecurityHeaders(res);
     sendJson(res, 400, { error: "Request body must be a JSON object." });
     return;
@@ -138,6 +149,44 @@ async function handleAnalyze(req, res) {
   }
 }
 
+async function handleCompare(req, res) {
+  if (req.method !== "POST") {
+    setSecurityHeaders(res);
+    res.setHeader("Allow", "POST");
+    sendJson(res, 405, { error: "This endpoint accepts POST only." });
+    return;
+  }
+
+  const { value: payload, error } = await readJsonBody(req, res);
+  if (error) return;
+
+  if (!isPlainObject(payload)) {
+    setSecurityHeaders(res);
+    sendJson(res, 400, { error: "Request body must be a JSON object." });
+    return;
+  }
+
+  const { previous, current } = payload;
+  if (!isPlainObject(previous) || !isPlainObject(current)) {
+    setSecurityHeaders(res);
+    sendJson(res, 400, { error: "Request body must include previous and current manifest objects." });
+    return;
+  }
+
+  try {
+    const report = compareManifests(previous, current);
+    setSecurityHeaders(res);
+    sendJson(res, 200, { report });
+  } catch (error) {
+    setSecurityHeaders(res);
+    if (error.code === "UNSUPPORTED_MANIFEST_VERSION") {
+      sendJson(res, 422, { error: "MV3 Replay currently supports Manifest V3 only." });
+    } else {
+      sendJson(res, 400, { error: "The manifests could not be compared." });
+    }
+  }
+}
+
 export function createServer() {
   return createHttpServer((req, res) => {
     let url;
@@ -151,6 +200,16 @@ export function createServer() {
 
     if (url.pathname === "/api/analyze") {
       handleAnalyze(req, res).catch(() => {
+        if (!res.headersSent) {
+          setSecurityHeaders(res);
+          sendJson(res, 500, { error: "Internal error." });
+        }
+      });
+      return;
+    }
+
+    if (url.pathname === "/api/compare") {
+      handleCompare(req, res).catch(() => {
         if (!res.headersSent) {
           setSecurityHeaders(res);
           sendJson(res, 500, { error: "Internal error." });

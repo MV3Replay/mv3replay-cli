@@ -58,6 +58,13 @@ button {
   margin-block: 0.5rem;
 }
 
+hr {
+  margin-block: 2rem;
+  border: none;
+  border-top: 1px solid currentColor;
+  opacity: 0.4;
+}
+
 footer {
   margin-top: 2rem;
   font-size: 0.85rem;
