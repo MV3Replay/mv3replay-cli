@@ -442,6 +442,52 @@ test("compares advanced entry-point presence and declaration values", () => {
   assert.ok(report.findings.some(item => item.id === "extension-surface-change"));
 });
 
+test("compares browser support, CSP, and OAuth scope policy changes precisely", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Policy fixture",
+    version: "1.0.0",
+    minimum_chrome_version: "110",
+    content_security_policy: {
+      extension_pages: "script-src 'self'; object-src 'none'",
+      sandbox: "sandbox allow-scripts; script-src 'self'"
+    },
+    oauth2: { scopes: ["openid"] }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    minimum_chrome_version: "120",
+    content_security_policy: {
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'",
+      sandbox: "sandbox allow-scripts allow-forms; script-src 'self'"
+    },
+    oauth2: { scopes: ["openid", "profile"] }
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.oauthScopes, { added: ["profile"], removed: [] });
+  assert.deepEqual(report.changes.declarations, [
+    {
+      field: "content_security_policy.extension_pages",
+      previous: "script-src 'self'; object-src 'none'",
+      current: "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'"
+    },
+    {
+      field: "content_security_policy.sandbox",
+      previous: "sandbox allow-scripts; script-src 'self'",
+      current: "sandbox allow-scripts allow-forms; script-src 'self'"
+    },
+    { field: "minimum_chrome_version", previous: "110", current: "120" }
+  ]);
+  const findingIds = report.findings.map(item => item.id);
+  assert.ok(findingIds.includes("oauth-scope-expansion"));
+  assert.ok(findingIds.includes("content-security-policy-change"));
+  assert.ok(findingIds.includes("minimum-browser-version-change"));
+  assert.ok(!findingIds.includes("extension-surface-change"));
+  assert.equal(report.requiresManualUpdateValidation, true);
+});
+
 test("normalizes command description and every suggested_key platform entry deterministically", () => {
   const previous = {
     manifest_version: 3,

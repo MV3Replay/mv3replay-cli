@@ -211,6 +211,29 @@ function declarationChanges(previousManifest, currentManifest) {
     sortedUnique(asStrings(previousManifest.sandbox?.pages)),
     sortedUnique(asStrings(currentManifest.sandbox?.pages))
   );
+  pushIfChanged(
+    "minimum_chrome_version",
+    presentString(previousManifest.minimum_chrome_version) ? previousManifest.minimum_chrome_version : null,
+    presentString(currentManifest.minimum_chrome_version) ? currentManifest.minimum_chrome_version : null
+  );
+  pushIfChanged(
+    "content_security_policy.extension_pages",
+    presentString(previousManifest.content_security_policy?.extension_pages)
+      ? previousManifest.content_security_policy.extension_pages
+      : null,
+    presentString(currentManifest.content_security_policy?.extension_pages)
+      ? currentManifest.content_security_policy.extension_pages
+      : null
+  );
+  pushIfChanged(
+    "content_security_policy.sandbox",
+    presentString(previousManifest.content_security_policy?.sandbox)
+      ? previousManifest.content_security_policy.sandbox
+      : null,
+    presentString(currentManifest.content_security_policy?.sandbox)
+      ? currentManifest.content_security_policy.sandbox
+      : null
+  );
 
   const previousCommands = previousManifest.commands && typeof previousManifest.commands === "object"
     ? previousManifest.commands
@@ -567,16 +590,22 @@ export function compareManifests(previousManifest, currentManifest) {
   const current = manifestSignals(currentManifest);
 
   const declarations = declarationChanges(previousManifest, currentManifest);
-  const uiDeclarationsChanged = declarations
-    .some(item => item.field !== "background.service_worker"
-      && item.field !== "background.type"
-      && !item.field.startsWith("command."));
+  const uiDeclarationFields = [
+    "action.default_popup",
+    "devtools_page",
+    "omnibox.keyword",
+    "options_page",
+    "sandbox.pages",
+    "side_panel.default_path"
+  ];
+  const uiDeclarationsChanged = declarations.some(item => uiDeclarationFields.includes(item.field));
 
   const changes = {
     requiredPermissions: listDiff(previous.permissions, current.permissions),
     optionalPermissions: listDiff(previous.optionalPermissions, current.optionalPermissions),
     requiredHosts: listDiff(previous.hostPermissions, current.hostPermissions),
     optionalHosts: listDiff(previous.optionalHostPermissions, current.optionalHostPermissions),
+    oauthScopes: listDiff(asStrings(previousManifest.oauth2?.scopes), asStrings(currentManifest.oauth2?.scopes)),
     permissionTransitions: transitions(previous.permissions, previous.optionalPermissions, current.permissions, current.optionalPermissions),
     hostTransitions: transitions(previous.hostPermissions, previous.optionalHostPermissions, current.hostPermissions, current.optionalHostPermissions),
     contentScriptMatches: listDiff(previous.matchPatterns, current.matchPatterns),
@@ -605,6 +634,13 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "required-host-expansion",
       level: "critical",
       message: `Required host access added: ${changes.requiredHosts.added.join(", ")}. Test the real update and resulting permission UI.`
+    });
+  }
+  if (changes.oauthScopes.added.length > 0) {
+    findings.push({
+      id: "oauth-scope-expansion",
+      level: "critical",
+      message: `OAuth scopes added: ${changes.oauthScopes.added.join(", ")}. Test explicit user consent, denial, token refresh, and revocation before release.`
     });
   }
   if (changes.permissionTransitions.optionalToRequired.length > 0) {
@@ -666,6 +702,20 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "web-accessible-resources-change",
       level: "high",
       message: `Web-accessible resource declarations changed. Load every intentionally exposed resource and reject an undeclared origin.`
+    });
+  }
+  if (declarations.some(item => item.field.startsWith("content_security_policy."))) {
+    findings.push({
+      id: "content-security-policy-change",
+      level: "high",
+      message: "An extension or sandbox content security policy changed. Verify every affected page loads only intended resources and that blocked-resource failures remain recoverable."
+    });
+  }
+  if (declarations.some(item => item.field === "minimum_chrome_version")) {
+    findings.push({
+      id: "minimum-browser-version-change",
+      level: "medium",
+      message: "The minimum Chrome version changed. Verify install and update behavior at the old and new support boundaries."
     });
   }
   if (changes.surfaces.added.length > 0 || changes.surfaces.removed.length > 0 || uiDeclarationsChanged) {

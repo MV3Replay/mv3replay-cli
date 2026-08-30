@@ -42,6 +42,8 @@ public for testing, but no package, tag, or GitHub Release exists.
 - Specialized permission lanes for debugger sessions, extension management,
   identity flows, downloads, and clipboard boundaries, with stronger flags
   only when sensitive access is required rather than optional.
+- Precise comparison of minimum browser versions, extension and sandbox CSP
+  declarations, and OAuth scope expansion, with dedicated update findings.
 
 ### Future ideas (not implemented)
 

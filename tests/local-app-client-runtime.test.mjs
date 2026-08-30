@@ -85,6 +85,7 @@ async function createClientHarness() {
       optionalPermissions: { added: [], removed: [] },
       requiredHosts: { added: ["<all_urls>"], removed: [] },
       optionalHosts: { added: [], removed: [] },
+      oauthScopes: { added: ["profile"], removed: [] },
       contentScriptMatches: { added: [], removed: [] },
       commands: { added: [], removed: [] },
       surfaces: { added: ["native-messaging"], removed: [] },

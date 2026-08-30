@@ -774,6 +774,7 @@ function renderCompareReport(report) {
   compareReportDetailsEl.appendChild(renderListDiff("Optional permissions", report.changes.optionalPermissions));
   compareReportDetailsEl.appendChild(renderListDiff("Required host access", report.changes.requiredHosts));
   compareReportDetailsEl.appendChild(renderListDiff("Optional host access", report.changes.optionalHosts));
+  compareReportDetailsEl.appendChild(renderListDiff("OAuth scopes", report.changes.oauthScopes));
   compareReportDetailsEl.appendChild(renderListDiff("Content-script match scope", report.changes.contentScriptMatches));
   compareReportDetailsEl.appendChild(renderListDiff("Keyboard commands", report.changes.commands));
   compareReportDetailsEl.appendChild(renderListDiff("Extension surfaces", report.changes.surfaces));
@@ -864,6 +865,7 @@ function buildComparisonMarkdown(report, checklist) {
     ["optionalPermissions", "Optional permissions"],
     ["requiredHosts", "Required host access"],
     ["optionalHosts", "Optional host access"],
+    ["oauthScopes", "OAuth scopes"],
     ["contentScriptMatches", "Content-script match scope"],
     ["commands", "Keyboard commands"],
     ["surfaces", "Extension surfaces"]
