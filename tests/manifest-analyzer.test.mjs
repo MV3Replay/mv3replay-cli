@@ -248,6 +248,27 @@ test("builds zero-retention lanes for location and capture permissions", () => {
   }
 });
 
+test("builds gesture and revocation lanes for activeTab and scripting", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Temporary injection",
+    version: "1.0.0",
+    permissions: ["activeTab", "scripting"],
+    action: { default_title: "Run on this tab" }
+  });
+
+  assert.equal(report.surfaces.activeTabAccess, true);
+  assert.equal(report.surfaces.scriptingAccess, true);
+  const activeTabLane = report.lanes.find(lane => lane.id === "active-tab-gesture");
+  const scriptingLane = report.lanes.find(lane => lane.id === "programmatic-injection");
+  assert.ok(activeTabLane);
+  assert.ok(scriptingLane);
+  assert.ok(activeTabLane.checks.some(check => /user gesture/i.test(check)));
+  assert.ok(activeTabLane.checks.some(check => /revoked/i.test(check)));
+  assert.ok(scriptingLane.checks.some(check => /without activeTab or host access/i.test(check)));
+  assert.ok(report.riskFlags.some(flag => flag.id === "required-programmatic-injection"));
+});
+
 test("compares extension versions using Chrome update ordering", () => {
   const base = {
     manifest_version: 3,
@@ -799,6 +820,24 @@ test("gates newly added capture and location surfaces", () => {
   assert.deepEqual(report.changes.surfaces.added, ["desktop-capture", "geolocation", "page-capture"]);
   assert.ok(report.findings.some(item => item.id === "capture-or-location-expansion"));
   assert.equal(report.requiresManualUpdateValidation, true);
+});
+
+test("flags newly added temporary tab and injection surfaces", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Injection expansion",
+    version: "1.0.0"
+  };
+  const current = {
+    ...previous,
+    version: "1.1.0",
+    optional_permissions: ["activeTab", "scripting"]
+  };
+
+  const report = compareManifests(previous, current);
+  assert.deepEqual(report.changes.surfaces.added, ["active-tab", "programmatic-injection"]);
+  assert.ok(report.findings.some(item => item.id === "injection-surface-expansion"));
+  assert.equal(report.requiresManualUpdateValidation, false);
 });
 
 test("normalizes command description and every suggested_key platform entry deterministically", () => {

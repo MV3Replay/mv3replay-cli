@@ -58,6 +58,8 @@
         "geolocationAccess",
         "desktopCaptureAccess",
         "pageCaptureAccess",
+        "activeTabAccess",
+        "scriptingAccess",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -99,6 +101,8 @@
         "geolocationAccess": { "type": "boolean" },
         "desktopCaptureAccess": { "type": "boolean" },
         "pageCaptureAccess": { "type": "boolean" },
+        "activeTabAccess": { "type": "boolean" },
+        "scriptingAccess": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }

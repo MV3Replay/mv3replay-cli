@@ -176,6 +176,8 @@ const SURFACE_NAMES = [
   ["geolocation", "geolocationAccess"],
   ["desktop-capture", "desktopCaptureAccess"],
   ["page-capture", "pageCaptureAccess"],
+  ["active-tab", "activeTabAccess"],
+  ["programmatic-injection", "scriptingAccess"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -437,6 +439,8 @@ export function analyzeManifest(manifest) {
   const geolocationAccess = permissions.includes("geolocation") || optionalPermissions.includes("geolocation");
   const desktopCaptureAccess = permissions.includes("desktopCapture") || optionalPermissions.includes("desktopCapture");
   const pageCaptureAccess = permissions.includes("pageCapture") || optionalPermissions.includes("pageCapture");
+  const activeTabAccess = permissions.includes("activeTab") || optionalPermissions.includes("activeTab");
+  const scriptingAccess = permissions.includes("scripting") || optionalPermissions.includes("scripting");
   const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
     presentString(manifest.chrome_url_overrides?.[page]));
   const chromeSettingsOverrides = Boolean(
@@ -483,6 +487,8 @@ export function analyzeManifest(manifest) {
     geolocationAccess,
     desktopCaptureAccess,
     pageCaptureAccess,
+    activeTabAccess,
+    scriptingAccess,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -699,6 +705,16 @@ export function analyzeManifest(manifest) {
       "Page capture can serialize a complete tab and its resources into an MHTML file.",
       ["Capture only a synthetic local page containing no personal or account data", "Verify failure and unsupported-tab behavior before saving", "Confirm the artifact is created only by explicit user action and is never uploaded or retained automatically"]);
   }
+  if (activeTabAccess) {
+    addLane(lanes, "active-tab-gesture", "high",
+      "activeTab grants temporary access to the current tab only after an explicit user gesture and loses access on cross-origin navigation or close.",
+      ["Use an explicitly authorized synthetic page and verify access is absent before the user gesture", "Invoke the intended action, command, context menu, or omnibox gesture and verify only the active origin is accessible", "Navigate to a different origin or close the tab and verify temporary access is revoked"]);
+  }
+  if (scriptingAccess) {
+    addLane(lanes, "programmatic-injection", "high",
+      "Programmatic script or style injection requires scripting plus temporary or persistent host access and explicit targeting.",
+      ["Inject only packaged test code into an explicitly authorized synthetic page", "Verify main-frame, selected-frame, all-frame, isolated-world, and rejected-target behavior as applicable", "Confirm injection fails safely without activeTab or host access and does not persist after navigation"]);
+  }
 
   const riskFlags = [];
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
@@ -788,6 +804,9 @@ export function analyzeManifest(manifest) {
   }
   if (permissions.includes("pageCapture")) {
     riskFlags.push({ id: "required-page-capture", level: "critical", message: "Page capture is required; capture only synthetic local content and verify explicit saving with no upload or automatic retention." });
+  }
+  if (permissions.includes("scripting")) {
+    riskFlags.push({ id: "required-programmatic-injection", level: "high", message: "Programmatic injection is required; verify explicit targets, execution worlds, host grants, navigation cleanup, and rejection without access." });
   }
 
   const report = {
@@ -1060,6 +1079,15 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "capture-or-location-expansion",
       level: "critical",
       message: `Capture or location surfaces added: ${addedCaptureSurfaces.join(", ")}. Require explicit user intent, synthetic inputs, cancellation coverage, and zero retention before release.`
+    });
+  }
+  const addedInjectionSurfaces = changes.surfaces.added.filter(surface =>
+    ["active-tab", "programmatic-injection"].includes(surface));
+  if (addedInjectionSurfaces.length > 0) {
+    findings.push({
+      id: "injection-surface-expansion",
+      level: "high",
+      message: `Temporary tab or injection surfaces added: ${addedInjectionSurfaces.join(", ")}. Verify explicit user gestures, target frames and worlds, host boundaries, and revocation after navigation.`
     });
   }
   if (changes.contentScripts.added.length > 0 || changes.contentScripts.removed.length > 0) {

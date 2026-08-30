@@ -110,6 +110,8 @@ function printHuman(report, file) {
     `- Geolocation: ${yesNo(report.surfaces.geolocationAccess)}`,
     `- Desktop capture: ${yesNo(report.surfaces.desktopCaptureAccess)}`,
     `- Page capture: ${yesNo(report.surfaces.pageCaptureAccess)}`,
+    `- Temporary active-tab access: ${yesNo(report.surfaces.activeTabAccess)}`,
+    `- Programmatic injection: ${yesNo(report.surfaces.scriptingAccess)}`,
     `- Chrome page override: ${yesNo(report.surfaces.chromeUrlOverrides)}`,
     `- Chrome settings override: ${yesNo(report.surfaces.chromeSettingsOverrides)}`,
     "",
