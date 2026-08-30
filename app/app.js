@@ -197,6 +197,9 @@ function renderComparisonSummary(report) {
   compareReportSummaryEl.appendChild(el("p", {
     text: `${report.from.name} v${report.from.version} → ${report.to.name} v${report.to.version}`
   }));
+  compareReportSummaryEl.appendChild(el("p", {
+    text: `Chrome update version status: ${report.changes.version.relation}.`
+  }));
 
   const badgeRow = el("div", { className: "badge-row" });
   renderCountBadges(badgeRow, countByLevel(report.findings));
@@ -271,7 +274,7 @@ function updateComparisonReadiness() {
       comparisonReadinessEl,
       "blocked",
       "Update-path validation required",
-      "Permission or scope changes require a manual update test before this candidate can move forward."
+      "A critical comparison finding requires a manual update test before this candidate can move forward."
     );
   } else if (remaining > 0) {
     setReadiness(
@@ -790,6 +793,9 @@ function renderCompareReport(report) {
   compareReportDetailsEl.appendChild(el("p", {
     text: `From ${report.from.name} v${report.from.version} to ${report.to.name} v${report.to.version}`
   }));
+  compareReportDetailsEl.appendChild(el("p", {
+    text: `Chrome version ordering: ${report.changes.version.relation}.`
+  }));
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Manual update validation" }));
   compareReportDetailsEl.appendChild(el("p", {
@@ -898,6 +904,7 @@ function buildComparisonMarkdown(report, checklist) {
   lines.push("## Release identity");
   lines.push(`- From: ${escapeMarkdownText(report.from.name)} v${escapeMarkdownText(report.from.version)}`);
   lines.push(`- To: ${escapeMarkdownText(report.to.name)} v${escapeMarkdownText(report.to.version)}`);
+  lines.push(`- Chrome version ordering: ${escapeMarkdownText(report.changes.version.relation)}`);
   lines.push("");
   lines.push("## Manual update validation");
   lines.push(

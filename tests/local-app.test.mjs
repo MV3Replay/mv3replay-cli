@@ -555,7 +555,7 @@ test("both Markdown builders escape every dynamic report and checklist field", a
   for (const expression of [
     "report.identity.name", "report.identity.version", "report.identity.manifestVersion",
     "flag.id", "flag.level", "flag.message", "item.laneId", "item.check",
-    "report.from.name", "report.from.version", "report.to.name", "report.to.version",
+    "report.from.name", "report.from.version", "report.to.name", "report.to.version", "report.changes.version.relation",
     "finding.id", "finding.level", "finding.message"
   ]) {
     assert.match(source, new RegExp(`escapeMarkdownText\\(${expression.replaceAll(".", "\\.")}\\)`));

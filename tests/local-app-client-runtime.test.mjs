@@ -81,6 +81,7 @@ async function createClientHarness() {
     findings: [{ id: "permission-added", level: "critical", message: "New powerful permission" }],
     requiresManualUpdateValidation: true,
     changes: {
+      version: { previous: "1.0.0", current: "2.0.0", relation: "newer" },
       requiredPermissions: { added: ["tabCapture"], removed: [] },
       optionalPermissions: { added: [], removed: [] },
       requiredHosts: { added: ["<all_urls>"], removed: [] },
