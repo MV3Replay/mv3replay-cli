@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MV3 Replay: local manifest analyzer</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main>
+  <h1>MV3 Replay: local manifest analyzer</h1>
+  <p>
+    This page runs entirely on your machine against a local server bound to
+    <code>127.0.0.1</code>. Selecting a file only reads it in your browser; only the
+    parsed manifest JSON is sent to the local analyzer. Nothing is uploaded, stored,
+    tracked, or sent to any other destination.
+  </p>
+
+  <form id="analyze-form">
+    <label for="manifest-file">Local manifest.json</label>
+    <input type="file" id="manifest-file" accept="application/json,.json" required>
+    <button type="submit">Analyze locally</button>
+  </form>
+
+  <p id="status" role="status"></p>
+  <section id="report" hidden></section>
+
+  <footer>
+    <p>
+      This tool inspects manifest structure only. It does not read extension source
+      files, connect to a browser, or claim that the extension was tested.
+    </p>
+  </footer>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
