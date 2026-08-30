@@ -10,8 +10,8 @@
   "commitState": "public-source-snapshot",
   "localArtifact": {
     "path": "dist/mv3replay-cli-0.1.0-rc1.tgz",
-    "bytes": 34399,
-    "sha256": "94151015930B230001CE62630E47723D54DD38A4971CFAAD693EEED8A1338188",
+    "bytes": 35669,
+    "sha256": "1254E8EBEE75621343C093DA020AEBF19D35B97AD16F225366B51A438AA6D12E",
     "published": false
   },
   "tests": [
@@ -59,6 +59,8 @@
       "unpacked-extension directory selection",
       "built-in sample analysis and comparison",
       "finding severity filters",
+      "checklist completion filters and local reset controls",
+      "Chrome extension version-order validation",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",
