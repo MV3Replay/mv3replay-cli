@@ -310,6 +310,51 @@ test("validates default side-panel entry points", () => {
   }
 });
 
+test("validates devtools_page entry points without reading HTML files", () => {
+  const base = { manifest_version: 3, name: "DevTools fixture", version: "1.0.0" };
+
+  const absent = analyzeManifest(base);
+  assert.ok(!absent.riskFlags.some(flag => flag.id === "devtools-page-invalid"));
+
+  const valid = analyzeManifest({ ...base, devtools_page: "ui/devtools.html" });
+  assert.ok(valid.surfaces.devtoolsPage);
+  assert.ok(valid.lanes.some(lane => lane.id === "devtools"));
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "devtools-page-invalid"));
+
+  for (const devtools_page of [
+    "",
+    "/devtools.html",
+    ["..", "devtools.html"].join("/")
+  ]) {
+    const report = analyzeManifest({ ...base, devtools_page });
+    assert.ok(report.riskFlags.some(flag => flag.id === "devtools-page-invalid" && flag.level === "critical"));
+  }
+});
+
+test("validates omnibox keyword declarations", () => {
+  const base = { manifest_version: 3, name: "Omnibox fixture", version: "1.0.0" };
+
+  const absent = analyzeManifest(base);
+  assert.ok(!absent.riskFlags.some(flag => flag.id === "omnibox-invalid"));
+
+  const valid = analyzeManifest({ ...base, omnibox: { keyword: "go" } });
+  assert.ok(valid.surfaces.omnibox);
+  assert.ok(valid.lanes.some(lane => lane.id === "omnibox-input"));
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "omnibox-invalid"));
+
+  for (const omnibox of [
+    "go",
+    [],
+    {},
+    { keyword: "" },
+    { keyword: 42 },
+    { keyword: "go", extra: true }
+  ]) {
+    const report = analyzeManifest({ ...base, omnibox });
+    assert.ok(report.riskFlags.some(flag => flag.id === "omnibox-invalid" && flag.level === "critical"));
+  }
+});
+
 test("validates chrome_url_overrides declarations without reading HTML files", () => {
   const base = { manifest_version: 3, name: "Override fixture", version: "1.0.0" };
 

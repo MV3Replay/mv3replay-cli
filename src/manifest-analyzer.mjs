@@ -422,6 +422,22 @@ function sidePanelDiagnostics(sidePanel) {
   return { declared: true, invalid: false };
 }
 
+function devtoolsPageDiagnostics(devtoolsPage) {
+  if (devtoolsPage === undefined) return { declared: false, invalid: false };
+  if (unsafeRulesetPath(devtoolsPage)) return { declared: true, invalid: true };
+  return { declared: true, invalid: false };
+}
+
+function omniboxDiagnostics(omnibox) {
+  if (omnibox === undefined) return { declared: false, invalid: false };
+  if (!omnibox || typeof omnibox !== "object" || Array.isArray(omnibox)) return { declared: true, invalid: true };
+  const keys = Object.keys(omnibox);
+  if (keys.length !== 1 || keys[0] !== "keyword" || !presentString(omnibox.keyword)) {
+    return { declared: true, invalid: true };
+  }
+  return { declared: true, invalid: false };
+}
+
 function sandboxDiagnostics(sandbox) {
   if (sandbox === undefined) return { declared: false, invalid: false };
   if (!sandbox || typeof sandbox !== "object" || Array.isArray(sandbox)) return { declared: true, invalid: true };
@@ -930,6 +946,8 @@ export function analyzeManifest(manifest) {
   const actionStatus = actionDiagnostics(manifest.action);
   const optionsStatus = optionsDiagnostics(manifest);
   const sidePanelStatus = sidePanelDiagnostics(manifest.side_panel);
+  const devtoolsPageStatus = devtoolsPageDiagnostics(manifest.devtools_page);
+  const omniboxStatus = omniboxDiagnostics(manifest.omnibox);
   const chromeUrlOverridesStatus = chromeUrlOverridesDiagnostics(manifest.chrome_url_overrides);
   const sandboxStatus = sandboxDiagnostics(manifest.sandbox);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
@@ -1412,6 +1430,12 @@ export function analyzeManifest(manifest) {
   }
   if (sidePanelStatus.invalid) {
     riskFlags.push({ id: "side-panel-invalid", level: "critical", message: "The side panel declaration is malformed; side_panel must be an object with a non-empty safe relative default_path, without a leading slash, drive letter, or parent-directory traversal." });
+  }
+  if (devtoolsPageStatus.invalid) {
+    riskFlags.push({ id: "devtools-page-invalid", level: "critical", message: "The devtools_page declaration is malformed; devtools_page must be a non-empty safe relative path, without a leading slash, drive letter, or parent-directory traversal." });
+  }
+  if (omniboxStatus.invalid) {
+    riskFlags.push({ id: "omnibox-invalid", level: "critical", message: "The omnibox declaration is malformed; omnibox must be a non-array object with exactly a non-empty string keyword." });
   }
   if (chromeUrlOverridesStatus.invalid) {
     riskFlags.push({ id: "chrome-url-overrides-invalid", level: "critical", message: "The chrome_url_overrides declaration is malformed; declare exactly one of bookmarks, history, or newtab mapped to a non-empty safe relative path, without a leading slash, drive letter, or parent-directory traversal." });
