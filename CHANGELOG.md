@@ -90,6 +90,10 @@ public for testing, but no package, tag, or GitHub Release exists.
 - ChromeOS file-browser handler, file-system provider, and input-component
   validation with permission gates and fixed-value test lanes.
 - Installation metadata validation for homepage/update URLs and incognito mode.
+- Strict typing for descriptions, short/version names, and minimum browser versions.
+- Content-security-policy structure and isolation validation for extension and sandbox pages.
+- Browser settings override validation for homepage, startup, and search-provider declarations.
+- Safe relative-path enforcement for manifest icons, action icons, and MIME handler pages.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

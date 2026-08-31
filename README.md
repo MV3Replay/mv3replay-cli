@@ -130,6 +130,10 @@ The interface also provides:
 - privacy-safe shared-module export/import validation with distribution warnings;
 - ChromeOS file-browser, file-system-provider, and input-component validation;
 - absolute homepage/update URL and incognito-mode validation without reporting URLs;
+- strict public-metadata and minimum-browser-version typing with stable severity behavior;
+- Manifest V3 extension-page and sandbox content-security-policy validation;
+- browser homepage, startup-page, and search-provider override validation;
+- safe relative-path enforcement for manifest/action icons and MIME handlers;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only
