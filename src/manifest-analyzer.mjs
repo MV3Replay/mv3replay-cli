@@ -158,7 +158,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "export",
   "file_browser_handlers",
   "file_handlers",
-  "file_system_provider_capabilities",
+  "file_system_provider_capabilities", "input_components",
   "homepage_url", "host_permissions", "icons", "import", "incognito",
   "key",
   "manifest_version", "mime_types_handler", "minimum_chrome_version", "name", "oauth2", "omnibox",
@@ -534,6 +534,41 @@ function ttsEngineDiagnostics(ttsEngine) {
     return { declared: true, invalid: true };
   }
   return { declared: true, invalid: false };
+}
+
+function stringOrUniqueStringArray(value) {
+  if (value === undefined) return true;
+  if (typeof value === "string") return presentString(value);
+  if (!Array.isArray(value) || value.length === 0) return false;
+  if (!value.every(item => presentString(item))) return false;
+  return new Set(value).size === value.length;
+}
+
+function validInputComponent(component) {
+  if (!component || typeof component !== "object" || Array.isArray(component)) return false;
+  if (!presentString(component.name)) return false;
+  if (component.id !== undefined && !presentString(component.id)) return false;
+  if (!stringOrUniqueStringArray(component.language)) return false;
+  if (!stringOrUniqueStringArray(component.layouts)) return false;
+  if (component.input_view !== undefined && unsafeRulesetPath(component.input_view)) return false;
+  if (component.options_page !== undefined && unsafeRulesetPath(component.options_page)) return false;
+  return true;
+}
+
+function inputComponentsDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!Array.isArray(value) || value.length === 0) return { declared: true, invalid: true };
+  let invalid = false;
+  const ids = [];
+  for (const component of value) {
+    if (!validInputComponent(component)) {
+      invalid = true;
+      continue;
+    }
+    if (presentString(component.id)) ids.push(component.id);
+  }
+  if (new Set(ids).size !== ids.length) invalid = true;
+  return { declared: true, invalid };
 }
 
 const FILE_SYSTEM_PROVIDER_SOURCES = new Set(["file", "device", "network"]);
@@ -1133,6 +1168,7 @@ export function analyzeManifest(manifest) {
   const requirementsStatus = requirementsDiagnostics(manifest.requirements);
   const ttsEngineStatus = ttsEngineDiagnostics(manifest.tts_engine);
   const fileSystemProviderCapabilitiesStatus = fileSystemProviderCapabilitiesDiagnostics(manifest.file_system_provider_capabilities);
+  const inputComponentsStatus = inputComponentsDiagnostics(manifest.input_components);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1264,6 +1300,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "chromeos-file-system-provider", "high",
       "The extension provides a virtual file system on ChromeOS and must preserve mount and watcher behavior.",
       ["Test mounting and unmounting", "Verify configuration and watcher behavior", "Exercise the declared source type on ChromeOS"]);
+  }
+  if (inputComponentsStatus.declared) {
+    addLane(lanes, "chromeos-input-components", "high",
+      "The extension registers an input method on ChromeOS and must preserve composition and keyboard behavior.",
+      ["Test focus and composition lifecycle", "Verify each declared language and layout", "Confirm optional input and options pages load locally"]);
   }
   if (ttsEngineStatus.declared) {
     addLane(lanes, "text-to-speech-engine", "high",
@@ -1705,6 +1746,12 @@ export function analyzeManifest(manifest) {
   }
   if (fileSystemProviderCapabilitiesStatus.declared && !permissions.includes("fileSystemProvider") && !optionalPermissions.includes("fileSystemProvider")) {
     riskFlags.push({ id: "file-system-provider-permission-missing", level: "high", message: "File system provider capabilities are declared without the required fileSystemProvider permission." });
+  }
+  if (inputComponentsStatus.invalid) {
+    riskFlags.push({ id: "input-components-invalid", level: "critical", message: "The input_components declaration is malformed; provide valid named components with correctly typed optional identifiers, languages, layouts, and safe local page paths." });
+  }
+  if (inputComponentsStatus.declared && !permissions.includes("input") && !optionalPermissions.includes("input")) {
+    riskFlags.push({ id: "input-components-permission-missing", level: "high", message: "Input components are declared without the required input permission." });
   }
   if (ttsEngineStatus.invalid) {
     riskFlags.push({ id: "tts-engine-declaration-invalid", level: "critical", message: "The tts_engine declaration is malformed; provide a voices array whose entries have a non-empty voice name and correctly typed optional language and unique event declarations." });

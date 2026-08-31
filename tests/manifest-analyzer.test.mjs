@@ -600,6 +600,25 @@ test("validates ChromeOS file system provider capabilities", () => {
   assert.ok(missing.riskFlags.some(flag => flag.id === "file-system-provider-permission-missing"));
 });
 
+test("validates ChromeOS input components without exposing component metadata", () => {
+  const marker = "private-input-marker";
+  const base = { manifest_version: 3, name: "Input fixture", version: "1.0.0", permissions: ["input"] };
+  const valid = analyzeManifest({ ...base, input_components: [{ name: marker, id: marker, language: ["en", "fr"], layouts: ["us::eng"], input_view: "views/input.html", options_page: "views/options.html" }] });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "input-components-invalid"));
+  assert.ok(valid.lanes.some(lane => lane.id === "chromeos-input-components"));
+  assert.ok(!JSON.stringify(valid).includes(marker));
+  for (const declaration of [null, {}, [], [{}], [{ name: "" }], [{ name: marker, id: "" }], [{ name: marker, language: [] }],
+    [{ name: marker, layouts: [""] }], [{ name: marker, input_view: "/input.html" }],
+    [{ name: marker, options_page: ["..", "options.html"].join("/") }], [{ name: marker, id: marker }, { name: "second", id: marker }]]) {
+    const report = analyzeManifest({ ...base, input_components: declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "input-components-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  const missing = analyzeManifest({ ...base, permissions: [], input_components: [{ name: marker }] });
+  assert.ok(missing.riskFlags.some(flag => flag.id === "input-components-permission-missing"));
+  assert.ok(!JSON.stringify(missing).includes(marker));
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
