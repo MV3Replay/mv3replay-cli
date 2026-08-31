@@ -46,6 +46,23 @@ function manifestIconDiagnostics(icons) {
   };
 }
 
+function actionIconDiagnostics(icon) {
+  if (icon === undefined) return { declared: false, invalid: false, unsupportedFormat: false };
+  if (typeof icon === "string") {
+    return {
+      declared: true,
+      invalid: !presentString(icon),
+      unsupportedFormat: presentString(icon) && /\.(?:svg|webp)$/i.test(icon.trim())
+    };
+  }
+  const diagnostics = manifestIconDiagnostics(icon);
+  return {
+    declared: true,
+    invalid: diagnostics.invalid,
+    unsupportedFormat: diagnostics.unsupportedFormat
+  };
+}
+
 // Top-level fields whose values currently influence identities, surfaces,
 // findings, comparison details, or generated regression lanes. Other fields
 // are valid input, but their behavior is deliberately reported as unmodeled.
@@ -574,6 +591,7 @@ export function analyzeManifest(manifest) {
   );
   const manifestIconSizes = sortedUnique(objectKeys(manifest.icons));
   const iconDiagnostics = manifestIconDiagnostics(manifest.icons);
+  const actionIconStatus = actionIconDiagnostics(manifest.action?.default_icon);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -581,7 +599,8 @@ export function analyzeManifest(manifest) {
   const presentationMetadata = [
     "default_locale", "description", "homepage_url", "icons", "short_name", "version_name"
   ].some(key => manifest[key] !== undefined);
-  const validManifestName = presentString(manifest.name);
+  const manifestNameDeclared = presentString(manifest.name);
+  const validManifestName = manifestNameDeclared && manifest.name.trim().length <= 75;
   const validManifestVersion = parseChromeExtensionVersion(manifest.version) !== null;
   const fileHandlersDeclared = manifest.file_handlers !== undefined;
   const fileHandlers = Array.isArray(manifest.file_handlers) ? manifest.file_handlers : [];
@@ -914,8 +933,11 @@ export function analyzeManifest(manifest) {
   }
 
   const riskFlags = [];
-  if (!validManifestName) {
+  if (!manifestNameDeclared) {
     riskFlags.push({ id: "manifest-name-invalid", level: "critical", message: "The required manifest name is missing or empty; provide a non-empty name before packaging." });
+  }
+  if (manifestNameDeclared && !validManifestName) {
+    riskFlags.push({ id: "manifest-name-too-long", level: "critical", message: "The manifest name exceeds the documented 75-character maximum; shorten it before packaging." });
   }
   if (!validManifestVersion) {
     riskFlags.push({ id: "manifest-version-invalid", level: "critical", message: "The required manifest version is invalid; use one to four dot-separated integers from 0 to 65535, without leading zeros, and not all zero." });
@@ -935,6 +957,12 @@ export function analyzeManifest(manifest) {
   }
   if (iconDiagnostics.declared && !iconDiagnostics.invalid && iconDiagnostics.missingRecommended) {
     riskFlags.push({ id: "manifest-icon-sizes-incomplete", level: "medium", message: "The manifest icons declaration omits the recommended 48px or 128px size; verify management-page and installation rendering." });
+  }
+  if (actionIconStatus.invalid) {
+    riskFlags.push({ id: "action-icon-invalid", level: "critical", message: "The action default icon is malformed; use a non-empty relative image path or a non-empty positive-size-to-path mapping." });
+  }
+  if (actionIconStatus.unsupportedFormat) {
+    riskFlags.push({ id: "action-icon-format-unsupported", level: "high", message: "The action default icon uses SVG or WebP, which is not supported for declared extension icons; use a supported raster format." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

@@ -104,6 +104,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "explicit unmodeled manifest-key coverage gaps",
       "presentation metadata and localization coverage",
       "manifest-icon declaration validation",
+      "toolbar-action icon and public-name validation",
       "extension display-name change coverage",
       "ChromeOS file-handler coverage",
       "ChromeOS file-handler declaration validation",

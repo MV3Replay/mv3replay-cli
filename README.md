@@ -96,6 +96,8 @@ The interface also provides:
   reading asset files;
 - manifest-icon declaration checks for valid size/path mappings, unsupported
   SVG or WebP formats, and recommended 48px/128px presentation coverage;
+- toolbar-action icon validation for both single-path and size-mapping forms,
+  plus enforcement of the public extension name's 75-character maximum;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

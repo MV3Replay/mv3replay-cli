@@ -482,6 +482,33 @@ test("validates manifest icon declarations without reading image files", () => {
   assert.ok(valid.lanes.some(lane => lane.id === "extension-presentation"));
 });
 
+test("validates action icons in both supported declaration forms", () => {
+  const base = { manifest_version: 3, name: "Action icon fixture", version: "1.0.0" };
+  for (const default_icon of [null, [], {}, "", { size: "icon.png" }, { "0": "icon.png" }, { "16": "" }]) {
+    const report = analyzeManifest({ ...base, action: { default_icon } });
+    assert.ok(report.riskFlags.some(flag => flag.id === "action-icon-invalid"), JSON.stringify(default_icon));
+  }
+
+  for (const default_icon of ["icon.svg", { "16": "ICON.WEBP" }]) {
+    const report = analyzeManifest({ ...base, action: { default_icon } });
+    assert.ok(report.riskFlags.some(flag => flag.id === "action-icon-format-unsupported"), JSON.stringify(default_icon));
+  }
+
+  for (const default_icon of ["icon.png", { "16": "icon-16.png", "32": "icon-32.png" }]) {
+    const report = analyzeManifest({ ...base, action: { default_icon } });
+    assert.ok(!report.riskFlags.some(flag => flag.id.startsWith("action-icon")), JSON.stringify(default_icon));
+  }
+});
+
+test("enforces the documented manifest-name length limit", () => {
+  const report = analyzeManifest({ manifest_version: 3, name: "n".repeat(76), version: "1.0.0" });
+  assert.ok(report.riskFlags.some(flag => flag.id === "manifest-name-too-long" && flag.level === "critical"));
+  assert.ok(report.lanes.some(lane => lane.id === "manifest-identity-validation"));
+
+  const valid = analyzeManifest({ manifest_version: 3, name: "n".repeat(75), version: "1.0.0" });
+  assert.ok(!valid.riskFlags.some(flag => flag.id.startsWith("manifest-name")));
+});
+
 test("models cross-origin policies and managed storage schema boundaries", () => {
   const manifest = {
     manifest_version: 3,
