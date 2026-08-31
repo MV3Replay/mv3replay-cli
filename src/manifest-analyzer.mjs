@@ -452,6 +452,18 @@ function sandboxDiagnostics(sandbox) {
   return { declared: true, invalid: false };
 }
 
+function oauth2Diagnostics(oauth2) {
+  if (oauth2 === undefined) return { declared: false, invalid: false };
+  if (!oauth2 || typeof oauth2 !== "object" || Array.isArray(oauth2)) return { declared: true, invalid: true };
+  if (!presentString(oauth2.client_id)) return { declared: true, invalid: true };
+  const scopes = oauth2.scopes;
+  if (!Array.isArray(scopes) || scopes.length === 0) return { declared: true, invalid: true };
+  const validScopes = scopes.every(scope => presentString(scope));
+  const uniqueScopes = new Set(scopes).size === scopes.length;
+  if (!validScopes || !uniqueScopes) return { declared: true, invalid: true };
+  return { declared: true, invalid: false };
+}
+
 const LOCALE_TAG_REGEX = /^[a-z]{2,3}(_(?:[A-Za-z]{2}|\d{3}))?$/;
 
 function validLocaleTag(value) {
@@ -978,6 +990,7 @@ export function analyzeManifest(manifest) {
   const omniboxStatus = omniboxDiagnostics(manifest.omnibox);
   const chromeUrlOverridesStatus = chromeUrlOverridesDiagnostics(manifest.chrome_url_overrides);
   const sandboxStatus = sandboxDiagnostics(manifest.sandbox);
+  const oauth2Status = oauth2Diagnostics(manifest.oauth2);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1478,6 +1491,9 @@ export function analyzeManifest(manifest) {
   }
   if (sandboxStatus.invalid) {
     riskFlags.push({ id: "sandbox-invalid", level: "critical", message: "The sandbox declaration is malformed; sandbox must be a non-array object with a non-empty pages array of unique, non-empty safe relative paths, and content_security_policy, if present, must be a non-empty string." });
+  }
+  if (oauth2Status.invalid) {
+    riskFlags.push({ id: "oauth2-declaration-invalid", level: "critical", message: "The oauth2 declaration is malformed; oauth2 must be a non-array object with a non-empty client_id string and a non-empty array of unique, non-empty scope strings." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

@@ -432,6 +432,30 @@ test("requires a valid default locale for localized manifest placeholders", () =
   assert.ok(!JSON.stringify(valid).includes("extension_description"));
 });
 
+test("validates oauth2 declarations without exposing client identifiers", () => {
+  const marker = "private-client-marker.apps.example.invalid";
+  const base = { manifest_version: 3, name: "Identity fixture", version: "1.0.0" };
+  const valid = analyzeManifest({
+    ...base,
+    oauth2: { client_id: marker, scopes: ["openid", "profile"] }
+  });
+  assert.ok(valid.surfaces.identityAccess);
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "oauth2-declaration-invalid"));
+  assert.ok(!JSON.stringify(valid).includes(marker));
+
+  for (const oauth2 of [
+    "client", {}, { client_id: "", scopes: ["openid"] },
+    { client_id: marker }, { client_id: marker, scopes: [] },
+    { client_id: marker, scopes: [""] },
+    { client_id: marker, scopes: ["openid", 42] },
+    { client_id: marker, scopes: ["openid", "openid"] }
+  ]) {
+    const report = analyzeManifest({ ...base, oauth2 });
+    assert.ok(report.riskFlags.some(flag => flag.id === "oauth2-declaration-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
