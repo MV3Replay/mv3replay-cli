@@ -99,6 +99,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "zero-retention capture and geolocation boundaries",
       "active-tab gesture and programmatic-injection boundaries",
       "context-menu and alarm lifecycle coverage",
+      "explicit unmodeled manifest-key coverage gaps",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",

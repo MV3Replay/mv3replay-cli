@@ -42,7 +42,7 @@
   "limitations": [
     "Static manifest-only analysis; extension code is never executed.",
     "No browser automation: the tool never launches, connects to, or controls a browser and observes no runtime behavior.",
-    "Coverage is limited to MV3 surfaces the analyzer recognizes; unrecognized manifest keys are ignored, not interpreted.",
+    "Coverage is limited to MV3 surfaces the analyzer recognizes; unmodeled top-level keys are reported explicitly and require manual review.",
     "A report is a regression-testing plan, not evidence that an extension passed any test.",
     "Comparisons do not predict Chrome Web Store review outcomes or prove an update is safe.",
     "Manifests larger than 1 MiB are rejected and non-MV3 manifests exit with code 6."
@@ -73,6 +73,7 @@
       "zero-retention capture and geolocation boundaries",
       "active-tab gesture and programmatic-injection boundaries",
       "context-menu and alarm lifecycle coverage",
+      "explicit unmodeled manifest-key coverage gaps",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",

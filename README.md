@@ -81,6 +81,8 @@ The interface also provides:
   declared icon and accessible-title changes;
 - lifecycle checks for context-menu registration and alarm-driven service-worker
   work, including restart and duplicate-work boundaries;
+- explicit coverage-gap reporting for top-level manifest keys the analyzer does
+  not yet interpret, including added, removed, and value-changed keys in comparisons;
 - user-triggered JSON and escaped Markdown report downloads, including the
   detected-surface and manifest-count inventory; and
 - a private 10-minute tester guide with a local feedback-notes template that
@@ -179,8 +181,9 @@ reports remain local unless the user chooses to share them.
 - No browser automation: analysis is static and manifest-only. The tool
   never launches, connects to, or controls a browser, never executes
   extension code, fetches remote resources, or observes runtime behavior.
-- Coverage is limited to the MV3 surfaces the analyzer recognizes;
-  unrecognized keys are ignored, not interpreted.
+- Coverage is limited to the MV3 surfaces the analyzer recognizes. Top-level
+  keys it does not interpret are listed explicitly as coverage gaps and require
+  manual review; their nested behavior is not analyzed.
 - A report is a regression-testing plan, not evidence that an extension
   passed any test. A comparison does not predict Chrome Web Store review
   outcomes and does not prove that an update is safe.
