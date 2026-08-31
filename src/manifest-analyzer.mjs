@@ -360,6 +360,42 @@ function unsafeRulesetPath(path) {
   return trimmed.split(/[\\/]/).some(segment => segment === "..");
 }
 
+function actionDiagnostics(action) {
+  if (action === undefined) return { declared: false, invalid: false };
+  if (!action || typeof action !== "object" || Array.isArray(action)) return { declared: true, invalid: true };
+  if (action.default_title !== undefined && typeof action.default_title !== "string") {
+    return { declared: true, invalid: true };
+  }
+  if (action.default_popup !== undefined && unsafeRulesetPath(action.default_popup)) {
+    return { declared: true, invalid: true };
+  }
+  return { declared: true, invalid: false };
+}
+
+function optionsDiagnostics(manifest) {
+  const pageDeclared = manifest.options_page !== undefined;
+  const uiDeclared = manifest.options_ui !== undefined;
+  let invalid = false;
+  if (pageDeclared && unsafeRulesetPath(manifest.options_page)) invalid = true;
+  if (uiDeclared) {
+    const ui = manifest.options_ui;
+    if (!ui || typeof ui !== "object" || Array.isArray(ui)) {
+      invalid = true;
+    } else {
+      if (unsafeRulesetPath(ui.page)) invalid = true;
+      if (ui.open_in_tab !== undefined && typeof ui.open_in_tab !== "boolean") invalid = true;
+    }
+  }
+  return { declared: pageDeclared || uiDeclared, invalid };
+}
+
+function sidePanelDiagnostics(sidePanel) {
+  if (sidePanel === undefined) return { declared: false, invalid: false };
+  if (!sidePanel || typeof sidePanel !== "object" || Array.isArray(sidePanel)) return { declared: true, invalid: true };
+  if (unsafeRulesetPath(sidePanel.default_path)) return { declared: true, invalid: true };
+  return { declared: true, invalid: false };
+}
+
 function backgroundDiagnostics(background) {
   if (background === undefined) return { declared: false, invalid: false };
   if (!background || typeof background !== "object" || Array.isArray(background)
@@ -824,6 +860,9 @@ export function analyzeManifest(manifest) {
   const manifestIconSizes = sortedUnique(objectKeys(manifest.icons));
   const iconDiagnostics = manifestIconDiagnostics(manifest.icons);
   const actionIconStatus = actionIconDiagnostics(manifest.action?.default_icon);
+  const actionStatus = actionDiagnostics(manifest.action);
+  const optionsStatus = optionsDiagnostics(manifest);
+  const sidePanelStatus = sidePanelDiagnostics(manifest.side_panel);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1277,6 +1316,15 @@ export function analyzeManifest(manifest) {
   }
   if (backgroundStatus.invalid) {
     riskFlags.push({ id: "background-service-worker-invalid", level: "critical", message: "The Manifest V3 background declaration is malformed; declare only a non-empty relative service_worker path, omit Manifest V2 scripts and persistent fields, avoid absolute or parent-traversal worker paths, and use only \"module\" for an optional type." });
+  }
+  if (actionStatus.invalid) {
+    riskFlags.push({ id: "action-popup-invalid", level: "critical", message: "The action declaration is malformed; default_title must be a string and default_popup, when declared, must be a non-empty safe relative path without a leading slash, drive letter, or parent-directory traversal." });
+  }
+  if (optionsStatus.invalid) {
+    riskFlags.push({ id: "options-declaration-invalid", level: "critical", message: "The options declaration is malformed; options_page must be a non-empty safe relative path and options_ui must be an object with a non-empty safe relative page plus an optional boolean open_in_tab." });
+  }
+  if (sidePanelStatus.invalid) {
+    riskFlags.push({ id: "side-panel-invalid", level: "critical", message: "The side panel declaration is malformed; side_panel must be an object with a non-empty safe relative default_path, without a leading slash, drive letter, or parent-directory traversal." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
