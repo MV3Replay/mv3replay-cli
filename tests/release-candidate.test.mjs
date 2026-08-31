@@ -98,6 +98,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "reversible content, privacy, and proxy setting controls",
       "zero-retention capture and geolocation boundaries",
       "active-tab gesture and programmatic-injection boundaries",
+      "context-menu and alarm lifecycle coverage",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",

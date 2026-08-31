@@ -79,6 +79,8 @@ The interface also provides:
   startup-page, or search-provider overrides;
 - toolbar-action coverage for both popup and direct click-event flows, including
   declared icon and accessible-title changes;
+- lifecycle checks for context-menu registration and alarm-driven service-worker
+  work, including restart and duplicate-work boundaries;
 - user-triggered JSON and escaped Markdown report downloads, including the
   detected-surface and manifest-count inventory; and
 - a private 10-minute tester guide with a local feedback-notes template that
