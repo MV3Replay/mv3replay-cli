@@ -112,8 +112,15 @@ function printHuman(report, file) {
     `- Page capture: ${yesNo(report.surfaces.pageCaptureAccess)}`,
     `- Temporary active-tab access: ${yesNo(report.surfaces.activeTabAccess)}`,
     `- Programmatic injection: ${yesNo(report.surfaces.scriptingAccess)}`,
+    `- Context menus: ${yesNo(report.surfaces.contextMenusAccess)}`,
+    `- Alarms: ${yesNo(report.surfaces.alarmsAccess)}`,
     `- Chrome page override: ${yesNo(report.surfaces.chromeUrlOverrides)}`,
     `- Chrome settings override: ${yesNo(report.surfaces.chromeSettingsOverrides)}`,
+    "",
+    "Coverage gaps",
+    report.coverage.unmodeledTopLevelKeys.length > 0
+      ? `- Unmodeled top-level keys: ${report.coverage.unmodeledTopLevelKeys.join(", ")}`
+      : "- Every top-level manifest key is modeled by the current analyzer.",
     "",
     "Recommended regression lanes"
   ];

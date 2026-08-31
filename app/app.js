@@ -266,7 +266,10 @@ function comparisonChangeBreakdown(changes) {
     ["rules", rules],
     ["external boundaries", externalBoundaries],
     ["surfaces", countListDiff(changes.surfaces)],
-    ["declarations", changes.declarations?.length || 0]
+    ["declarations", changes.declarations?.length || 0],
+    ["coverage gaps", (changes.unmodeledTopLevelKeys?.added?.length || 0)
+      + (changes.unmodeledTopLevelKeys?.removed?.length || 0)
+      + (changes.unmodeledTopLevelKeys?.changed?.length || 0)]
   ];
 }
 
@@ -398,6 +401,13 @@ function renderReport(report) {
     surfaceList.appendChild(el("li", { text: `${key}: ${String(value)}` }));
   }
   reportDetailsEl.appendChild(surfaceList);
+
+  reportDetailsEl.appendChild(el("h2", { text: "Coverage gaps" }));
+  reportDetailsEl.appendChild(el("p", {
+    text: report.coverage.unmodeledTopLevelKeys.length > 0
+      ? `Top-level manifest keys not interpreted by this analyzer: ${report.coverage.unmodeledTopLevelKeys.join(", ")}.`
+      : "Every top-level manifest key in this file is modeled by the current analyzer."
+  }));
 
   reportDetailsEl.appendChild(el("h2", { text: "Test lanes" }));
   if (report.lanes.length === 0) {
@@ -603,6 +613,13 @@ function buildAnalysisMarkdown(report, checklist) {
   lines.push("## Manifest counts");
   for (const [key, value] of Object.entries(report.counts).sort(([first], [second]) => first.localeCompare(second))) {
     lines.push(`- ${escapeMarkdownText(key)}: ${escapeMarkdownText(value)}`);
+  }
+  lines.push("");
+  lines.push("## Coverage gaps");
+  if (report.coverage.unmodeledTopLevelKeys.length === 0) {
+    lines.push("Every top-level manifest key in this file is modeled by the current analyzer.");
+  } else {
+    lines.push(`- Unmodeled top-level keys: ${report.coverage.unmodeledTopLevelKeys.map(escapeMarkdownText).join(", ")}`);
   }
   lines.push("");
   lines.push("## Findings");
@@ -848,6 +865,15 @@ function renderStaticRulesetChanges(diff) {
   return container;
 }
 
+function renderKeyValueChanges(title, diff) {
+  const container = el("div", { className: "declaration-changes" });
+  container.appendChild(el("strong", { text: title }));
+  container.appendChild(el("p", { text: `Added: ${diff.added.length ? diff.added.join(", ") : "none"}` }));
+  container.appendChild(el("p", { text: `Removed: ${diff.removed.length ? diff.removed.join(", ") : "none"}` }));
+  container.appendChild(el("p", { text: `Changed: ${diff.changed.length ? diff.changed.join(", ") : "none"}` }));
+  return container;
+}
+
 function formatWebAccessibleResource(declaration) {
   const resources = declaration.resources.length > 0 ? declaration.resources.join(", ") : "none";
   const matches = declaration.matches.length > 0 ? declaration.matches.join(", ") : "none";
@@ -946,6 +972,10 @@ function renderCompareReport(report) {
   compareReportDetailsEl.appendChild(renderListDiff("External messaging extension IDs", report.changes.externalMessaging.ids));
   compareReportDetailsEl.appendChild(renderWebAccessibleResourceChanges(report.changes.webAccessibleResources));
   compareReportDetailsEl.appendChild(renderDeclarationChanges(report.changes.declarations));
+  compareReportDetailsEl.appendChild(renderKeyValueChanges(
+    "Unmodeled top-level manifest keys",
+    report.changes.unmodeledTopLevelKeys
+  ));
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
   compareReportDetailsEl.appendChild(el("p", {
@@ -1130,6 +1160,11 @@ function buildComparisonMarkdown(report, checklist) {
       );
     }
   }
+  lines.push("");
+  lines.push("### Unmodeled top-level manifest keys");
+  lines.push(`- Added: ${report.changes.unmodeledTopLevelKeys.added.length ? report.changes.unmodeledTopLevelKeys.added.map(escapeMarkdownText).join(", ") : "none"}`);
+  lines.push(`- Removed: ${report.changes.unmodeledTopLevelKeys.removed.length ? report.changes.unmodeledTopLevelKeys.removed.map(escapeMarkdownText).join(", ") : "none"}`);
+  lines.push(`- Changed: ${report.changes.unmodeledTopLevelKeys.changed.length ? report.changes.unmodeledTopLevelKeys.changed.map(escapeMarkdownText).join(", ") : "none"}`);
   lines.push("");
   lines.push("## Candidate-release checklist");
   if (checklist.length === 0) {

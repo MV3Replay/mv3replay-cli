@@ -289,6 +289,47 @@ test("builds lifecycle lanes for context menus and alarms", () => {
   assert.ok(alarmLane.checks.some(check => /recreates any alarm/i.test(check)));
 });
 
+test("makes unmodeled top-level manifest keys explicit", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Coverage fixture",
+    version: "1.0.0",
+    icons: { "16": "icon.png" },
+    custom_future_key: { enabled: true }
+  });
+
+  assert.deepEqual(report.coverage.unmodeledTopLevelKeys, ["custom_future_key", "icons"]);
+  assert.equal(report.counts.unmodeledTopLevelKeys, 2);
+  assert.ok(report.lanes.some(lane => lane.id === "unmodeled-manifest-keys"));
+  assert.ok(report.riskFlags.some(flag => flag.id === "unmodeled-manifest-keys"));
+});
+
+test("compares added, removed, and changed unmodeled manifest keys", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Coverage fixture",
+    version: "1.0.0",
+    icons: { "16": "old.png" },
+    removed_key: true
+  };
+  const current = {
+    manifest_version: 3,
+    name: "Coverage fixture",
+    version: "1.0.0",
+    icons: { "16": "new.png" },
+    added_key: true
+  };
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.unmodeledTopLevelKeys, {
+    added: ["added_key"],
+    removed: ["removed_key"],
+    changed: ["icons"]
+  });
+  assert.ok(report.findings.some(item => item.id === "unmodeled-manifest-key-change"));
+  assert.ok(report.findings.some(item => item.id === "extension-version-not-increased"));
+});
+
 test("compares extension versions using Chrome update ordering", () => {
   const base = {
     manifest_version: 3,

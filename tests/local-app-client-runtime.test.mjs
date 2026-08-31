@@ -47,7 +47,7 @@ function collectText(node) {
   return [node.textContent, ...node.children.flatMap(collectText)].filter(Boolean).join(" ");
 }
 
-async function createClientHarness({ identicalComparison = false } = {}) {
+async function createClientHarness({ identicalComparison = false, unmodeledCoverage = false } = {}) {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   const elements = new Map();
   const createdElements = [];
@@ -68,6 +68,7 @@ async function createClientHarness({ identicalComparison = false } = {}) {
   const analysisReport = {
     identity: { name: "Built-in example extension", version: "1.0.0", manifestVersion: 3 },
     surfaces: { serviceWorker: true, popup: true },
+    coverage: { unmodeledTopLevelKeys: [] },
     lanes: [{ id: "startup", priority: "high", reason: "Worker startup", checks: ["Restart the worker"] }],
     riskFlags: [
       { id: "broad-host", level: "critical", message: "Broad host access" },
@@ -113,9 +114,25 @@ async function createClientHarness({ identicalComparison = false } = {}) {
       declarations: [
         { field: "omnibox.keyword", previous: null, current: "mv3" },
         { field: "sandbox.pages", previous: [], current: ["sandbox.html"] }
-      ]
+      ],
+      unmodeledTopLevelKeys: { added: [], removed: [], changed: [] }
     }
   };
+  if (unmodeledCoverage) {
+    analysisReport.coverage.unmodeledTopLevelKeys = ["icons"];
+    analysisReport.counts = { unmodeledTopLevelKeys: 1 };
+    analysisReport.riskFlags.push({
+      id: "unmodeled-manifest-keys",
+      level: "high",
+      message: "Coverage gap: icons is not interpreted"
+    });
+    comparisonReport.changes.unmodeledTopLevelKeys.changed = ["icons"];
+    comparisonReport.findings.push({
+      id: "unmodeled-manifest-key-change",
+      level: "high",
+      message: "Unmodeled top-level manifest key changed: icons"
+    });
+  }
   if (identicalComparison) {
     comparisonReport.to.version = comparisonReport.from.version;
     comparisonReport.findings = [];
@@ -138,6 +155,7 @@ async function createClientHarness({ identicalComparison = false } = {}) {
       ids: { added: [], removed: [] }
     };
     comparisonReport.changes.declarations = [];
+    comparisonReport.changes.unmodeledTopLevelKeys = { added: [], removed: [], changed: [] };
   }
 
   const context = vm.createContext({
@@ -214,6 +232,18 @@ test("an identical comparison renders zero structured changes without comparison
   assert.match(summary, /Breakdown: no structured changes\./);
   assert.match(collectText(elements.get("compare-report-details")), /No comparison findings were detected/);
   assert.doesNotMatch(collectText(elements.get("candidate-checklist-list")), /comparison-/);
+});
+
+test("coverage gaps render in analysis and comparison summaries", async () => {
+  const { elements } = await createClientHarness({ unmodeledCoverage: true });
+  await elements.get("analyze-example-button").listeners.get("click")();
+  assert.match(collectText(elements.get("report-details")), /not interpreted by this analyzer: icons/);
+  assert.match(collectText(elements.get("report-details")), /unmodeled-manifest-keys/);
+
+  await elements.get("compare-example-button").listeners.get("click")();
+  assert.match(collectText(elements.get("compare-report-summary")), /coverage gaps 1/);
+  assert.match(collectText(elements.get("compare-report-details")), /Changed: icons/);
+  assert.match(collectText(elements.get("candidate-checklist-list")), /comparison-unmodeled-manifest-key-change/);
 });
 
 test("severity filters execute and hide non-matching rendered findings", async () => {

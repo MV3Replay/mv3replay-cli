@@ -14,6 +14,34 @@ const objectKeys = value => value && typeof value === "object" && !Array.isArray
   ? Object.keys(value)
   : [];
 
+// Top-level fields whose values currently influence identities, surfaces,
+// findings, comparison details, or generated regression lanes. Other fields
+// are valid input, but their behavior is deliberately reported as unmodeled.
+const MODELED_TOP_LEVEL_KEYS = new Set([
+  "action", "background", "chrome_settings_overrides", "chrome_url_overrides",
+  "commands", "content_scripts", "content_security_policy", "declarative_net_request",
+  "devtools_page", "externally_connectable", "host_permissions", "incognito",
+  "manifest_version", "minimum_chrome_version", "name", "oauth2", "omnibox",
+  "optional_host_permissions", "optional_permissions", "options_page", "options_ui",
+  "permissions", "sandbox", "side_panel", "update_url", "version",
+  "web_accessible_resources"
+]);
+
+const unmodeledTopLevelKeys = manifest => objectKeys(manifest)
+  .filter(key => !MODELED_TOP_LEVEL_KEYS.has(key))
+  .sort();
+
+function keyValueDiff(previousManifest, currentManifest, previousKeys, currentKeys) {
+  const previousSet = new Set(previousKeys);
+  const currentSet = new Set(currentKeys);
+  return {
+    added: currentKeys.filter(key => !previousSet.has(key)),
+    removed: previousKeys.filter(key => !currentSet.has(key)),
+    changed: previousKeys.filter(key => currentSet.has(key)
+      && JSON.stringify(stableValue(previousManifest[key])) !== JSON.stringify(stableValue(currentManifest[key])))
+  };
+}
+
 function addLane(lanes, id, priority, reason, checks) {
   lanes.push({ id, priority, reason, checks });
 }
@@ -357,6 +385,7 @@ function manifestSignals(manifest) {
     : [];
   const externalMatches = sortedUnique(asStrings(manifest.externally_connectable?.matches));
   const externalExtensionIds = sortedUnique(asStrings(manifest.externally_connectable?.ids));
+  const unmodeledKeys = unmodeledTopLevelKeys(manifest);
 
   return {
     permissions,
@@ -369,7 +398,8 @@ function manifestSignals(manifest) {
     staticRulesets,
     webAccessibleResources,
     externalMatches,
-    externalExtensionIds
+    externalExtensionIds,
+    unmodeledKeys
   };
 }
 
@@ -398,7 +428,8 @@ export function analyzeManifest(manifest) {
     staticRulesets,
     webAccessibleResources,
     externalMatches,
-    externalExtensionIds
+    externalExtensionIds,
+    unmodeledKeys
   } = manifestSignals(manifest);
 
   const action = Boolean(manifest.action && typeof manifest.action === "object" && !Array.isArray(manifest.action));
@@ -504,6 +535,12 @@ export function analyzeManifest(manifest) {
   addLane(lanes, "install-and-upgrade", "critical",
     "Every release can change manifest wiring, permissions, or persisted state.",
     ["Load the exact shipping build", "Verify a clean install", "Verify an upgrade from the previous version"]);
+
+  if (unmodeledKeys.length > 0) {
+    addLane(lanes, "unmodeled-manifest-keys", "high",
+      `The analyzer does not interpret these top-level manifest keys: ${unmodeledKeys.join(", ")}.`,
+      ["Review each unmodeled key against its browser documentation", "Add manual checks for every behavior the key enables or changes", "Do not treat this report as complete until those checks are covered"]);
+  }
 
   if (contentScripts.length > 0) {
     addLane(lanes, "host-page-safety", "critical",
@@ -733,6 +770,13 @@ export function analyzeManifest(manifest) {
   }
 
   const riskFlags = [];
+  if (unmodeledKeys.length > 0) {
+    riskFlags.push({
+      id: "unmodeled-manifest-keys",
+      level: "high",
+      message: `Coverage gap: top-level manifest keys are present but not interpreted: ${unmodeledKeys.join(", ")}. Add manual coverage before relying on this plan.`
+    });
+  }
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
     riskFlags.push({ id: "broad-host-scope", level: "high", message: "The manifest includes <all_urls>; use synthetic or explicitly authorized hosts for testing." });
   }
@@ -845,8 +889,10 @@ export function analyzeManifest(manifest) {
       webAccessibleResourceDeclarations: webAccessibleResources.length,
       externalMatchPatterns: externalMatches.length,
       externalExtensionIds: externalExtensionIds.length,
-      sandboxPages: sandboxPages.length
+      sandboxPages: sandboxPages.length,
+      unmodeledTopLevelKeys: unmodeledKeys.length
     },
+    coverage: { unmodeledTopLevelKeys: unmodeledKeys },
     lanes,
     riskFlags,
     privacy: {
@@ -879,7 +925,16 @@ export function compareManifests(previousManifest, currentManifest) {
   ];
   const uiDeclarationsChanged = declarations.some(item => uiDeclarationFields.includes(item.field));
   const version = versionChange(previousReport.identity.version, currentReport.identity.version);
-  const manifestChanged = previousReport.fingerprint !== currentReport.fingerprint;
+  const unmodeledKeyChanges = keyValueDiff(
+    previousManifest,
+    currentManifest,
+    previous.unmodeledKeys,
+    current.unmodeledKeys
+  );
+  const manifestChanged = previousReport.fingerprint !== currentReport.fingerprint
+    || unmodeledKeyChanges.added.length > 0
+    || unmodeledKeyChanges.removed.length > 0
+    || unmodeledKeyChanges.changed.length > 0;
 
   const changes = {
     version,
@@ -900,10 +955,22 @@ export function compareManifests(previousManifest, currentManifest) {
     },
     webAccessibleResources: declarationDiff(previous.webAccessibleResources, current.webAccessibleResources),
     surfaces: surfaceDiff(previousReport.surfaces, currentReport.surfaces),
-    declarations
+    declarations,
+    unmodeledTopLevelKeys: unmodeledKeyChanges
   };
 
   const findings = [];
+  if (
+    changes.unmodeledTopLevelKeys.added.length > 0
+    || changes.unmodeledTopLevelKeys.removed.length > 0
+    || changes.unmodeledTopLevelKeys.changed.length > 0
+  ) {
+    findings.push({
+      id: "unmodeled-manifest-key-change",
+      level: "high",
+      message: `Unmodeled top-level manifest keys changed (added: ${changes.unmodeledTopLevelKeys.added.join(", ") || "none"}; removed: ${changes.unmodeledTopLevelKeys.removed.join(", ") || "none"}; changed: ${changes.unmodeledTopLevelKeys.changed.join(", ") || "none"}). Review their browser behavior manually.`
+    });
+  }
   if (version.relation === "older") {
     findings.push({
       id: "extension-version-decreased",

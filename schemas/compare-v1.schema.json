@@ -38,7 +38,8 @@
         "externalMessaging",
         "webAccessibleResources",
         "surfaces",
-        "declarations"
+        "declarations",
+        "unmodeledTopLevelKeys"
       ],
       "properties": {
         "version": {
@@ -118,7 +119,8 @@
               "current": {}
             }
           }
-        }
+        },
+        "unmodeledTopLevelKeys": { "$ref": "#/$defs/keyValueDiff" }
       }
     },
     "findings": {
@@ -176,6 +178,16 @@
       "properties": {
         "optionalToRequired": { "type": "array", "items": { "type": "string" } },
         "requiredToOptional": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "keyValueDiff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "removed", "changed"],
+      "properties": {
+        "added": { "type": "array", "items": { "type": "string" } },
+        "removed": { "type": "array", "items": { "type": "string" } },
+        "changed": { "type": "array", "items": { "type": "string" } }
       }
     },
     "contentScriptRegistration": {

@@ -10,6 +10,7 @@
     "identity",
     "surfaces",
     "counts",
+    "coverage",
     "lanes",
     "riskFlags",
     "privacy",
@@ -127,7 +128,8 @@
         "webAccessibleResourceDeclarations",
         "externalMatchPatterns",
         "externalExtensionIds",
-        "sandboxPages"
+        "sandboxPages",
+        "unmodeledTopLevelKeys"
       ],
       "properties": {
         "permissions": { "type": "integer", "minimum": 0 },
@@ -141,7 +143,19 @@
         "webAccessibleResourceDeclarations": { "type": "integer", "minimum": 0 },
         "externalMatchPatterns": { "type": "integer", "minimum": 0 },
         "externalExtensionIds": { "type": "integer", "minimum": 0 },
-        "sandboxPages": { "type": "integer", "minimum": 0 }
+        "sandboxPages": { "type": "integer", "minimum": 0 },
+        "unmodeledTopLevelKeys": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unmodeledTopLevelKeys"],
+      "properties": {
+        "unmodeledTopLevelKeys": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     },
     "lanes": {
