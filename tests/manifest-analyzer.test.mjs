@@ -565,6 +565,25 @@ test("validates shared-module imports without exposing module identifiers", () =
   }
 });
 
+test("validates ChromeOS file browser handlers without exposing handler metadata", () => {
+  const marker = "private-handler-marker";
+  const base = { manifest_version: 3, name: "File browser fixture", version: "1.0.0", permissions: ["fileBrowserHandler"] };
+  const valid = analyzeManifest({ ...base, file_browser_handlers: [{ id: marker, default_title: marker, file_filters: ["filesystem:*.txt"] }] });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "file-browser-handlers-invalid"));
+  assert.ok(valid.lanes.some(lane => lane.id === "chromeos-file-browser-handlers"));
+  assert.ok(!JSON.stringify(valid).includes(marker));
+  for (const declaration of [null, {}, [], [{}], [{ id: "", default_title: marker, file_filters: ["filesystem:*.txt"] }],
+    [{ id: marker, default_title: "", file_filters: ["filesystem:*.txt"] }], [{ id: marker, default_title: marker, file_filters: [] }],
+    [{ id: marker, default_title: marker, file_filters: ["*.txt"] }]]) {
+    const report = analyzeManifest({ ...base, file_browser_handlers: declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "file-browser-handlers-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  const missing = analyzeManifest({ ...base, permissions: [], file_browser_handlers: [{ id: marker, default_title: marker, file_filters: ["filesystem:*.*"] }] });
+  assert.ok(missing.riskFlags.some(flag => flag.id === "file-browser-handler-permission-missing"));
+  assert.ok(!JSON.stringify(missing).includes(marker));
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

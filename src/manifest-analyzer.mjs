@@ -28,6 +28,22 @@ function validFileHandler(handler) {
     || handler.launch_type === "multiple-clients";
 }
 
+function validFileBrowserHandler(handler) {
+  if (!handler || typeof handler !== "object" || Array.isArray(handler)) return false;
+  if (!presentString(handler.id) || !presentString(handler.default_title)) return false;
+  const filters = handler.file_filters;
+  if (!Array.isArray(filters) || filters.length === 0) return false;
+  if (!filters.every(filter => presentString(filter) && filter.startsWith("filesystem:"))) return false;
+  return new Set(filters).size === filters.length;
+}
+
+function fileBrowserHandlersDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!Array.isArray(value) || value.length === 0) return { declared: true, invalid: true };
+  const ids = value.filter(validFileBrowserHandler).map(handler => handler.id);
+  return { declared: true, invalid: ids.length !== value.length || new Set(ids).size !== ids.length };
+}
+
 function manifestIconDiagnostics(icons) {
   if (icons === undefined) return { declared: false, invalid: false, unsupportedFormat: false, missingRecommended: false };
   if (!icons || typeof icons !== "object" || Array.isArray(icons)) {
@@ -140,6 +156,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "cross_origin_opener_policy", "declarative_net_request",
   "default_locale", "description", "devtools_page", "externally_connectable",
   "export",
+  "file_browser_handlers",
   "file_handlers",
   "homepage_url", "host_permissions", "icons", "import", "incognito",
   "key",
@@ -1098,6 +1115,7 @@ export function analyzeManifest(manifest) {
   const storageStatus = storageDiagnostics(manifest.storage);
   const exportStatus = exportDiagnostics(manifest.export);
   const importStatus = importDiagnostics(manifest.import);
+  const fileBrowserHandlersStatus = fileBrowserHandlersDiagnostics(manifest.file_browser_handlers);
   const requirementsStatus = requirementsDiagnostics(manifest.requirements);
   const ttsEngineStatus = ttsEngineDiagnostics(manifest.tts_engine);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
@@ -1221,6 +1239,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "shared-module-import", "high",
       "The extension imports shared-module resources that execute with the importing extension's privileges.",
       ["Verify every required module is installed", "Test the minimum supported module version", "Review imported resources before each release"]);
+  }
+  if (fileBrowserHandlersStatus.declared) {
+    addLane(lanes, "chromeos-file-browser-handlers", "high",
+      "The extension registers foreground-only file actions on ChromeOS.",
+      ["Test each action with matching files", "Verify non-matching files do not expose the action", "Confirm foreground event handling on ChromeOS"]);
   }
   if (ttsEngineStatus.declared) {
     addLane(lanes, "text-to-speech-engine", "high",
@@ -1650,6 +1673,12 @@ export function analyzeManifest(manifest) {
   }
   if (importStatus.declared) {
     riskFlags.push({ id: "shared-module-import-compatibility", level: "high", message: "Imported shared modules require a compatible external distribution and installation path; verify availability before release." });
+  }
+  if (fileBrowserHandlersStatus.invalid) {
+    riskFlags.push({ id: "file-browser-handlers-invalid", level: "critical", message: "The file_browser_handlers declaration is malformed; provide unique handlers with non-empty identifiers, titles, and unique filesystem filters." });
+  }
+  if (fileBrowserHandlersStatus.declared && !permissions.includes("fileBrowserHandler") && !optionalPermissions.includes("fileBrowserHandler")) {
+    riskFlags.push({ id: "file-browser-handler-permission-missing", level: "high", message: "File browser handlers are declared without the required fileBrowserHandler permission." });
   }
   if (ttsEngineStatus.invalid) {
     riskFlags.push({ id: "tts-engine-declaration-invalid", level: "critical", message: "The tts_engine declaration is malformed; provide a voices array whose entries have a non-empty voice name and correctly typed optional language and unique event declarations." });
