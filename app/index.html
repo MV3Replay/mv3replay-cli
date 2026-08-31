@@ -99,7 +99,12 @@
       <button type="button" id="export-checklist-markdown" disabled>
         Download analysis + checklist (Markdown)
       </button>
+      <button type="button" id="export-analysis-safe-summary" disabled>
+        Download share-safe structural summary (Markdown)
+      </button>
     </div>
+    <p class="export-help">The share-safe summary excludes extension names, versions, URLs, filenames,
+      manifest values, finding messages, and checklist text.</p>
     <p id="export-status" role="status" aria-live="polite"></p>
   </section>
 
@@ -201,7 +206,12 @@
       <button type="button" id="export-comparison-markdown" disabled>
         Download comparison + candidate checklist (Markdown)
       </button>
+      <button type="button" id="export-comparison-safe-summary" disabled>
+        Download share-safe comparison summary (Markdown)
+      </button>
     </div>
+    <p class="export-help">The share-safe summary contains structural counts only and excludes release
+      names, versions, URLs, filenames, manifest values, finding messages, and checklist text.</p>
     <p id="export-comparison-status" role="status" aria-live="polite"></p>
   </section>
 

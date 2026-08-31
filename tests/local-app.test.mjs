@@ -728,6 +728,21 @@ test("comparison UI and Markdown expose surface and declaration changes", async 
   assert.match(source, /escapeMarkdownText\(change\.field\)/);
 });
 
+test("share-safe summaries use structural counts and explicit user-triggered downloads", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(html, /id="export-analysis-safe-summary"/);
+  assert.match(html, /id="export-comparison-safe-summary"/);
+  assert.match(html, /excludes extension names, versions, URLs, filenames/);
+  assert.match(source, /function buildShareSafeAnalysisSummary/);
+  assert.match(source, /function buildShareSafeComparisonSummary/);
+  assert.match(source, /severityCountLines/);
+  assert.match(source, /mv3-replay-share-safe-analysis-summary\.md/);
+  assert.match(source, /mv3-replay-share-safe-comparison-summary\.md/);
+  assert.match(source, /exportAnalysisSafeSummaryButton\.addEventListener\("click"/);
+  assert.match(source, /exportComparisonSafeSummaryButton\.addEventListener\("click"/);
+});
+
 test("analysis Markdown includes deterministic surfaces and manifest counts", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /## Detected surfaces/);

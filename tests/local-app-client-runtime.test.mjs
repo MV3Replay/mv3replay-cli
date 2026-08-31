@@ -47,10 +47,11 @@ function collectText(node) {
   return [node.textContent, ...node.children.flatMap(collectText)].filter(Boolean).join(" ");
 }
 
-async function createClientHarness({ identicalComparison = false, unmodeledCoverage = false } = {}) {
+async function createClientHarness({ identicalComparison = false, unmodeledCoverage = false, sensitiveValues = false } = {}) {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   const elements = new Map();
   const createdElements = [];
+  const createdBlobs = [];
   const document = {
     body: new FakeElement("body"),
     getElementById(id) {
@@ -68,6 +69,7 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
   const analysisReport = {
     identity: { name: "Built-in example extension", version: "1.0.0", manifestVersion: 3 },
     surfaces: { serviceWorker: true, popup: true },
+    counts: { permissions: 2, hostPermissions: 1, unmodeledTopLevelKeys: 0 },
     coverage: { unmodeledTopLevelKeys: [] },
     lanes: [{ id: "startup", priority: "high", reason: "Worker startup", checks: ["Restart the worker"] }],
     riskFlags: [
@@ -133,6 +135,22 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
       message: "Unmodeled top-level manifest key changed: future_settings"
     });
   }
+  if (sensitiveValues) {
+    analysisReport.identity = { name: "PRIVATE_EXTENSION_NAME", version: "PRIVATE_VERSION", manifestVersion: 3 };
+    analysisReport.coverage.unmodeledTopLevelKeys = ["PRIVATE_CUSTOM_KEY"];
+    analysisReport.lanes[0].checks = ["PRIVATE_CHECKLIST_TEXT"];
+    analysisReport.riskFlags[0].message = "PRIVATE_FINDING_MESSAGE";
+    comparisonReport.from = { name: "PRIVATE_OLD_NAME", version: "PRIVATE_OLD_VERSION" };
+    comparisonReport.to = { name: "PRIVATE_NEW_NAME", version: "PRIVATE_NEW_VERSION" };
+    comparisonReport.findings[0].message = "PRIVATE_COMPARISON_MESSAGE";
+    comparisonReport.changes.requiredHosts.added = ["https://private.example/*"];
+    comparisonReport.changes.contentScripts.added[0].files = ["private-script.js"];
+    comparisonReport.changes.declarations[0] = {
+      field: "PRIVATE_DECLARATION_FIELD",
+      previous: "PRIVATE_PREVIOUS_VALUE",
+      current: "PRIVATE_CURRENT_VALUE"
+    };
+  }
   if (identicalComparison) {
     comparisonReport.to.version = comparisonReport.from.version;
     comparisonReport.findings = [];
@@ -163,7 +181,10 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
     Blob,
     console,
     URL: {
-      createObjectURL: () => "blob:local",
+      createObjectURL: blob => {
+        createdBlobs.push(blob);
+        return "blob:local";
+      },
       revokeObjectURL: () => {}
     },
     fetch: async (path, options) => {
@@ -178,7 +199,7 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
     }
   });
   vm.runInContext(source, context, { filename: "app/app.js" });
-  return { elements, requests, createdElements };
+  return { elements, requests, createdElements, createdBlobs };
 }
 
 test("built-in analysis example executes the real client request and rendering path", async () => {
@@ -308,6 +329,30 @@ test("feedback template downloads only after the tester clicks the local control
   assert.equal(link.clicked, true);
   assert.equal(requests.length, 0);
   assert.match(elements.get("feedback-template-status").textContent, /downloaded locally/);
+});
+
+test("share-safe summaries exclude every manifest-controlled value", async () => {
+  const { elements, createdElements, createdBlobs } = await createClientHarness({ sensitiveValues: true });
+  await elements.get("analyze-example-button").listeners.get("click")();
+  elements.get("export-analysis-safe-summary").listeners.get("click")();
+  await elements.get("compare-example-button").listeners.get("click")();
+  elements.get("export-comparison-safe-summary").listeners.get("click")();
+
+  assert.equal(createdBlobs.length, 2);
+  const [analysisText, comparisonText] = await Promise.all(createdBlobs.map(blob => blob.text()));
+  const combined = `${analysisText}\n${comparisonText}`;
+  for (const secret of [
+    "PRIVATE_EXTENSION_NAME", "PRIVATE_VERSION", "PRIVATE_CUSTOM_KEY", "PRIVATE_CHECKLIST_TEXT",
+    "PRIVATE_FINDING_MESSAGE", "PRIVATE_OLD_NAME", "PRIVATE_OLD_VERSION", "PRIVATE_NEW_NAME",
+    "PRIVATE_NEW_VERSION", "PRIVATE_COMPARISON_MESSAGE", "private.example", "private-script.js",
+    "PRIVATE_DECLARATION_FIELD", "PRIVATE_PREVIOUS_VALUE", "PRIVATE_CURRENT_VALUE"
+  ]) {
+    assert.doesNotMatch(combined, new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(analysisText, /Finding severity counts/);
+  assert.match(comparisonText, /Structured change counts/);
+  assert.ok(createdElements.some(element => element.download === "mv3-replay-share-safe-analysis-summary.md"));
+  assert.ok(createdElements.some(element => element.download === "mv3-replay-share-safe-comparison-summary.md"));
 });
 
 test("checklist completion filters and reset execute against in-memory state", async () => {

@@ -69,6 +69,7 @@ const checklistFilterStatusEl = document.getElementById("checklist-filter-status
 const resetChecklistButton = document.getElementById("reset-checklist");
 const exportButton = document.getElementById("export-checklist");
 const exportMarkdownButton = document.getElementById("export-checklist-markdown");
+const exportAnalysisSafeSummaryButton = document.getElementById("export-analysis-safe-summary");
 const exportStatusEl = document.getElementById("export-status");
 
 // Checklist state exists only for the lifetime of this page.
@@ -105,6 +106,7 @@ const candidateChecklistFilterStatusEl = document.getElementById("candidate-chec
 const resetCandidateChecklistButton = document.getElementById("reset-candidate-checklist");
 const exportComparisonButton = document.getElementById("export-comparison");
 const exportComparisonMarkdownButton = document.getElementById("export-comparison-markdown");
+const exportComparisonSafeSummaryButton = document.getElementById("export-comparison-safe-summary");
 const exportComparisonStatusEl = document.getElementById("export-comparison-status");
 
 // Candidate checklist state exists only for the lifetime of this page.
@@ -545,6 +547,7 @@ function renderChecklist(report) {
   checklistFilterEl.value = "all";
   exportButton.disabled = checklistState.length === 0;
   exportMarkdownButton.disabled = checklistState.length === 0;
+  exportAnalysisSafeSummaryButton.disabled = false;
   exportStatusEl.textContent = "";
   updateChecklistProgress();
 }
@@ -688,6 +691,42 @@ function buildAnalysisMarkdown(report, checklist) {
   return lines.join("\n");
 }
 
+function severityCountLines(items) {
+  const counts = countByLevel(items);
+  return ["critical", "high", "medium", "low"]
+    .map(level => `- ${level}: ${counts[level] || 0}`);
+}
+
+function buildShareSafeAnalysisSummary(report, checklist) {
+  const completed = checklist.filter(item => item.done).length;
+  const numericCounts = Object.values(report.counts || {})
+    .filter(value => Number.isInteger(value) && value >= 0);
+  const activeSurfaceCount = Object.values(report.surfaces || {})
+    .filter(value => value === true || (Number.isInteger(value) && value > 0)).length;
+  return [
+    "# MV3 Replay share-safe structural analysis summary",
+    "",
+    "> Generated locally on explicit user request. No data was uploaded.",
+    "> Excludes extension names, versions, URLs, filenames, manifest values, finding messages, and checklist text.",
+    "",
+    "## Structure",
+    `- Active modeled surface fields: ${activeSurfaceCount}`,
+    `- Total across numeric manifest counters: ${numericCounts.reduce((total, value) => total + value, 0)}`,
+    `- Unmodeled top-level key count: ${report.coverage.unmodeledTopLevelKeys.length}`,
+    `- Regression lane count: ${report.lanes.length}`,
+    "",
+    "## Finding severity counts",
+    ...severityCountLines(report.riskFlags),
+    "",
+    "## Checklist progress",
+    `- Completed: ${completed}`,
+    `- Total: ${checklist.length}`,
+    "",
+    "This sanitized structural summary is still a static plan, not proof of runtime testing.",
+    ""
+  ].join("\n");
+}
+
 exportButton.addEventListener("click", () => {
   if (!currentReport) return;
 
@@ -713,6 +752,16 @@ exportMarkdownButton.addEventListener("click", () => {
   downloadLocalFile("mv3-replay-checklist.md", markdown, "text/markdown");
 
   exportStatusEl.textContent = "Checklist exported to a local Markdown file.";
+});
+
+exportAnalysisSafeSummaryButton.addEventListener("click", () => {
+  if (!currentReport) return;
+  downloadLocalFile(
+    "mv3-replay-share-safe-analysis-summary.md",
+    buildShareSafeAnalysisSummary(currentReport, checklistState),
+    "text/markdown"
+  );
+  exportStatusEl.textContent = "Share-safe structural summary downloaded locally.";
 });
 
 // Given a FileList from a webkitdirectory input, locate exactly one root
@@ -794,6 +843,7 @@ function resetAnalysisResults() {
   exportStatusEl.textContent = "";
   exportButton.disabled = true;
   exportMarkdownButton.disabled = true;
+  exportAnalysisSafeSummaryButton.disabled = true;
   currentReport = null;
   checklistState = [];
 }
@@ -1090,6 +1140,7 @@ function renderCandidateChecklist(candidateAnalysis, comparisonReport) {
   candidateChecklistFilterEl.value = "all";
   exportComparisonButton.disabled = candidateChecklistState.length === 0;
   exportComparisonMarkdownButton.disabled = candidateChecklistState.length === 0;
+  exportComparisonSafeSummaryButton.disabled = false;
   exportComparisonStatusEl.textContent = "";
   updateCandidateChecklistProgress();
 }
@@ -1226,6 +1277,33 @@ function buildComparisonMarkdown(report, checklist) {
   return lines.join("\n");
 }
 
+function buildShareSafeComparisonSummary(report, checklist) {
+  const completed = checklist.filter(item => item.done).length;
+  return [
+    "# MV3 Replay share-safe structural comparison summary",
+    "",
+    "> Generated locally on explicit user request. No data was uploaded.",
+    "> Excludes release names, versions, URLs, filenames, manifest values, finding messages, and checklist text.",
+    "",
+    "## Structured change counts",
+    `- Total: ${countComparisonChanges(report.changes)}`,
+    ...comparisonChangeBreakdown(report.changes).map(([label, count]) => `- ${label}: ${count}`),
+    "",
+    "## Finding severity counts",
+    ...severityCountLines(report.findings),
+    "",
+    "## Manual validation",
+    `- Critical update-path validation required: ${report.requiresManualUpdateValidation ? "yes" : "no"}`,
+    "",
+    "## Candidate checklist progress",
+    `- Completed: ${completed}`,
+    `- Total: ${checklist.length}`,
+    "",
+    "This sanitized structural summary is still a static comparison, not proof of runtime testing or update safety.",
+    ""
+  ].join("\n");
+}
+
 exportComparisonButton.addEventListener("click", () => {
   if (!currentCompareReport || !currentCandidateAnalysis) return;
 
@@ -1254,6 +1332,16 @@ exportComparisonMarkdownButton.addEventListener("click", () => {
   exportComparisonStatusEl.textContent = "Comparison and candidate checklist exported to a local Markdown file.";
 });
 
+exportComparisonSafeSummaryButton.addEventListener("click", () => {
+  if (!currentCompareReport) return;
+  downloadLocalFile(
+    "mv3-replay-share-safe-comparison-summary.md",
+    buildShareSafeComparisonSummary(currentCompareReport, candidateChecklistState),
+    "text/markdown"
+  );
+  exportComparisonStatusEl.textContent = "Share-safe structural comparison summary downloaded locally.";
+});
+
 function resetComparisonResults() {
   compareReportEl.hidden = true;
   compareReportSummaryEl.textContent = "";
@@ -1276,6 +1364,7 @@ function resetComparisonResults() {
   exportComparisonStatusEl.textContent = "";
   exportComparisonButton.disabled = true;
   exportComparisonMarkdownButton.disabled = true;
+  exportComparisonSafeSummaryButton.disabled = true;
   currentCompareReport = null;
   currentCandidateAnalysis = null;
   candidateChecklistState = [];
