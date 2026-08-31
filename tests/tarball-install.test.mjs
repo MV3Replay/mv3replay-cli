@@ -9,6 +9,7 @@ import test from "node:test";
 
 const ROOT = path.resolve(".");
 const FIXTURE = path.join(ROOT, "fixtures", "minimal-mv3");
+const CRITICAL_FIXTURE = path.join(ROOT, "fixtures", "sensitive-permissions");
 const EXPECTED_PACKAGE_CONTENTS = [
   "LICENSE",
   "README.md",
@@ -153,6 +154,7 @@ test(
     const helpViaBin = runShell(`${shellQuote(installedBinShim)} --help`, installDir);
     assert.equal(helpViaBin.status, 0, helpViaBin.stderr || helpViaBin.stdout);
     assert.ok(helpViaBin.stdout.includes("MV3 Replay"), helpViaBin.stdout);
+    assert.ok(helpViaBin.stdout.includes("--fail-on"), helpViaBin.stdout);
 
     const report = spawnSync(
       process.execPath,
@@ -162,6 +164,15 @@ test(
     assert.equal(report.status, 0, report.stderr);
     const parsed = JSON.parse(report.stdout);
     assert.equal(parsed.schemaVersion, 1);
+
+    const gatedReport = spawnSync(
+      process.execPath,
+      [installedCli, "inspect", CRITICAL_FIXTURE, "--json", "--fail-on", "critical"],
+      { cwd: installDir, encoding: "utf8" }
+    );
+    assert.equal(gatedReport.status, 7, gatedReport.stderr);
+    assert.equal(JSON.parse(gatedReport.stdout).schemaVersion, 1);
+    assert.match(gatedReport.stderr, /--fail-on critical matched/);
 
     const readme = await readFile(path.join(ROOT, "README.md"), "utf8");
     assert.ok(readme.includes("mv3replay"), "README must document the mv3replay command");
