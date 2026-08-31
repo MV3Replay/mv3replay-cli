@@ -380,6 +380,70 @@ test("flags an overlong manifest description", () => {
   assert.ok(report.riskFlags.some(flag => flag.id === "description-too-long"));
 });
 
+test("models cross-origin policies and managed storage schema boundaries", () => {
+  const manifest = {
+    manifest_version: 3,
+    name: "Policy fixture",
+    version: "1.0.0",
+    permissions: ["storage"],
+    cross_origin_embedder_policy: { value: "require-corp" },
+    cross_origin_opener_policy: { value: "same-origin" },
+    storage: { managed_schema: "policy-schema.json" }
+  };
+  const report = analyzeManifest(manifest);
+
+  assert.equal(report.surfaces.crossOriginPolicies, true);
+  assert.equal(report.surfaces.managedStorageSchema, true);
+  assert.deepEqual(report.coverage.unmodeledTopLevelKeys, []);
+  const isolationLane = report.lanes.find(lane => lane.id === "extension-page-isolation");
+  const managedLane = report.lanes.find(lane => lane.id === "managed-storage-policy");
+  assert.ok(isolationLane);
+  assert.ok(managedLane);
+  assert.ok(isolationLane.checks.some(check => /without assuming every context/i.test(check)));
+  assert.ok(managedLane.checks.some(check => /without reading it through this tool/i.test(check)));
+  assert.ok(managedLane.checks.some(check => /no policy data is logged or exported/i.test(check)));
+});
+
+test("compares cross-origin and managed-storage declarations precisely", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Policy fixture",
+    version: "1.0.0",
+    permissions: ["storage"],
+    cross_origin_embedder_policy: { value: "unsafe-none" },
+    cross_origin_opener_policy: { value: "unsafe-none" },
+    storage: { managed_schema: "old-schema.json" }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    cross_origin_embedder_policy: { value: "require-corp" },
+    cross_origin_opener_policy: { value: "same-origin" },
+    storage: { managed_schema: "new-schema.json" }
+  };
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.declarations.filter(change =>
+    change.field.startsWith("cross_origin_") || change.field === "storage.managed_schema"), [
+    { field: "cross_origin_embedder_policy.value", previous: "unsafe-none", current: "require-corp" },
+    { field: "cross_origin_opener_policy.value", previous: "unsafe-none", current: "same-origin" },
+    { field: "storage.managed_schema", previous: "old-schema.json", current: "new-schema.json" }
+  ]);
+  assert.ok(report.findings.some(finding => finding.id === "cross-origin-policy-change"));
+  assert.ok(report.findings.some(finding => finding.id === "managed-storage-schema-change"));
+  assert.ok(!report.findings.some(finding => finding.id === "unmodeled-manifest-key-change"));
+});
+
+test("warns when a managed schema lacks storage API permission", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Managed policy fixture",
+    version: "1.0.0",
+    storage: { managed_schema: "policy-schema.json" }
+  });
+  assert.ok(report.riskFlags.some(flag => flag.id === "managed-schema-without-storage-permission"));
+});
+
 test("compares extension versions using Chrome update ordering", () => {
   const base = {
     manifest_version: 3,

@@ -63,6 +63,8 @@
         "scriptingAccess",
         "contextMenusAccess",
         "alarmsAccess",
+        "crossOriginPolicies",
+        "managedStorageSchema",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -108,6 +110,8 @@
         "scriptingAccess": { "type": "boolean" },
         "contextMenusAccess": { "type": "boolean" },
         "alarmsAccess": { "type": "boolean" },
+        "crossOriginPolicies": { "type": "boolean" },
+        "managedStorageSchema": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }

@@ -19,12 +19,13 @@ const objectKeys = value => value && typeof value === "object" && !Array.isArray
 // are valid input, but their behavior is deliberately reported as unmodeled.
 const MODELED_TOP_LEVEL_KEYS = new Set([
   "action", "background", "chrome_settings_overrides", "chrome_url_overrides",
-  "commands", "content_scripts", "content_security_policy", "declarative_net_request",
+  "commands", "content_scripts", "content_security_policy", "cross_origin_embedder_policy",
+  "cross_origin_opener_policy", "declarative_net_request",
   "default_locale", "description", "devtools_page", "externally_connectable",
   "homepage_url", "host_permissions", "icons", "incognito",
   "manifest_version", "minimum_chrome_version", "name", "oauth2", "omnibox",
   "optional_host_permissions", "optional_permissions", "options_page", "options_ui",
-  "permissions", "sandbox", "short_name", "side_panel", "update_url", "version", "version_name",
+  "permissions", "sandbox", "short_name", "side_panel", "storage", "update_url", "version", "version_name",
   "web_accessible_resources"
 ]);
 
@@ -209,6 +210,8 @@ const SURFACE_NAMES = [
   ["programmatic-injection", "scriptingAccess"],
   ["context-menus", "contextMenusAccess"],
   ["alarms", "alarmsAccess"],
+  ["cross-origin-policies", "crossOriginPolicies"],
+  ["managed-storage-schema", "managedStorageSchema"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -287,6 +290,33 @@ function declarationChanges(previousManifest, currentManifest) {
     "minimum_chrome_version",
     presentString(previousManifest.minimum_chrome_version) ? previousManifest.minimum_chrome_version : null,
     presentString(currentManifest.minimum_chrome_version) ? currentManifest.minimum_chrome_version : null
+  );
+  pushIfChanged(
+    "cross_origin_embedder_policy.value",
+    presentString(previousManifest.cross_origin_embedder_policy?.value)
+      ? previousManifest.cross_origin_embedder_policy.value
+      : null,
+    presentString(currentManifest.cross_origin_embedder_policy?.value)
+      ? currentManifest.cross_origin_embedder_policy.value
+      : null
+  );
+  pushIfChanged(
+    "cross_origin_opener_policy.value",
+    presentString(previousManifest.cross_origin_opener_policy?.value)
+      ? previousManifest.cross_origin_opener_policy.value
+      : null,
+    presentString(currentManifest.cross_origin_opener_policy?.value)
+      ? currentManifest.cross_origin_opener_policy.value
+      : null
+  );
+  pushIfChanged(
+    "storage.managed_schema",
+    presentString(previousManifest.storage?.managed_schema)
+      ? previousManifest.storage.managed_schema
+      : null,
+    presentString(currentManifest.storage?.managed_schema)
+      ? currentManifest.storage.managed_schema
+      : null
   );
   for (const field of ["default_locale", "description", "homepage_url", "short_name", "version_name"]) {
     pushIfChanged(
@@ -502,6 +532,9 @@ export function analyzeManifest(manifest) {
     && Object.keys(manifest.chrome_settings_overrides).length > 0
   );
   const manifestIconSizes = sortedUnique(objectKeys(manifest.icons));
+  const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
+    || presentString(manifest.cross_origin_opener_policy?.value);
+  const managedStorageSchema = presentString(manifest.storage?.managed_schema);
   const presentationMetadata = [
     "default_locale", "description", "homepage_url", "icons", "short_name", "version_name"
   ].some(key => manifest[key] !== undefined);
@@ -547,6 +580,8 @@ export function analyzeManifest(manifest) {
     scriptingAccess,
     contextMenusAccess,
     alarmsAccess,
+    crossOriginPolicies,
+    managedStorageSchema,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -571,6 +606,16 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "extension-presentation", "medium",
       "Manifest presentation metadata affects browser management UI, installation surfaces, icons, and localization.",
       checks);
+  }
+  if (crossOriginPolicies) {
+    addLane(lanes, "extension-page-isolation", "high",
+      "COEP or COOP changes response headers across the extension origin and can alter embedding, opener relationships, and cross-origin isolation.",
+      ["Open every extension page type used by the release and verify intended cross-origin resources still load", "Verify popup, options, extension tabs, and worker behavior without assuming every context becomes cross-origin isolated", "Exercise opener, embedded-frame, and SharedArrayBuffer-dependent paths as applicable before and after upgrade"]);
+  }
+  if (managedStorageSchema) {
+    addLane(lanes, "managed-storage-policy", "high",
+      "The manifest points to an enterprise managed-storage schema that Chrome validates before exposing read-only policy values.",
+      ["Verify the referenced schema file exists and passes Chrome validation without reading it through this tool", "Test missing, valid, invalid, updated, and absent enterprise-policy values in a disposable managed test profile", "Confirm policy values remain read-only, enforcement is explicit, and no policy data is logged or exported"]);
   }
 
   if (contentScripts.length > 0) {
@@ -814,6 +859,9 @@ export function analyzeManifest(manifest) {
   if (presentString(manifest.short_name) && manifest.short_name.length > 12) {
     riskFlags.push({ id: "short-name-too-long", level: "medium", message: "The manifest short_name exceeds Chrome's documented 12-character maximum." });
   }
+  if (managedStorageSchema && !storage) {
+    riskFlags.push({ id: "managed-schema-without-storage-permission", level: "high", message: "A managed storage schema is declared without the storage permission required to use the extension storage API." });
+  }
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
     riskFlags.push({ id: "broad-host-scope", level: "high", message: "The manifest includes <all_urls>; use synthetic or explicitly authorized hosts for testing." });
   }
@@ -1023,6 +1071,20 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "default-locale-change",
       level: "high",
       message: "The default locale changed. Verify localized manifest strings, missing-message behavior, and language fallback manually."
+    });
+  }
+  if (declarations.some(change => change.field.startsWith("cross_origin_"))) {
+    findings.push({
+      id: "cross-origin-policy-change",
+      level: "high",
+      message: "An extension-origin COEP or COOP value changed. Verify embedded resources, opener relationships, extension pages, workers, and cross-origin-isolated features across the update."
+    });
+  }
+  if (declarations.some(change => change.field === "storage.managed_schema")) {
+    findings.push({
+      id: "managed-storage-schema-change",
+      level: "high",
+      message: "The managed-storage schema path changed. Verify Chrome schema validation plus missing, valid, invalid, and upgraded enterprise-policy behavior manually."
     });
   }
   if (version.relation === "older") {

@@ -114,6 +114,8 @@ function printHuman(report, file) {
     `- Programmatic injection: ${yesNo(report.surfaces.scriptingAccess)}`,
     `- Context menus: ${yesNo(report.surfaces.contextMenusAccess)}`,
     `- Alarms: ${yesNo(report.surfaces.alarmsAccess)}`,
+    `- Cross-origin extension policies: ${yesNo(report.surfaces.crossOriginPolicies)}`,
+    `- Managed storage schema: ${yesNo(report.surfaces.managedStorageSchema)}`,
     `- Chrome page override: ${yesNo(report.surfaces.chromeUrlOverrides)}`,
     `- Chrome settings override: ${yesNo(report.surfaces.chromeSettingsOverrides)}`,
     "",
