@@ -110,6 +110,8 @@ The interface also provides:
   case-sensitive keys, MV3 action names, and the four-suggestion limit;
 - static declarative-network-ruleset validation for unique IDs, enabled flags,
   and safe relative JSON paths without reading referenced rule files;
+- MV3 background service-worker validation for one safe relative worker path,
+  optional module type, and rejection of legacy scripts or persistence fields;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

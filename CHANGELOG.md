@@ -72,6 +72,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   shortcut syntax, MV3 action names, and the four-suggestion limit.
 - Static declarative-network-ruleset validation for unique IDs, boolean state,
   and safe relative paths without reading referenced rule files.
+- Manifest V3 background service-worker validation for safe relative paths,
+  optional module type, and rejected Manifest V2 fields.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.
