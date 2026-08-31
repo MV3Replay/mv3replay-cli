@@ -54,6 +54,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   coverage gaps without changing reports or exports.
 - Extension-origin COEP/COOP and enterprise managed-storage schema surfaces,
   declarations, findings, and privacy-preserving manual regression lanes.
+- A changed-sections-only option that combines with every comparison category,
+  including an explicit zero-section state for identical manifests.
 
 ### Future ideas (not implemented)
 

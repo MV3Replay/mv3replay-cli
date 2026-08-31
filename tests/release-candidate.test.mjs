@@ -86,6 +86,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "built-in sample analysis and comparison",
       "finding severity filters",
       "comparison change category filter",
+      "changed-only comparison section filter",
       "exact structured comparison count and breakdown",
       "checklist completion filters and local reset controls",
       "Chrome extension version-order validation",

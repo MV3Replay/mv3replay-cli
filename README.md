@@ -67,8 +67,8 @@ The interface also provides:
 
 - built-in analysis and comparison examples that are always labeled as sample
   data;
-- summaries, severity filters, comparison change-category filters, and explicit
-  manual-validation gates;
+- summaries, severity filters, comparison category and changed-only filters,
+  and explicit manual-validation gates;
 - an exact structured comparison total with a category-by-category breakdown,
   shown consistently in the interface and Markdown export;
 - in-memory regression checklists, including comparison-specific findings,
