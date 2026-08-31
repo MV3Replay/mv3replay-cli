@@ -643,6 +643,31 @@ function defaultLocaleDiagnostics(defaultLocale) {
   return { declared: true, invalid: !validLocaleTag(defaultLocale) };
 }
 
+function validAbsoluteHttpUrl(value) {
+  if (!presentString(value)) return false;
+  let parsed;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  if (parsed.username || parsed.password) return false;
+  return true;
+}
+
+function absoluteUrlFieldDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  return { declared: true, invalid: !validAbsoluteHttpUrl(value) };
+}
+
+const INCOGNITO_VALUES = new Set(["spanning", "split", "not_allowed"]);
+
+function incognitoDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  return { declared: true, invalid: typeof value !== "string" || !INCOGNITO_VALUES.has(value) };
+}
+
 const MESSAGE_PLACEHOLDER_REGEX = /__MSG_[A-Za-z0-9_@]+__/;
 
 function localizedFieldsUsingPlaceholders(manifest) {
@@ -1177,6 +1202,9 @@ export function analyzeManifest(manifest) {
     "default_locale", "description", "homepage_url", "icons", "short_name", "version_name"
   ].some(key => manifest[key] !== undefined);
   const defaultLocaleStatus = defaultLocaleDiagnostics(manifest.default_locale);
+  const homepageUrlStatus = absoluteUrlFieldDiagnostics(manifest.homepage_url);
+  const updateUrlStatus = absoluteUrlFieldDiagnostics(manifest.update_url);
+  const incognitoStatus = incognitoDiagnostics(manifest.incognito);
   const localizedPlaceholderFields = localizedFieldsUsingPlaceholders(manifest);
   const manifestNameDeclared = presentString(manifest.name);
   const validManifestName = manifestNameDeclared && manifest.name.trim().length <= 75;
@@ -1862,6 +1890,15 @@ export function analyzeManifest(manifest) {
   }
   if (permissions.includes("scripting")) {
     riskFlags.push({ id: "required-programmatic-injection", level: "high", message: "Programmatic injection is required; verify explicit targets, execution worlds, host grants, navigation cleanup, and rejection without access." });
+  }
+  if (homepageUrlStatus.invalid) {
+    riskFlags.push({ id: "homepage-url-invalid", level: "critical", message: "The homepage_url declaration is invalid; when present it must be a non-empty absolute http or https URL without a username or password." });
+  }
+  if (updateUrlStatus.invalid) {
+    riskFlags.push({ id: "update-url-invalid", level: "critical", message: "The update_url declaration is invalid; when present it must be a non-empty absolute http or https URL without a username or password." });
+  }
+  if (incognitoStatus.invalid) {
+    riskFlags.push({ id: "incognito-value-invalid", level: "critical", message: "The incognito declaration is invalid; when present it must be exactly \"spanning\", \"split\", or \"not_allowed\"." });
   }
 
   const report = {

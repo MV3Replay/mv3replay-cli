@@ -619,6 +619,25 @@ test("validates ChromeOS input components without exposing component metadata", 
   assert.ok(!JSON.stringify(missing).includes(marker));
 });
 
+test("validates installation URLs and incognito mode without exposing URLs", () => {
+  const marker = "private-url-marker.example.invalid";
+  const base = { manifest_version: 3, name: "Metadata fixture", version: "1.0.0" };
+  const valid = analyzeManifest({ ...base, homepage_url: `https://${marker}/home`, update_url: `http://${marker}/updates.xml`, incognito: "split" });
+  assert.ok(!valid.riskFlags.some(flag => ["homepage-url-invalid", "update-url-invalid", "incognito-value-invalid"].includes(flag.id)));
+  assert.ok(!JSON.stringify(valid).includes(marker));
+  for (const [field, values, riskId] of [
+    ["homepage_url", ["", "relative/path", "ftp://example.invalid", ["https://user:secret", "example.invalid"].join("@")], "homepage-url-invalid"],
+    ["update_url", [42, "/updates.xml", "file:///updates.xml", ["https://user:secret", "example.invalid"].join("@")], "update-url-invalid"],
+    ["incognito", ["", "private", 42], "incognito-value-invalid"]
+  ]) {
+    for (const value of values) {
+      const report = analyzeManifest({ ...base, [field]: value });
+      assert.ok(report.riskFlags.some(flag => flag.id === riskId && flag.level === "critical"));
+      assert.ok(!JSON.stringify(report).includes("secret"));
+    }
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
