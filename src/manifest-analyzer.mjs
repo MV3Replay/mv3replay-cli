@@ -81,15 +81,20 @@ function actionIconDiagnostics(icon) {
 
 function validWebAccessibleResource(entry) {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+  if (!Object.keys(entry).every(key => ["resources", "matches", "extension_ids", "use_dynamic_url"].includes(key))) return false;
   const resources = asStrings(entry.resources);
   const matches = asStrings(entry.matches);
   const extensionIds = asStrings(entry.extension_ids);
   if (!Array.isArray(entry.resources) || resources.length === 0 || resources.length !== entry.resources.length
-    || resources.some(resource => !presentString(resource))) return false;
+    || resources.some(resource => unsafeRulesetPath(resource))
+    || new Set(resources).size !== resources.length) return false;
   const hasMatches = Array.isArray(entry.matches) && matches.length > 0 && matches.length === entry.matches.length
-    && matches.every(pattern => presentString(pattern));
+    && matches.every(pattern => validHostPermissionPattern(pattern) && !webAccessibleMatchHasInvalidPath(pattern))
+    && new Set(matches).size === matches.length;
   const hasExtensionIds = Array.isArray(entry.extension_ids) && extensionIds.length > 0
-    && extensionIds.length === entry.extension_ids.length && extensionIds.every(id => presentString(id));
+    && extensionIds.length === entry.extension_ids.length
+    && extensionIds.every(id => id === "*" || /^[a-p]{32}$/.test(id))
+    && new Set(extensionIds).size === extensionIds.length;
   if (!hasMatches && !hasExtensionIds) return false;
   return entry.use_dynamic_url === undefined || typeof entry.use_dynamic_url === "boolean";
 }

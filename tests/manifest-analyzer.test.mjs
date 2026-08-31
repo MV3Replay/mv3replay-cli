@@ -753,6 +753,28 @@ test("validates referenced asset paths without reading or exposing them", () => 
   }
 });
 
+test("hardens web-accessible resource paths, targets, and identifiers privately", () => {
+  const marker = "abcdefghijklmnopabcdefghijklmnop";
+  const base = { manifest_version: 3, name: "WAR fixture", version: "1.0.0" };
+  const valid = analyzeManifest({ ...base, web_accessible_resources: [{ resources: ["images/*.png"], matches: ["https://example.invalid/*"], extension_ids: [marker], use_dynamic_url: true }] });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "web-accessible-resources-invalid"));
+  assert.ok(!JSON.stringify(valid).includes(marker));
+  for (const rule of [
+    { resources: ["/absolute.js"], matches: ["https://example.invalid/*"] },
+    { resources: [["..", "escape.js"].join("/")], matches: ["https://example.invalid/*"] },
+    { resources: ["same.js", "same.js"], matches: ["https://example.invalid/*"] },
+    { resources: ["ok.js"], matches: ["https://example.invalid/path"] },
+    { resources: ["ok.js"], matches: ["https://example.invalid/*", "https://example.invalid/*"] },
+    { resources: ["ok.js"], extension_ids: ["invalid"] },
+    { resources: ["ok.js"], extension_ids: [marker, marker] },
+    { resources: ["ok.js"], matches: ["https://example.invalid/*"], extra: marker }
+  ]) {
+    const report = analyzeManifest({ ...base, web_accessible_resources: [rule] });
+    assert.ok(report.riskFlags.some(flag => flag.id === "web-accessible-resources-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
