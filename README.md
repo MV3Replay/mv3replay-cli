@@ -116,6 +116,13 @@ The interface also provides:
   paths and correctly typed manifest fields without reading referenced HTML;
 - strict named and host-permission field validation, including misplaced host
   patterns and malformed required or optional match scopes;
+- built-in page-override validation for exactly one safe bookmarks, history,
+  or new-tab replacement;
+- sandbox page validation for unique safe paths and a correctly typed optional
+  sandbox content-security policy;
+- DevTools-page and omnibox declaration validation for safe local entry points;
+- locale declaration and message-placeholder validation without reading locale files;
+- privacy-safe OAuth2 structure validation that never reports client identifiers;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

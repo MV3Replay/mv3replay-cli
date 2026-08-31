@@ -78,6 +78,9 @@ public for testing, but no package, tag, or GitHub Release exists.
   paths and correctly typed declarations without reading referenced HTML.
 - Named and host-permission field validation for malformed arrays, misplaced
   host patterns, and invalid required or optional match scopes.
+- Built-in page override, sandbox page, DevTools page, and omnibox declaration validation.
+- Locale and message-placeholder validation without reading locale catalogs.
+- Privacy-safe OAuth2 structure validation without reporting client identifiers.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.
