@@ -85,6 +85,11 @@ public for testing, but no package, tag, or GitHub Release exists.
   reading referenced schema files or exposing declaration values.
 - Hardware-requirement and text-to-speech engine validation with fixed,
   privacy-safe findings and permission checks.
+- Shared-module export/import validation with identifier non-disclosure and
+  distribution compatibility warnings.
+- ChromeOS file-browser handler, file-system provider, and input-component
+  validation with permission gates and fixed-value test lanes.
+- Installation metadata validation for homepage/update URLs and incognito mode.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

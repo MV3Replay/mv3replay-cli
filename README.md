@@ -127,6 +127,9 @@ The interface also provides:
   reading schema files or reporting policy values and paths;
 - hardware-requirement and text-to-speech engine validation without executing
   speech or reporting voice metadata;
+- privacy-safe shared-module export/import validation with distribution warnings;
+- ChromeOS file-browser, file-system-provider, and input-component validation;
+- absolute homepage/update URL and incognito-mode validation without reporting URLs;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only
