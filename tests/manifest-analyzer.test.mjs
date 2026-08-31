@@ -844,6 +844,30 @@ test("hardens command fields, reserved names, and duplicate shortcuts", () => {
   }
 });
 
+test("hardens content-script fields, arrays, paths, and registrations privately", () => {
+  const marker = "private-content-marker";
+  const base = { manifest_version: 3, name: "Content fixture", version: "1.0.0" };
+  const validEntry = { matches: ["https://example.invalid/*"], js: [`scripts/${marker}.js`] };
+  const valid = analyzeManifest({ ...base, content_scripts: [validEntry] });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "content-scripts-invalid"));
+  assert.ok(!JSON.stringify(valid).includes(marker));
+  for (const entry of [
+    { ...validEntry, extra: marker },
+    { matches: ["invalid"], js: ["script.js"] },
+    { matches: ["https://example.invalid/*", "https://example.invalid/*"], js: ["script.js"] },
+    { matches: ["https://example.invalid/*"], js: ["script.js", "script.js"] },
+    { matches: ["https://example.invalid/*"], js: [["..", `${marker}.js`].join("/")] },
+    { matches: ["https://example.invalid/*"], css: ["/absolute.css"] },
+    { matches: ["https://example.invalid/*"], js: ["script.js"], include_globs: ["*x*", "*x*"] }
+  ]) {
+    const report = analyzeManifest({ ...base, content_scripts: [entry] });
+    assert.ok(report.riskFlags.some(flag => flag.id === "content-scripts-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  const duplicate = analyzeManifest({ ...base, content_scripts: [validEntry, { ...validEntry }] });
+  assert.ok(duplicate.riskFlags.some(flag => flag.id === "content-scripts-invalid"));
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

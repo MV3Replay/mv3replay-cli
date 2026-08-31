@@ -366,19 +366,24 @@ function contentScriptDiagnostics(value) {
   }
   let invalid = false;
   let invalidOriginFallbackPath = false;
-  const stringArray = entry => Array.isArray(entry) && entry.every(item => presentString(item));
+  const allowedKeys = new Set(["matches", "exclude_matches", "include_globs", "exclude_globs", "js", "css", "run_at", "all_frames", "match_about_blank", "match_origin_as_fallback", "world"]);
+  const uniqueStrings = entry => Array.isArray(entry) && entry.every(item => presentString(item))
+    && new Set(entry).size === entry.length;
   for (const entry of value) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
       invalid = true;
       continue;
     }
-    const matchesValid = stringArray(entry.matches) && entry.matches.length > 0;
-    const jsValid = entry.js === undefined || stringArray(entry.js);
-    const cssValid = entry.css === undefined || stringArray(entry.css);
+    if (!Object.keys(entry).every(key => allowedKeys.has(key))) invalid = true;
+    const matchesValid = uniqueStrings(entry.matches) && entry.matches.length > 0
+      && entry.matches.every(validHostPermissionPattern);
+    const jsValid = entry.js === undefined || (uniqueStrings(entry.js) && entry.js.every(path => !unsafeRulesetPath(path)));
+    const cssValid = entry.css === undefined || (uniqueStrings(entry.css) && entry.css.every(path => !unsafeRulesetPath(path)));
     const hasFiles = (Array.isArray(entry.js) && entry.js.length > 0)
       || (Array.isArray(entry.css) && entry.css.length > 0);
     const optionalArraysValid = ["exclude_matches", "include_globs", "exclude_globs"]
-      .every(field => entry[field] === undefined || stringArray(entry[field]));
+      .every(field => entry[field] === undefined || (uniqueStrings(entry[field])
+        && (field !== "exclude_matches" || entry[field].every(validHostPermissionPattern))));
     const optionalBooleansValid = ["all_frames", "match_about_blank", "match_origin_as_fallback"]
       .every(field => entry[field] === undefined || typeof entry[field] === "boolean");
     const runAtValid = entry.run_at === undefined || RUN_AT_VALUES.includes(entry.run_at);
@@ -390,6 +395,9 @@ function contentScriptDiagnostics(value) {
       invalidOriginFallbackPath = true;
     }
   }
+  const normalized = value.filter(entry => entry && typeof entry === "object" && !Array.isArray(entry))
+    .map(entry => JSON.stringify(normalizeContentScript(entry)));
+  if (new Set(normalized).size !== normalized.length) invalid = true;
   return { invalid, invalidOriginFallbackPath };
 }
 
