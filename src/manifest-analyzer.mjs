@@ -141,7 +141,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "default_locale", "description", "devtools_page", "externally_connectable",
   "export",
   "file_handlers",
-  "homepage_url", "host_permissions", "icons", "incognito",
+  "homepage_url", "host_permissions", "icons", "import", "incognito",
   "key",
   "manifest_version", "mime_types_handler", "minimum_chrome_version", "name", "oauth2", "omnibox",
   "optional_host_permissions", "optional_permissions", "options_page", "options_ui",
@@ -541,6 +541,29 @@ function exportDiagnostics(value) {
     if (!validIds || !uniqueIds) return { declared: true, invalid: true };
   }
   return { declared: true, invalid: false };
+}
+
+function importDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!Array.isArray(value) || value.length === 0) return { declared: true, invalid: true };
+  const ids = [];
+  let invalid = false;
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      invalid = true;
+      continue;
+    }
+    if (typeof entry.id !== "string" || !/^[a-p]{32}$/.test(entry.id)) {
+      invalid = true;
+      continue;
+    }
+    ids.push(entry.id);
+    if (entry.minimum_version !== undefined && parseChromeExtensionVersion(entry.minimum_version) === null) {
+      invalid = true;
+    }
+  }
+  if (new Set(ids).size !== ids.length) invalid = true;
+  return { declared: true, invalid };
 }
 
 const LOCALE_TAG_REGEX = /^[a-z]{2,3}(_(?:[A-Za-z]{2}|\d{3}))?$/;
@@ -1074,6 +1097,7 @@ export function analyzeManifest(manifest) {
   const coopStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_opener_policy);
   const storageStatus = storageDiagnostics(manifest.storage);
   const exportStatus = exportDiagnostics(manifest.export);
+  const importStatus = importDiagnostics(manifest.import);
   const requirementsStatus = requirementsDiagnostics(manifest.requirements);
   const ttsEngineStatus = ttsEngineDiagnostics(manifest.tts_engine);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
@@ -1192,6 +1216,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "shared-module-export", "high",
       "The extension declares a shared-module export boundary that requires compatibility review.",
       ["Confirm every intended importer remains authorized", "Verify exported resources from an unpacked build", "Use a distribution route that supports shared modules"]);
+  }
+  if (importStatus.declared) {
+    addLane(lanes, "shared-module-import", "high",
+      "The extension imports shared-module resources that execute with the importing extension's privileges.",
+      ["Verify every required module is installed", "Test the minimum supported module version", "Review imported resources before each release"]);
   }
   if (ttsEngineStatus.declared) {
     addLane(lanes, "text-to-speech-engine", "high",
@@ -1615,6 +1644,12 @@ export function analyzeManifest(manifest) {
   }
   if (exportStatus.declared) {
     riskFlags.push({ id: "shared-module-store-incompatible", level: "high", message: "Shared modules cannot be submitted through the Chrome Web Store; confirm the intended distribution route before release." });
+  }
+  if (importStatus.invalid) {
+    riskFlags.push({ id: "shared-module-import-invalid", level: "critical", message: "The import declaration is malformed; use a non-empty array of unique valid module identifiers with optional valid minimum versions." });
+  }
+  if (importStatus.declared) {
+    riskFlags.push({ id: "shared-module-import-compatibility", level: "high", message: "Imported shared modules require a compatible external distribution and installation path; verify availability before release." });
   }
   if (ttsEngineStatus.invalid) {
     riskFlags.push({ id: "tts-engine-declaration-invalid", level: "critical", message: "The tts_engine declaration is malformed; provide a voices array whose entries have a non-empty voice name and correctly typed optional language and unique event declarations." });

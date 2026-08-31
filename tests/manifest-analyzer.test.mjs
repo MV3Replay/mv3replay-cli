@@ -548,6 +548,23 @@ test("validates shared-module exports without exposing importer identifiers", ()
   }
 });
 
+test("validates shared-module imports without exposing module identifiers", () => {
+  const marker = "ponmlkjihgfedcbaponmlkjihgfedcba";
+  const base = { manifest_version: 3, name: "Import fixture", version: "1.0.0" };
+  for (const declaration of [[{ id: marker }], [{ id: marker, minimum_version: "1.2.3" }]]) {
+    const report = analyzeManifest({ ...base, import: declaration });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "shared-module-import-invalid"));
+    assert.ok(report.riskFlags.some(flag => flag.id === "shared-module-import-compatibility"));
+    assert.ok(report.lanes.some(lane => lane.id === "shared-module-import"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  for (const declaration of [null, {}, [], [null], [{ id: "invalid" }], [{ id: marker }, { id: marker }], [{ id: marker, minimum_version: "01" }]]) {
+    const report = analyzeManifest({ ...base, import: declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "shared-module-import-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
