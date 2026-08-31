@@ -792,6 +792,24 @@ test("hardens external connection identifiers and matches privately", () => {
   }
 });
 
+test("hardens file, MIME, action, and options object boundaries privately", () => {
+  const marker = "private-object-marker";
+  const base = { manifest_version: 3, name: "Boundary fixture", version: "1.0.0" };
+  for (const manifest of [
+    { file_handlers: [{ action: marker, name: marker, accept: { "text/plain": [".txt"] }, extra: marker }] },
+    { file_handlers: [{ action: marker, name: marker, accept: { "text/plain": [".txt", ".txt"] } }] },
+    { file_handlers: [{ action: marker, name: "one", accept: { "text/plain": [".txt"] } }, { action: marker, name: "two", accept: { "text/csv": [".csv"] } }] },
+    { mime_types_handler: { "application/pdf": { handler_url: "viewer.html", can_embed: true, extra: marker } }, minimum_chrome_version: "151" },
+    { action: { default_title: "Title", extra: marker } },
+    { options_ui: { page: "options.html", extra: marker } },
+    { options_page: "options.html", options_ui: { page: "embedded.html" } }
+  ]) {
+    const report = analyzeManifest({ ...base, ...manifest });
+    assert.ok(report.riskFlags.some(flag => ["file-handlers-invalid", "mime-types-handler-invalid", "action-popup-invalid", "options-declaration-invalid"].includes(flag.id)));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

@@ -14,15 +14,19 @@ const objectKeys = value => value && typeof value === "object" && !Array.isArray
   ? Object.keys(value)
   : [];
 
+const FILE_HANDLER_KEYS = new Set(["action", "name", "accept", "launch_type"]);
+
 function validFileHandler(handler) {
   if (!handler || typeof handler !== "object" || Array.isArray(handler)) return false;
+  if (!Object.keys(handler).every(key => FILE_HANDLER_KEYS.has(key))) return false;
   if (!presentString(handler.action) || !presentString(handler.name)) return false;
   const acceptedTypes = objectKeys(handler.accept);
   if (acceptedTypes.length === 0) return false;
   if (!acceptedTypes.every(type => presentString(type)
     && Array.isArray(handler.accept[type])
     && handler.accept[type].length > 0
-    && handler.accept[type].every(extension => presentString(extension) && extension.startsWith(".")))) return false;
+    && handler.accept[type].every(extension => presentString(extension) && extension.startsWith("."))
+    && new Set(handler.accept[type]).size === handler.accept[type].length)) return false;
   return handler.launch_type === undefined
     || handler.launch_type === "single-client"
     || handler.launch_type === "multiple-clients";
@@ -417,9 +421,12 @@ function unsafeRulesetPath(path) {
   return trimmed.split(/[\\/]/).some(segment => segment === "..");
 }
 
+const ACTION_KEYS = new Set(["default_icon", "default_title", "default_popup"]);
+
 function actionDiagnostics(action) {
   if (action === undefined) return { declared: false, invalid: false };
   if (!action || typeof action !== "object" || Array.isArray(action)) return { declared: true, invalid: true };
+  if (!Object.keys(action).every(key => ACTION_KEYS.has(key))) return { declared: true, invalid: true };
   if (action.default_title !== undefined && typeof action.default_title !== "string") {
     return { declared: true, invalid: true };
   }
@@ -429,16 +436,20 @@ function actionDiagnostics(action) {
   return { declared: true, invalid: false };
 }
 
+const OPTIONS_UI_KEYS = new Set(["page", "open_in_tab"]);
+
 function optionsDiagnostics(manifest) {
   const pageDeclared = manifest.options_page !== undefined;
   const uiDeclared = manifest.options_ui !== undefined;
   let invalid = false;
+  if (pageDeclared && uiDeclared) invalid = true;
   if (pageDeclared && unsafeRulesetPath(manifest.options_page)) invalid = true;
   if (uiDeclared) {
     const ui = manifest.options_ui;
     if (!ui || typeof ui !== "object" || Array.isArray(ui)) {
       invalid = true;
     } else {
+      if (!Object.keys(ui).every(key => OPTIONS_UI_KEYS.has(key))) invalid = true;
       if (unsafeRulesetPath(ui.page)) invalid = true;
       if (ui.open_in_tab !== undefined && typeof ui.open_in_tab !== "boolean") invalid = true;
     }
@@ -1334,8 +1345,11 @@ export function analyzeManifest(manifest) {
   const fileHandlersDeclared = manifest.file_handlers !== undefined;
   const fileHandlers = Array.isArray(manifest.file_handlers) ? manifest.file_handlers : [];
   const fileHandling = fileHandlers.length > 0;
+  const validFileHandlerActions = fileHandlers.filter(validFileHandler).map(handler => handler.action);
+  const duplicateFileHandlerActions = new Set(validFileHandlerActions).size !== validFileHandlerActions.length;
   const invalidFileHandlerCount = fileHandlers.filter(handler => !validFileHandler(handler)).length
-    + (fileHandlersDeclared && !Array.isArray(manifest.file_handlers) ? 1 : 0);
+    + (fileHandlersDeclared && !Array.isArray(manifest.file_handlers) ? 1 : 0)
+    + (duplicateFileHandlerActions ? 1 : 0);
   const mimeHandlersDeclared = manifest.mime_types_handler !== undefined;
   const mimeHandlers = manifest.mime_types_handler && typeof manifest.mime_types_handler === "object"
     && !Array.isArray(manifest.mime_types_handler) ? manifest.mime_types_handler : {};
@@ -1345,6 +1359,7 @@ export function analyzeManifest(manifest) {
     const handler = mimeHandlers[type];
     return !presentString(type)
       || !handler || typeof handler !== "object" || Array.isArray(handler)
+      || !Object.keys(handler).every(key => key === "handler_url" || key === "can_embed")
       || unsafeRulesetPath(handler.handler_url)
       || (handler.can_embed !== undefined && typeof handler.can_embed !== "boolean");
   }).length + (mimeHandlersDeclared && Object.keys(mimeHandlers).length === 0 ? 1 : 0);
