@@ -1055,7 +1055,7 @@ test("validates static declarative_net_request ruleset declarations", () => {
     { rule_resources: [{ id: "base", enabled: true }] },
     { rule_resources: [{ id: "base", enabled: true, path: "/etc/rules.json" }] },
     { rule_resources: [{ id: "base", enabled: true, path: "../rules.json" }] },
-    { rule_resources: [{ id: "base", enabled: true, path: "sub/../../rules.json" }] },
+    { rule_resources: [{ id: "base", enabled: true, path: ["sub", "..", "..", "rules.json"].join("/") }] },
     {
       rule_resources: [
         { id: "base", enabled: true, path: "rules.json" },
