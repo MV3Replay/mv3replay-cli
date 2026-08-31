@@ -105,21 +105,25 @@ The interface also provides:
 - external-messaging caller validation, including wildcard extension access,
   invalid all-URL web access, TLS channel-ID privacy, and implicit-policy changes;
 - static content-script validation for required matches and files, optional
-  field types, injection timing, execution world, and origin-fallback paths;
+  field types, injection timing, execution world, origin-fallback paths, unique
+  file/glob entries, and duplicate normalized registrations;
 - keyboard-command validation for descriptions, platform-specific shortcuts,
-  case-sensitive keys, MV3 action names, and the four-suggestion limit;
+  case-sensitive keys, MV3 action names, allowed fields, effective shortcut
+  collisions, and the four-suggestion limit;
 - static declarative-network-ruleset validation for unique IDs, enabled flags,
-  and safe relative JSON paths without reading referenced rule files;
+  safe relative JSON paths, closed object boundaries, and required DNR-family
+  permission coverage without reading referenced rule files;
 - MV3 background service-worker validation for one safe relative worker path,
-  optional module type, and rejection of legacy scripts or persistence fields;
+  optional module type, closed object boundaries, and rejection of legacy
+  scripts or persistence fields;
 - popup, options-page, and default side-panel entry validation for safe local
   paths and correctly typed manifest fields without reading referenced HTML;
 - strict named and host-permission field validation, including misplaced host
-  patterns and malformed required or optional match scopes;
+  patterns, duplicate entries, malformed scopes, and required/optional overlap;
 - built-in page-override validation for exactly one safe bookmarks, history,
   or new-tab replacement;
 - sandbox page validation for unique safe paths and a correctly typed optional
-  sandbox content-security policy;
+  sandbox content-security policy, with unknown fields rejected;
 - DevTools-page and omnibox declaration validation for safe local entry points;
 - locale declaration and message-placeholder validation without reading locale files;
 - privacy-safe OAuth2 structure validation that never reports client identifiers;

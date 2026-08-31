@@ -67,18 +67,22 @@ public for testing, but no package, tag, or GitHub Release exists.
 - External-connectability validation for caller IDs, web matches, wildcard
   callers, TLS channel-ID privacy, and the undeclared-versus-empty update trap.
 - Static content-script validation for required matches and files, optional
-  fields, injection timing, execution worlds, and origin-fallback paths.
+  fields, injection timing, execution worlds, origin-fallback paths, unique
+  file/glob entries, and duplicate normalized registrations.
 - Keyboard-command validation for required descriptions, platform-specific
-  shortcut syntax, MV3 action names, and the four-suggestion limit.
+  shortcut syntax, MV3 action names, allowed fields, shortcut collisions, and
+  the four-suggestion limit.
 - Static declarative-network-ruleset validation for unique IDs, boolean state,
-  and safe relative paths without reading referenced rule files.
+  safe relative paths, closed object boundaries, and DNR permission coverage
+  without reading referenced rule files.
 - Manifest V3 background service-worker validation for safe relative paths,
-  optional module type, and rejected Manifest V2 fields.
+  optional module type, closed object boundaries, and rejected Manifest V2 fields.
 - Popup, options-page, and side-panel entry-point validation for safe relative
   paths and correctly typed declarations without reading referenced HTML.
 - Named and host-permission field validation for malformed arrays, misplaced
-  host patterns, and invalid required or optional match scopes.
-- Built-in page override, sandbox page, DevTools page, and omnibox declaration validation.
+  host patterns, duplicate entries, and required/optional overlap.
+- Built-in page override, closed-boundary sandbox page, DevTools page, and
+  omnibox declaration validation.
 - Locale and message-placeholder validation without reading locale catalogs.
 - Privacy-safe OAuth2 structure validation without reporting client identifiers.
 - Strict cross-origin isolation policy and managed-storage path validation without
