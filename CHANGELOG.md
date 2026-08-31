@@ -52,6 +52,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   length-limit warnings and precise comparison findings.
 - Extension display-name changes now count as structured declaration changes and
   produce the existing presentation-change finding.
+- ChromeOS file-handler surfaces, declaration comparisons, ChromeOS 120
+  compatibility warnings, and privacy-preserving manual regression checks.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

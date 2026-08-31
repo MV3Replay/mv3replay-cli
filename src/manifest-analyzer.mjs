@@ -22,6 +22,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "commands", "content_scripts", "content_security_policy", "cross_origin_embedder_policy",
   "cross_origin_opener_policy", "declarative_net_request",
   "default_locale", "description", "devtools_page", "externally_connectable",
+  "file_handlers",
   "homepage_url", "host_permissions", "icons", "incognito",
   "key",
   "manifest_version", "minimum_chrome_version", "name", "oauth2", "omnibox",
@@ -214,6 +215,7 @@ const SURFACE_NAMES = [
   ["cross-origin-policies", "crossOriginPolicies"],
   ["managed-storage-schema", "managedStorageSchema"],
   ["extension-identity-key", "extensionKeyDeclared"],
+  ["file-handling", "fileHandling"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -319,6 +321,11 @@ function declarationChanges(previousManifest, currentManifest) {
     presentString(currentManifest.storage?.managed_schema)
       ? currentManifest.storage.managed_schema
       : null
+  );
+  pushIfChanged(
+    "file_handlers",
+    Array.isArray(previousManifest.file_handlers) ? stableValue(previousManifest.file_handlers) : [],
+    Array.isArray(currentManifest.file_handlers) ? stableValue(currentManifest.file_handlers) : []
   );
   for (const field of ["default_locale", "description", "homepage_url", "name", "short_name", "version_name"]) {
     pushIfChanged(
@@ -543,6 +550,10 @@ export function analyzeManifest(manifest) {
   ].some(key => manifest[key] !== undefined);
   const validManifestName = presentString(manifest.name);
   const validManifestVersion = parseChromeExtensionVersion(manifest.version) !== null;
+  const fileHandlers = Array.isArray(manifest.file_handlers)
+    ? manifest.file_handlers.filter(handler => handler && typeof handler === "object" && !Array.isArray(handler))
+    : [];
+  const fileHandling = fileHandlers.length > 0;
 
   const surfaces = {
     action,
@@ -588,6 +599,7 @@ export function analyzeManifest(manifest) {
     crossOriginPolicies,
     managedStorageSchema,
     extensionKeyDeclared,
+    fileHandling,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -633,6 +645,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "extension-identity-continuity", "high",
       "A packaged identity key is declared and can affect stable extension identity across installation and update paths.",
       ["Verify the exact packaged extension ID matches the expected release identity", "Test a clean install and an update from the previous shipping package through the intended distribution path", "Treat an unexpected identity mismatch as a replacement install and verify user-visible recovery without exposing the key"]);
+  }
+  if (fileHandling) {
+    addLane(lanes, "chromeos-file-handling", "high",
+      "The extension registers one or more ChromeOS file handlers that open user-selected files in extension pages.",
+      ["On ChromeOS 120 or later, verify every declared MIME type and extension appears only for matching synthetic files", "Verify each declared action page opens and receives single-client and repeated launches as configured", "Test cancellation, unsupported files, malformed synthetic content, and confirm file contents are neither uploaded nor retained unexpectedly"]);
   }
 
   if (contentScripts.length > 0) {
@@ -869,6 +886,10 @@ export function analyzeManifest(manifest) {
   if (!validManifestVersion) {
     riskFlags.push({ id: "manifest-version-invalid", level: "critical", message: "The required manifest version is invalid; use one to four dot-separated integers from 0 to 65535, without leading zeros, and not all zero." });
   }
+  const minimumBrowserVersion = parseChromeExtensionVersion(manifest.minimum_chrome_version);
+  if (fileHandling && (!minimumBrowserVersion || minimumBrowserVersion[0] < 120)) {
+    riskFlags.push({ id: "file-handlers-minimum-version", level: "high", message: "File handling requires ChromeOS 120 or later; declare a compatible minimum browser version or document and test the unsupported-install path." });
+  }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
       id: "unmodeled-manifest-keys",
@@ -999,7 +1020,8 @@ export function analyzeManifest(manifest) {
       externalExtensionIds: externalExtensionIds.length,
       sandboxPages: sandboxPages.length,
       unmodeledTopLevelKeys: unmodeledKeys.length,
-      manifestIcons: manifestIconSizes.length
+      manifestIcons: manifestIconSizes.length,
+      fileHandlerDeclarations: fileHandlers.length
     },
     coverage: { unmodeledTopLevelKeys: unmodeledKeys },
     lanes,
@@ -1123,6 +1145,13 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "managed-storage-schema-change",
       level: "high",
       message: "The managed-storage schema path changed. Verify Chrome schema validation plus missing, valid, invalid, and upgraded enterprise-policy behavior manually."
+    });
+  }
+  if (declarations.some(change => change.field === "file_handlers")) {
+    findings.push({
+      id: "file-handlers-change",
+      level: "high",
+      message: "ChromeOS file-handler declarations changed. Verify matching types, action pages, launch behavior, unsupported files, and update behavior on ChromeOS 120 or later."
     });
   }
   if (version.relation === "older") {

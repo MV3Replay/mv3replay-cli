@@ -121,6 +121,7 @@ function printHuman(report, file) {
     `- Cross-origin extension policies: ${yesNo(report.surfaces.crossOriginPolicies)}`,
     `- Managed storage schema: ${yesNo(report.surfaces.managedStorageSchema)}`,
     `- Extension identity key declared: ${yesNo(report.surfaces.extensionKeyDeclared)}`,
+    `- ChromeOS file handling: ${yesNo(report.surfaces.fileHandling)}`,
     `- Chrome page override: ${yesNo(report.surfaces.chromeUrlOverrides)}`,
     `- Chrome settings override: ${yesNo(report.surfaces.chromeSettingsOverrides)}`,
     "",

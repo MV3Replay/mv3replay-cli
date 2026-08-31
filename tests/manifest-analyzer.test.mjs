@@ -385,6 +385,52 @@ test("counts and flags an extension name change as presentation metadata", () =>
   assert.match(finding.message, /name/);
 });
 
+test("models ChromeOS file handlers and their compatibility boundary", () => {
+  const manifest = {
+    manifest_version: 3,
+    name: "File fixture",
+    version: "1.0.0",
+    file_handlers: [{
+      action: "/open-text.html",
+      name: "Plain text",
+      accept: { "text/plain": [".txt"] },
+      launch_type: "single-client"
+    }]
+  };
+  const report = analyzeManifest(manifest);
+
+  assert.equal(report.surfaces.fileHandling, true);
+  assert.equal(report.counts.fileHandlerDeclarations, 1);
+  assert.ok(report.lanes.some(lane => lane.id === "chromeos-file-handling"));
+  assert.ok(report.riskFlags.some(flag => flag.id === "file-handlers-minimum-version"));
+  assert.ok(!report.coverage.unmodeledTopLevelKeys.includes("file_handlers"));
+
+  const compatible = analyzeManifest({ ...manifest, minimum_chrome_version: "120" });
+  assert.ok(!compatible.riskFlags.some(flag => flag.id === "file-handlers-minimum-version"));
+});
+
+test("compares ChromeOS file-handler declarations precisely", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "File fixture",
+    version: "1.0.0",
+    minimum_chrome_version: "120",
+    file_handlers: [{ action: "/old.html", name: "Text", accept: { "text/plain": [".txt"] } }]
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    file_handlers: [{ action: "/new.html", name: "Images", accept: { "image/png": [".png"] } }]
+  };
+  const report = compareManifests(previous, current);
+  const change = report.changes.declarations.find(item => item.field === "file_handlers");
+
+  assert.ok(change);
+  assert.deepEqual(change.previous, previous.file_handlers);
+  assert.deepEqual(change.current, current.file_handlers);
+  assert.ok(report.findings.some(finding => finding.id === "file-handlers-change"));
+});
+
 test("flags an overlong manifest description", () => {
   const report = analyzeManifest({
     manifest_version: 3,
