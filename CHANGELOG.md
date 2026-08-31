@@ -74,6 +74,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   and safe relative paths without reading referenced rule files.
 - Manifest V3 background service-worker validation for safe relative paths,
   optional module type, and rejected Manifest V2 fields.
+- Popup, options-page, and side-panel entry-point validation for safe relative
+  paths and correctly typed declarations without reading referenced HTML.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

@@ -112,6 +112,8 @@ The interface also provides:
   and safe relative JSON paths without reading referenced rule files;
 - MV3 background service-worker validation for one safe relative worker path,
   optional module type, and rejection of legacy scripts or persistence fields;
+- popup, options-page, and default side-panel entry validation for safe local
+  paths and correctly typed manifest fields without reading referenced HTML;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only
