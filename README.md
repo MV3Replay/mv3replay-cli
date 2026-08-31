@@ -90,6 +90,9 @@ The interface also provides:
   including update findings without reading referenced policy schema files;
 - user-triggered JSON and escaped Markdown report downloads, including the
   detected-surface and manifest-count inventory; and
+- user-triggered share-safe Markdown summaries containing structural counts
+  and fixed categories while excluding names, versions, URLs, filenames,
+  manifest values, finding messages, and checklist text; and
 - a private 10-minute tester guide with a local feedback-notes template that
   asks users not to include identifying or sensitive information.
 
@@ -102,6 +105,8 @@ memory for that browser tab; it does not persist reports, read other files, or
 send data anywhere outside `127.0.0.1`. Anyone with local access
 to the same machine and port while the server runs could also reach it, so
 treat the loopback session as no more private than any other local process.
+Share-safe summaries remove manifest-controlled text but still reveal aggregate
+structural counts; review the downloaded file before choosing to share it.
 The local interface and its privacy boundary are covered by the normal
 `npm test` gate via `tests/local-app.test.mjs` and the dependency-free client
 runtime harness in `tests/local-app-client-runtime.test.mjs` (both runnable as

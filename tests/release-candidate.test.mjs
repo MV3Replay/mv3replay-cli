@@ -107,6 +107,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",
+      "share-safe structural Markdown summaries",
       "private tester-notes template"
     ],
     testCommand: "npm run test:app",

@@ -81,6 +81,7 @@
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",
+      "share-safe structural Markdown summaries",
       "private tester-notes template"
     ],
     "testCommand": "npm run test:app",

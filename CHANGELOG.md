@@ -56,6 +56,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   declarations, findings, and privacy-preserving manual regression lanes.
 - A changed-sections-only option that combines with every comparison category,
   including an explicit zero-section state for identical manifests.
+- Explicitly user-triggered share-safe analysis and comparison summaries that
+  retain structural counts while excluding all tested manifest-controlled text.
 
 ### Future ideas (not implemented)
 
