@@ -452,6 +452,34 @@ function sandboxDiagnostics(sandbox) {
   return { declared: true, invalid: false };
 }
 
+const LOCALE_TAG_REGEX = /^[a-z]{2,3}(_(?:[A-Za-z]{2}|\d{3}))?$/;
+
+function validLocaleTag(value) {
+  return presentString(value) && LOCALE_TAG_REGEX.test(value.trim());
+}
+
+function defaultLocaleDiagnostics(defaultLocale) {
+  if (defaultLocale === undefined) return { declared: false, invalid: false };
+  return { declared: true, invalid: !validLocaleTag(defaultLocale) };
+}
+
+const MESSAGE_PLACEHOLDER_REGEX = /__MSG_[A-Za-z0-9_@]+__/;
+
+function localizedFieldsUsingPlaceholders(manifest) {
+  const candidates = [
+    ["name", manifest.name],
+    ["short_name", manifest.short_name],
+    ["description", manifest.description],
+    ["action.default_title", manifest.action?.default_title],
+    ["omnibox.keyword", manifest.omnibox?.keyword]
+  ];
+  return sortedUnique(
+    candidates
+      .filter(([, value]) => typeof value === "string" && MESSAGE_PLACEHOLDER_REGEX.test(value))
+      .map(([field]) => field)
+  );
+}
+
 const CHROME_URL_OVERRIDE_KEYS = new Set(["bookmarks", "history", "newtab"]);
 
 function chromeUrlOverridesDiagnostics(overrides) {
@@ -957,6 +985,8 @@ export function analyzeManifest(manifest) {
   const presentationMetadata = [
     "default_locale", "description", "homepage_url", "icons", "short_name", "version_name"
   ].some(key => manifest[key] !== undefined);
+  const defaultLocaleStatus = defaultLocaleDiagnostics(manifest.default_locale);
+  const localizedPlaceholderFields = localizedFieldsUsingPlaceholders(manifest);
   const manifestNameDeclared = presentString(manifest.name);
   const validManifestName = manifestNameDeclared && manifest.name.trim().length <= 75;
   const validManifestVersion = parseChromeExtensionVersion(manifest.version) !== null;
@@ -1328,6 +1358,12 @@ export function analyzeManifest(manifest) {
   if (!validManifestVersion) {
     riskFlags.push({ id: "manifest-version-invalid", level: "critical", message: "The required manifest version is invalid; use one to four dot-separated integers from 0 to 65535, without leading zeros, and not all zero." });
   }
+  if (defaultLocaleStatus.declared && defaultLocaleStatus.invalid) {
+    riskFlags.push({ id: "default-locale-invalid", level: "critical", message: "The declared default_locale is not a valid locale tag; use a supported language, language_REGION, or numeric-region form (for example \"en\", \"en_US\", or \"es_419\")." });
+  }
+  if (localizedPlaceholderFields.length > 0 && (!defaultLocaleStatus.declared || defaultLocaleStatus.invalid)) {
+    riskFlags.push({ id: "localized-placeholders-without-default-locale", level: "critical", message: `Manifest fields use __MSG_ message placeholders (${localizedPlaceholderFields.join(", ")}) without a valid default_locale; declare a valid default_locale so these placeholders resolve.` });
+  }
   const minimumBrowserVersion = parseChromeExtensionVersion(manifest.minimum_chrome_version);
   if (fileHandling && (!minimumBrowserVersion || minimumBrowserVersion[0] < 120)) {
     riskFlags.push({ id: "file-handlers-minimum-version", level: "high", message: "File handling requires ChromeOS 120 or later; declare a compatible minimum browser version or document and test the unsupported-install path." });
@@ -1438,7 +1474,7 @@ export function analyzeManifest(manifest) {
     riskFlags.push({ id: "omnibox-invalid", level: "critical", message: "The omnibox declaration is malformed; omnibox must be a non-array object with exactly a non-empty string keyword." });
   }
   if (chromeUrlOverridesStatus.invalid) {
-    riskFlags.push({ id: "chrome-url-overrides-invalid", level: "critical", message: "The chrome_url_overrides declaration is malformed; declare exactly one of bookmarks, history, or newtab mapped to a non-empty safe relative path, without a leading slash, drive letter, or parent-directory traversal." });
+    riskFlags.push({ id: "browser-page-overrides-invalid", level: "critical", message: "The built-in page override declaration is malformed; declare exactly one of bookmarks, history, or newtab mapped to a non-empty safe relative path, without a leading slash, drive letter, or parent-directory traversal." });
   }
   if (sandboxStatus.invalid) {
     riskFlags.push({ id: "sandbox-invalid", level: "critical", message: "The sandbox declaration is malformed; sandbox must be a non-array object with a non-empty pages array of unique, non-empty safe relative paths, and content_security_policy, if present, must be a non-empty string." });

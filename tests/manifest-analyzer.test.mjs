@@ -359,11 +359,11 @@ test("validates chrome_url_overrides declarations without reading HTML files", (
   const base = { manifest_version: 3, name: "Override fixture", version: "1.0.0" };
 
   const absent = analyzeManifest(base);
-  assert.ok(!absent.riskFlags.some(flag => flag.id === "chrome-url-overrides-invalid"));
+  assert.ok(!absent.riskFlags.some(flag => flag.id === "browser-page-overrides-invalid"));
 
   for (const page of ["bookmarks", "history", "newtab"]) {
     const report = analyzeManifest({ ...base, chrome_url_overrides: { [page]: `${page}.html` } });
-    assert.ok(!report.riskFlags.some(flag => flag.id === "chrome-url-overrides-invalid"), page);
+    assert.ok(!report.riskFlags.some(flag => flag.id === "browser-page-overrides-invalid"), page);
     assert.ok(report.surfaces.chromeUrlOverrides);
     assert.ok(report.lanes.some(lane => lane.id === "browser-page-override"));
   }
@@ -379,7 +379,7 @@ test("validates chrome_url_overrides declarations without reading HTML files", (
     { newtab: ["..", "newtab.html"].join("/") }
   ]) {
     const report = analyzeManifest({ ...base, chrome_url_overrides });
-    assert.ok(report.riskFlags.some(flag => flag.id === "chrome-url-overrides-invalid" && flag.level === "critical"), JSON.stringify(chrome_url_overrides));
+    assert.ok(report.riskFlags.some(flag => flag.id === "browser-page-overrides-invalid" && flag.level === "critical"), JSON.stringify(chrome_url_overrides));
   }
 });
 
@@ -404,6 +404,32 @@ test("validates sandbox page declarations without reading page files", () => {
     const report = analyzeManifest({ ...base, sandbox });
     assert.ok(report.riskFlags.some(flag => flag.id === "sandbox-invalid" && flag.level === "critical"));
   }
+});
+
+test("validates default locale declarations without reading locale files", () => {
+  const base = { manifest_version: 3, name: "Locale fixture", version: "1.0.0" };
+  for (const default_locale of ["en", "en_US", "es_419", "pt_BR"]) {
+    const report = analyzeManifest({ ...base, default_locale });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "default-locale-invalid"));
+  }
+  for (const default_locale of ["", 42, "english", "en-US", "e", "en_US_extra"]) {
+    const report = analyzeManifest({ ...base, default_locale });
+    assert.ok(report.riskFlags.some(flag => flag.id === "default-locale-invalid" && flag.level === "critical"));
+  }
+});
+
+test("requires a valid default locale for localized manifest placeholders", () => {
+  const localized = {
+    manifest_version: 3,
+    name: "__MSG_extension_name__",
+    description: "__MSG_extension_description__",
+    version: "1.0.0"
+  };
+  const missing = analyzeManifest(localized);
+  assert.ok(missing.riskFlags.some(flag => flag.id === "localized-placeholders-without-default-locale"));
+  const valid = analyzeManifest({ ...localized, default_locale: "en_US" });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "localized-placeholders-without-default-locale"));
+  assert.ok(!JSON.stringify(valid).includes("extension_description"));
 });
 
 test("validates named permission arrays without silently dropping values", () => {
