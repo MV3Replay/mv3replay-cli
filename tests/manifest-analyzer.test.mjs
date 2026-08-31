@@ -810,6 +810,21 @@ test("hardens file, MIME, action, and options object boundaries privately", () =
   }
 });
 
+test("rejects duplicate and overlapping permission declarations", () => {
+  const base = { manifest_version: 3, name: "Permission uniqueness fixture", version: "1.0.0" };
+  for (const [manifest, riskId] of [
+    [{ permissions: ["storage", "storage"] }, "permissions-duplicate"],
+    [{ optional_permissions: ["tabs", "tabs"] }, "optional-permissions-duplicate"],
+    [{ host_permissions: ["https://example.invalid/*", "https://example.invalid/*"] }, "host-permissions-duplicate"],
+    [{ optional_host_permissions: ["https://example.invalid/*", "https://example.invalid/*"] }, "optional-host-permissions-duplicate"],
+    [{ permissions: ["storage"], optional_permissions: ["storage"] }, "permission-required-optional-overlap"],
+    [{ host_permissions: ["https://example.invalid/*"], optional_host_permissions: ["https://example.invalid/*"] }, "host-permission-required-optional-overlap"]
+  ]) {
+    const report = analyzeManifest({ ...base, ...manifest });
+    assert.ok(report.riskFlags.some(flag => flag.id === riskId && flag.level === "critical"));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

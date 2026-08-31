@@ -119,20 +119,22 @@ function validHostPermissionPattern(pattern) {
 }
 
 function namedPermissionListDiagnostics(value) {
-  if (value === undefined) return { declared: false, invalid: false, misplacedHostPattern: false };
-  if (!Array.isArray(value)) return { declared: true, invalid: true, misplacedHostPattern: false };
+  if (value === undefined) return { declared: false, invalid: false, misplacedHostPattern: false, duplicate: false };
+  if (!Array.isArray(value)) return { declared: true, invalid: true, misplacedHostPattern: false, duplicate: false };
   const invalid = value.some(item => typeof item !== "string" || !presentString(item));
   const misplacedHostPattern = value.some(item =>
     typeof item === "string" && (item === "<all_urls>" || item.includes("://")));
-  return { declared: true, invalid, misplacedHostPattern };
+  const duplicate = new Set(value).size !== value.length;
+  return { declared: true, invalid, misplacedHostPattern, duplicate };
 }
 
 function hostPermissionListDiagnostics(value) {
-  if (value === undefined) return { declared: false, invalid: false };
-  if (!Array.isArray(value)) return { declared: true, invalid: true };
+  if (value === undefined) return { declared: false, invalid: false, duplicate: false };
+  if (!Array.isArray(value)) return { declared: true, invalid: true, duplicate: false };
   const invalid = value.some(item => typeof item !== "string" || !presentString(item)
     || !validHostPermissionPattern(item));
-  return { declared: true, invalid };
+  const duplicate = new Set(value).size !== value.length;
+  return { declared: true, invalid, duplicate };
 }
 
 function externallyConnectableDiagnostics(value) {
@@ -1302,6 +1304,8 @@ export function analyzeManifest(manifest) {
   const chromeSettingsOverridesStatus = chromeSettingsOverridesDiagnostics(manifest.chrome_settings_overrides);
   const sandboxStatus = sandboxDiagnostics(manifest.sandbox);
   const contentSecurityPolicyStatus = contentSecurityPolicyDiagnostics(manifest.content_security_policy);
+  const permissionOverlap = permissions.some(permission => optionalPermissions.includes(permission));
+  const hostPermissionOverlap = hostPermissions.some(host => optionalHostPermissions.includes(host));
   const oauth2Status = oauth2Diagnostics(manifest.oauth2);
   const coepStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_embedder_policy);
   const coopStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_opener_policy);
@@ -1814,6 +1818,24 @@ export function analyzeManifest(manifest) {
   }
   if (optionalHostPermissionsStatus.invalid) {
     riskFlags.push({ id: "optional-host-permissions-invalid", level: "critical", message: "The optional_host_permissions declaration is malformed; optional_host_permissions must be an array containing only non-empty, syntactically valid match patterns or <all_urls>." });
+  }
+  if (permissionsStatus.duplicate) {
+    riskFlags.push({ id: "permissions-duplicate", level: "critical", message: "The permissions array contains duplicate entries; remove repeated permissions before packaging." });
+  }
+  if (optionalPermissionsStatus.duplicate) {
+    riskFlags.push({ id: "optional-permissions-duplicate", level: "critical", message: "The optional_permissions array contains duplicate entries; remove repeated permissions before packaging." });
+  }
+  if (hostPermissionsStatus.duplicate) {
+    riskFlags.push({ id: "host-permissions-duplicate", level: "critical", message: "The host_permissions array contains duplicate entries; remove repeated match patterns before packaging." });
+  }
+  if (optionalHostPermissionsStatus.duplicate) {
+    riskFlags.push({ id: "optional-host-permissions-duplicate", level: "critical", message: "The optional_host_permissions array contains duplicate entries; remove repeated match patterns before packaging." });
+  }
+  if (permissionOverlap) {
+    riskFlags.push({ id: "permission-required-optional-overlap", level: "critical", message: "A permission appears in both permissions and optional_permissions; keep each permission in only one list." });
+  }
+  if (hostPermissionOverlap) {
+    riskFlags.push({ id: "host-permission-required-optional-overlap", level: "critical", message: "A host match pattern appears in both host_permissions and optional_host_permissions; keep each host pattern in only one list." });
   }
   if (staticRulesetStatus.invalid) {
     riskFlags.push({ id: "static-rulesets-invalid", level: "critical", message: "The declarative net request rule-resources declaration is malformed; require a non-empty array of rulesets with unique non-empty IDs, boolean enabled flags, and safe relative paths." });
