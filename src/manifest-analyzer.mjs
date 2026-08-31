@@ -745,6 +745,27 @@ function chromeUrlOverridesDiagnostics(overrides) {
 }
 
 const CHROME_SETTINGS_OVERRIDE_KEYS = new Set(["homepage", "startup_pages", "search_provider"]);
+const SEARCH_PROVIDER_OPTIONAL_STRING_FIELDS = [
+  "suggest_url", "instant_url", "image_url",
+  "search_url_post_params", "suggest_url_post_params", "instant_url_post_params", "image_url_post_params"
+];
+
+function validSearchProvider(provider) {
+  if (!provider || typeof provider !== "object" || Array.isArray(provider)) return false;
+  if (typeof provider.is_default !== "boolean") return false;
+  const hasPrepopulatedId = Number.isInteger(provider.prepopulated_id) && provider.prepopulated_id > 0;
+  const hasNamedFields = ["name", "keyword", "search_url", "favicon_url", "encoding"]
+    .every(field => presentString(provider[field]));
+  if (!hasPrepopulatedId && !hasNamedFields) return false;
+  if (!SEARCH_PROVIDER_OPTIONAL_STRING_FIELDS.every(field =>
+    provider[field] === undefined || presentString(provider[field]))) return false;
+  if (provider.alternate_urls !== undefined) {
+    const urls = provider.alternate_urls;
+    if (!Array.isArray(urls) || urls.length === 0 || !urls.every(url => presentString(url))) return false;
+    if (new Set(urls).size !== urls.length) return false;
+  }
+  return true;
+}
 
 function chromeSettingsOverridesDiagnostics(value) {
   if (value === undefined) return { declared: false, invalid: false };
@@ -763,6 +784,9 @@ function chromeSettingsOverridesDiagnostics(value) {
     if (!Array.isArray(pages) || pages.length !== 1 || !presentString(pages[0])) {
       return { declared: true, invalid: true };
     }
+  }
+  if (value.search_provider !== undefined && !validSearchProvider(value.search_provider)) {
+    return { declared: true, invalid: true };
   }
   if (value.homepage === undefined && value.startup_pages === undefined && value.search_provider === undefined) {
     return { declared: true, invalid: true };

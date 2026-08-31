@@ -117,6 +117,46 @@ test("detects lifecycle and trust-boundary surfaces", () => {
   assert.ok(riskIds.includes("derived-frame-matching"));
 });
 
+test("accepts a valid search_provider settings override without exposing its values", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Search provider",
+    version: "1.0.0",
+    chrome_settings_overrides: {
+      search_provider: {
+        is_default: true,
+        name: "Example Search",
+        keyword: "ex",
+        search_url: "https://example.test/search?q={searchTerms}",
+        favicon_url: "https://example.test/favicon.ico",
+        encoding: "UTF-8",
+        alternate_urls: ["https://example.test/alt?q={searchTerms}"]
+      }
+    }
+  });
+
+  assert.ok(!report.riskFlags.some(flag => flag.id === "browser-settings-overrides-invalid"));
+  const serialized = JSON.stringify(report);
+  assert.ok(!serialized.includes("Example Search"));
+  assert.ok(!serialized.includes("https://example.test/search"));
+});
+
+test("flags an invalid search_provider settings override", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Search provider invalid",
+    version: "1.0.0",
+    chrome_settings_overrides: {
+      search_provider: {
+        is_default: true,
+        name: "Example Search"
+      }
+    }
+  });
+
+  assert.ok(report.riskFlags.some(flag => flag.id === "browser-settings-overrides-invalid"));
+});
+
 test("compares release manifests and gates required-access expansion", () => {
   const previous = {
     manifest_version: 3,
@@ -676,7 +716,7 @@ test("validates Manifest V3 content security policies without exposing policy te
 test("validates browser settings override pages without exposing values", () => {
   const marker = "private-settings-marker";
   const base = { manifest_version: 3, name: "Settings fixture", version: "1.0.0" };
-  for (const declaration of [{ homepage: marker }, { startup_pages: [marker] }, { search_provider: {} }]) {
+  for (const declaration of [{ homepage: marker }, { startup_pages: [marker] }]) {
     const report = analyzeManifest({ ...base, chrome_settings_overrides: declaration });
     assert.ok(!report.riskFlags.some(flag => flag.id === "browser-settings-overrides-invalid"));
     assert.ok(!JSON.stringify(report).includes(marker));
