@@ -673,6 +673,21 @@ test("validates Manifest V3 content security policies without exposing policy te
   }
 });
 
+test("validates browser settings override pages without exposing values", () => {
+  const marker = "private-settings-marker";
+  const base = { manifest_version: 3, name: "Settings fixture", version: "1.0.0" };
+  for (const declaration of [{ homepage: marker }, { startup_pages: [marker] }, { search_provider: {} }]) {
+    const report = analyzeManifest({ ...base, chrome_settings_overrides: declaration });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "browser-settings-overrides-invalid"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  for (const declaration of [null, [], "settings", {}, { extra: marker }, { homepage: "" }, { startup_pages: [] }, { startup_pages: [marker, marker] }, { startup_pages: [42] }]) {
+    const report = analyzeManifest({ ...base, chrome_settings_overrides: declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "browser-settings-overrides-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

@@ -744,6 +744,32 @@ function chromeUrlOverridesDiagnostics(overrides) {
   return { declared: true, invalid: false };
 }
 
+const CHROME_SETTINGS_OVERRIDE_KEYS = new Set(["homepage", "startup_pages", "search_provider"]);
+
+function chromeSettingsOverridesDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length === 0) {
+    return { declared: true, invalid: true };
+  }
+  const keys = Object.keys(value);
+  if (!keys.every(key => CHROME_SETTINGS_OVERRIDE_KEYS.has(key))) {
+    return { declared: true, invalid: true };
+  }
+  if (value.homepage !== undefined && !presentString(value.homepage)) {
+    return { declared: true, invalid: true };
+  }
+  if (value.startup_pages !== undefined) {
+    const pages = value.startup_pages;
+    if (!Array.isArray(pages) || pages.length !== 1 || !presentString(pages[0])) {
+      return { declared: true, invalid: true };
+    }
+  }
+  if (value.homepage === undefined && value.startup_pages === undefined && value.search_provider === undefined) {
+    return { declared: true, invalid: true };
+  }
+  return { declared: true, invalid: false };
+}
+
 function backgroundDiagnostics(background) {
   if (background === undefined) return { declared: false, invalid: false };
   if (!background || typeof background !== "object" || Array.isArray(background)
@@ -1226,6 +1252,7 @@ export function analyzeManifest(manifest) {
   const devtoolsPageStatus = devtoolsPageDiagnostics(manifest.devtools_page);
   const omniboxStatus = omniboxDiagnostics(manifest.omnibox);
   const chromeUrlOverridesStatus = chromeUrlOverridesDiagnostics(manifest.chrome_url_overrides);
+  const chromeSettingsOverridesStatus = chromeSettingsOverridesDiagnostics(manifest.chrome_settings_overrides);
   const sandboxStatus = sandboxDiagnostics(manifest.sandbox);
   const contentSecurityPolicyStatus = contentSecurityPolicyDiagnostics(manifest.content_security_policy);
   const oauth2Status = oauth2Diagnostics(manifest.oauth2);
@@ -1778,6 +1805,9 @@ export function analyzeManifest(manifest) {
   }
   if (chromeUrlOverridesStatus.invalid) {
     riskFlags.push({ id: "browser-page-overrides-invalid", level: "critical", message: "The built-in page override declaration is malformed; declare exactly one of bookmarks, history, or newtab mapped to a non-empty safe relative path, without a leading slash, drive letter, or parent-directory traversal." });
+  }
+  if (chromeSettingsOverridesStatus.invalid) {
+    riskFlags.push({ id: "browser-settings-overrides-invalid", level: "critical", message: "The browser settings override declaration is malformed; provide supported homepage, single startup-page, or search-provider fields with the required structure." });
   }
   if (sandboxStatus.invalid) {
     riskFlags.push({ id: "sandbox-invalid", level: "critical", message: "The sandbox declaration is malformed; sandbox must be a non-array object with a non-empty pages array of unique, non-empty safe relative paths, and content_security_policy, if present, must be a non-empty string." });
