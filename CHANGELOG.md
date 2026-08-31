@@ -83,6 +83,8 @@ public for testing, but no package, tag, or GitHub Release exists.
 - Privacy-safe OAuth2 structure validation without reporting client identifiers.
 - Strict cross-origin isolation policy and managed-storage path validation without
   reading referenced schema files or exposing declaration values.
+- Hardware-requirement and text-to-speech engine validation with fixed,
+  privacy-safe findings and permission checks.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

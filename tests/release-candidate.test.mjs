@@ -120,6 +120,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "manifest localization declaration validation",
       "privacy-safe OAuth2 declaration validation",
       "cross-origin isolation and managed-storage declaration validation",
+      "hardware-requirement and text-to-speech engine validation",
       "extension display-name change coverage",
       "ChromeOS file-handler coverage",
       "ChromeOS file-handler declaration validation",
