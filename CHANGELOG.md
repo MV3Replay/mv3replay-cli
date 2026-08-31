@@ -60,6 +60,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   and missing recommended 48px/128px presentation sizes without reading assets.
 - Toolbar-action icon validation for string and size-map declarations, plus a
   critical check for extension names beyond the documented 75-character limit.
+- MIME document-handler surfaces, strict public-PDF declaration validation,
+  version 151 compatibility, critical comparisons, and native-viewer fallback.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

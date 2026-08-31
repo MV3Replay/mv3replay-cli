@@ -74,7 +74,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "file_handlers",
   "homepage_url", "host_permissions", "icons", "incognito",
   "key",
-  "manifest_version", "minimum_chrome_version", "name", "oauth2", "omnibox",
+  "manifest_version", "mime_types_handler", "minimum_chrome_version", "name", "oauth2", "omnibox",
   "optional_host_permissions", "optional_permissions", "options_page", "options_ui",
   "permissions", "sandbox", "short_name", "side_panel", "storage", "update_url", "version", "version_name",
   "web_accessible_resources"
@@ -265,6 +265,7 @@ const SURFACE_NAMES = [
   ["managed-storage-schema", "managedStorageSchema"],
   ["extension-identity-key", "extensionKeyDeclared"],
   ["file-handling", "fileHandling"],
+  ["mime-type-handling", "mimeTypeHandling"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -375,6 +376,15 @@ function declarationChanges(previousManifest, currentManifest) {
     "file_handlers",
     Array.isArray(previousManifest.file_handlers) ? stableValue(previousManifest.file_handlers) : [],
     Array.isArray(currentManifest.file_handlers) ? stableValue(currentManifest.file_handlers) : []
+  );
+  pushIfChanged(
+    "mime_types_handler",
+    previousManifest.mime_types_handler && typeof previousManifest.mime_types_handler === "object" && !Array.isArray(previousManifest.mime_types_handler)
+      ? stableValue(previousManifest.mime_types_handler)
+      : null,
+    currentManifest.mime_types_handler && typeof currentManifest.mime_types_handler === "object" && !Array.isArray(currentManifest.mime_types_handler)
+      ? stableValue(currentManifest.mime_types_handler)
+      : null
   );
   for (const field of ["default_locale", "description", "homepage_url", "name", "short_name", "version_name"]) {
     pushIfChanged(
@@ -607,6 +617,18 @@ export function analyzeManifest(manifest) {
   const fileHandling = fileHandlers.length > 0;
   const invalidFileHandlerCount = fileHandlers.filter(handler => !validFileHandler(handler)).length
     + (fileHandlersDeclared && !Array.isArray(manifest.file_handlers) ? 1 : 0);
+  const mimeHandlersDeclared = manifest.mime_types_handler !== undefined;
+  const mimeHandlers = manifest.mime_types_handler && typeof manifest.mime_types_handler === "object"
+    && !Array.isArray(manifest.mime_types_handler) ? manifest.mime_types_handler : {};
+  const mimeTypes = sortedUnique(objectKeys(mimeHandlers));
+  const mimeTypeHandling = mimeTypes.length > 0;
+  const invalidMimeHandlerCount = mimeTypes.filter(type => {
+    const handler = mimeHandlers[type];
+    return !presentString(type)
+      || !handler || typeof handler !== "object" || Array.isArray(handler)
+      || !presentString(handler.handler_url)
+      || (handler.can_embed !== undefined && typeof handler.can_embed !== "boolean");
+  }).length + (mimeHandlersDeclared && Object.keys(mimeHandlers).length === 0 ? 1 : 0);
 
   const surfaces = {
     action,
@@ -653,6 +675,7 @@ export function analyzeManifest(manifest) {
     managedStorageSchema,
     extensionKeyDeclared,
     fileHandling,
+    mimeTypeHandling,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -703,6 +726,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "chromeos-file-handling", "high",
       "The extension registers one or more ChromeOS file handlers that open user-selected files in extension pages.",
       ["On ChromeOS 120 or later, verify every declared MIME type and extension appears only for matching synthetic files", "Verify each declared action page opens and receives single-client and repeated launches as configured", "Test cancellation, unsupported files, malformed synthetic content, and confirm file contents are neither uploaded nor retained unexpectedly"]);
+  }
+  if (mimeHandlersDeclared) {
+    addLane(lanes, "mime-document-handling", "critical",
+      "The extension can replace the built-in document viewer for registered full-frame MIME documents.",
+      ["On browser version 151 or later, open a synthetic PDF as a top-level navigation and verify rendering plus the original address", "If embedding is enabled, test synthetic PDF documents in embed, object, and iframe contexts without retaining document data", "Force parsing and rendering failures, then verify the document safely returns to the native handler without a retry loop"]);
   }
 
   if (contentScripts.length > 0) {
@@ -949,6 +977,15 @@ export function analyzeManifest(manifest) {
   if (invalidFileHandlerCount > 0 || (fileHandlersDeclared && fileHandlers.length === 0)) {
     riskFlags.push({ id: "file-handlers-invalid", level: "critical", message: "At least one file-handler declaration is invalid or the declared list is empty; verify action, name, accepted MIME mappings, dot-prefixed extensions, and launch type before packaging." });
   }
+  if (invalidMimeHandlerCount > 0) {
+    riskFlags.push({ id: "mime-types-handler-invalid", level: "critical", message: "The MIME-handler declaration is empty or malformed; each type needs a non-empty handler URL and an optional boolean embedding flag." });
+  }
+  if (mimeTypes.some(type => type !== "application/pdf")) {
+    riskFlags.push({ id: "mime-type-unsupported", level: "critical", message: "A public MIME handler declares a type other than application/pdf, the only publicly supported type as of browser version 151." });
+  }
+  if (mimeHandlersDeclared && (!minimumBrowserVersion || minimumBrowserVersion[0] < 151)) {
+    riskFlags.push({ id: "mime-handler-minimum-version", level: "high", message: "MIME document handling requires browser version 151 or later; declare a compatible minimum or test and document the inactive fallback path." });
+  }
   if (iconDiagnostics.invalid) {
     riskFlags.push({ id: "manifest-icons-invalid", level: "critical", message: "The manifest icons declaration is empty or malformed; use positive integer size keys and non-empty relative image paths." });
   }
@@ -1095,7 +1132,8 @@ export function analyzeManifest(manifest) {
       sandboxPages: sandboxPages.length,
       unmodeledTopLevelKeys: unmodeledKeys.length,
       manifestIcons: manifestIconSizes.length,
-      fileHandlerDeclarations: fileHandlers.length
+      fileHandlerDeclarations: fileHandlers.length,
+      mimeTypeHandlers: mimeTypes.length
     },
     coverage: { unmodeledTopLevelKeys: unmodeledKeys },
     lanes,
@@ -1226,6 +1264,13 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "file-handlers-change",
       level: "high",
       message: "ChromeOS file-handler declarations changed. Verify matching types, action pages, launch behavior, unsupported files, and update behavior on ChromeOS 120 or later."
+    });
+  }
+  if (declarations.some(change => change.field === "mime_types_handler")) {
+    findings.push({
+      id: "mime-types-handler-change",
+      level: "critical",
+      message: "MIME document-handler declarations changed. Verify top-level and embedded synthetic PDFs, original-address behavior, update continuity, and safe fallback to the native viewer."
     });
   }
   if (version.relation === "older") {

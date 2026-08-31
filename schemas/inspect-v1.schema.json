@@ -67,6 +67,7 @@
         "managedStorageSchema",
         "extensionKeyDeclared",
         "fileHandling",
+        "mimeTypeHandling",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -116,6 +117,7 @@
         "managedStorageSchema": { "type": "boolean" },
         "extensionKeyDeclared": { "type": "boolean" },
         "fileHandling": { "type": "boolean" },
+        "mimeTypeHandling": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }
@@ -139,7 +141,8 @@
         "sandboxPages",
         "unmodeledTopLevelKeys",
         "manifestIcons",
-        "fileHandlerDeclarations"
+        "fileHandlerDeclarations",
+        "mimeTypeHandlers"
       ],
       "properties": {
         "permissions": { "type": "integer", "minimum": 0 },
@@ -156,7 +159,8 @@
         "sandboxPages": { "type": "integer", "minimum": 0 },
         "unmodeledTopLevelKeys": { "type": "integer", "minimum": 0 },
         "manifestIcons": { "type": "integer", "minimum": 0 },
-        "fileHandlerDeclarations": { "type": "integer", "minimum": 0 }
+        "fileHandlerDeclarations": { "type": "integer", "minimum": 0 },
+        "mimeTypeHandlers": { "type": "integer", "minimum": 0 }
       }
     },
     "coverage": {

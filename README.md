@@ -98,6 +98,8 @@ The interface also provides:
   SVG or WebP formats, and recommended 48px/128px presentation coverage;
 - toolbar-action icon validation for both single-path and size-mapping forms,
   plus enforcement of the public extension name's 75-character maximum;
+- MIME document-handler validation and critical update coverage for public PDF
+  handling, embedded documents, version 151 compatibility, and native fallback;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

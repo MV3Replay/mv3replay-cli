@@ -451,6 +451,73 @@ test("rejects malformed or empty file-handler declarations without hiding covera
   }
 });
 
+test("models MIME document handling with version and privacy boundaries", () => {
+  const manifest = {
+    manifest_version: 3,
+    name: "PDF fixture",
+    version: "1.0.0",
+    minimum_chrome_version: "151",
+    mime_types_handler: {
+      "application/pdf": { handler_url: "viewer.html", can_embed: true }
+    }
+  };
+  const report = analyzeManifest(manifest);
+
+  assert.equal(report.surfaces.mimeTypeHandling, true);
+  assert.equal(report.counts.mimeTypeHandlers, 1);
+  assert.ok(report.lanes.some(lane => lane.id === "mime-document-handling"));
+  assert.ok(!report.coverage.unmodeledTopLevelKeys.includes("mime_types_handler"));
+  assert.ok(!report.riskFlags.some(flag => flag.id.startsWith("mime-")));
+  const lane = report.lanes.find(item => item.id === "mime-document-handling");
+  assert.ok(lane.checks.some(check => /synthetic PDF/i.test(check)));
+  assert.ok(lane.checks.some(check => /native handler/i.test(check)));
+});
+
+test("validates MIME handler declarations and browser support", () => {
+  const base = { manifest_version: 3, name: "PDF fixture", version: "1.0.0" };
+  for (const mime_types_handler of [null, [], {}, { "application/pdf": null }, { "application/pdf": {} }, { "application/pdf": { handler_url: "" } }, { "application/pdf": { handler_url: "viewer.html", can_embed: "yes" } }]) {
+    const report = analyzeManifest({ ...base, minimum_chrome_version: "151", mime_types_handler });
+    assert.ok(report.riskFlags.some(flag => flag.id === "mime-types-handler-invalid"), JSON.stringify(mime_types_handler));
+  }
+
+  const unsupported = analyzeManifest({
+    ...base,
+    minimum_chrome_version: "151",
+    mime_types_handler: { "text/plain": { handler_url: "viewer.html" } }
+  });
+  assert.ok(unsupported.riskFlags.some(flag => flag.id === "mime-type-unsupported"));
+
+  const oldBrowser = analyzeManifest({
+    ...base,
+    minimum_chrome_version: "150",
+    mime_types_handler: { "application/pdf": { handler_url: "viewer.html" } }
+  });
+  assert.ok(oldBrowser.riskFlags.some(flag => flag.id === "mime-handler-minimum-version"));
+});
+
+test("compares MIME document handlers as a critical update boundary", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "PDF fixture",
+    version: "1.0.0",
+    minimum_chrome_version: "151",
+    mime_types_handler: { "application/pdf": { handler_url: "old-viewer.html", can_embed: false } }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    mime_types_handler: { "application/pdf": { handler_url: "new-viewer.html", can_embed: true } }
+  };
+  const report = compareManifests(previous, current);
+  const change = report.changes.declarations.find(item => item.field === "mime_types_handler");
+
+  assert.ok(change);
+  assert.deepEqual(change.previous, previous.mime_types_handler);
+  assert.deepEqual(change.current, current.mime_types_handler);
+  assert.ok(report.findings.some(finding => finding.id === "mime-types-handler-change" && finding.level === "critical"));
+  assert.equal(report.requiresManualUpdateValidation, true);
+});
+
 test("flags an overlong manifest description", () => {
   const report = analyzeManifest({
     manifest_version: 3,

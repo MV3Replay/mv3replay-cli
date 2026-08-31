@@ -122,6 +122,7 @@ function printHuman(report, file) {
     `- Managed storage schema: ${yesNo(report.surfaces.managedStorageSchema)}`,
     `- Extension identity key declared: ${yesNo(report.surfaces.extensionKeyDeclared)}`,
     `- ChromeOS file handling: ${yesNo(report.surfaces.fileHandling)}`,
+    `- MIME document handling: ${yesNo(report.surfaces.mimeTypeHandling)}`,
     `- Chrome page override: ${yesNo(report.surfaces.chromeUrlOverrides)}`,
     `- Chrome settings override: ${yesNo(report.surfaces.chromeSettingsOverrides)}`,
     "",
