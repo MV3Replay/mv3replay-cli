@@ -113,7 +113,7 @@ test("detects lifecycle and trust-boundary surfaces", () => {
 
   const riskIds = report.riskFlags.map(flag => flag.id);
   assert.ok(riskIds.includes("required-tab-capture"));
-  assert.ok(riskIds.includes("broad-external-messaging"));
+  assert.ok(riskIds.includes("externally-connectable-all-urls-invalid"));
   assert.ok(riskIds.includes("derived-frame-matching"));
 });
 
@@ -539,6 +539,76 @@ test("flags exposure of the entire extension package", () => {
     web_accessible_resources: [{ resources: ["*"], matches: ["https://example.test/*"] }]
   });
   assert.ok(report.riskFlags.some(flag => flag.id === "entire-package-web-accessible" && flag.level === "high"));
+});
+
+test("validates external messaging callers and identifier privacy", () => {
+  const base = { manifest_version: 3, name: "Messaging fixture", version: "1.0.0" };
+  for (const externally_connectable of [
+    null,
+    [],
+    { ids: "*" },
+    { ids: ["invalid-id"] },
+    { matches: "https://example.test/*" },
+    { accepts_tls_channel_id: "yes" }
+  ]) {
+    const report = analyzeManifest({ ...base, externally_connectable });
+    assert.ok(report.riskFlags.some(flag => flag.id === "externally-connectable-invalid"), JSON.stringify(externally_connectable));
+  }
+
+  const broad = analyzeManifest({
+    ...base,
+    externally_connectable: {
+      ids: ["*"],
+      matches: ["<all_urls>"],
+      accepts_tls_channel_id: true
+    }
+  });
+  for (const id of ["externally-connectable-all-urls-invalid", "all-extensions-connectable", "tls-channel-id-enabled"]) {
+    assert.ok(broad.riskFlags.some(flag => flag.id === id), id);
+  }
+  assert.ok(broad.riskFlags.find(flag => flag.id === "tls-channel-id-enabled").message.includes("never logged or exported"));
+
+  const valid = analyzeManifest({
+    ...base,
+    externally_connectable: {
+      ids: ["abcdefghijklmnopabcdefghijklmnop"],
+      matches: ["https://example.test/*"],
+      accepts_tls_channel_id: false
+    }
+  });
+  assert.ok(!valid.riskFlags.some(flag => flag.id.startsWith("externally-connectable") || flag.id === "all-extensions-connectable" || flag.id === "tls-channel-id-enabled"));
+});
+
+test("detects the implicit external-connectability default changing", () => {
+  const previous = { manifest_version: 3, name: "Messaging fixture", version: "1.0.0" };
+  const current = { ...previous, externally_connectable: {} };
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.declarations.find(change => change.field === "externally_connectable.declared"), {
+    field: "externally_connectable.declared",
+    previous: false,
+    current: true
+  });
+  assert.ok(report.findings.some(finding => finding.id === "external-connectability-policy-change" && finding.level === "critical"));
+  assert.ok(report.findings.some(finding => finding.id === "extension-version-not-increased"));
+  assert.equal(report.requiresManualUpdateValidation, true);
+});
+
+test("compares TLS channel-ID acceptance without retaining identifiers", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Messaging fixture",
+    version: "1.0.0",
+    externally_connectable: { matches: ["https://example.test/*"], accepts_tls_channel_id: false }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    externally_connectable: { matches: ["https://example.test/*"], accepts_tls_channel_id: true }
+  };
+  const report = compareManifests(previous, current);
+  assert.ok(report.changes.declarations.some(change => change.field === "externally_connectable.accepts_tls_channel_id"));
+  assert.ok(report.findings.some(finding => finding.id === "tls-channel-id-policy-change"));
 });
 
 test("compares MIME document handlers as a critical update boundary", () => {
@@ -1468,7 +1538,7 @@ const fixtureExpectations = {
   },
   "risky-external-messaging": report => {
     const riskIds = report.riskFlags.map(flag => flag.id);
-    assert.ok(riskIds.includes("broad-external-messaging"));
+    assert.ok(riskIds.includes("externally-connectable-all-urls-invalid"));
     assert.ok(riskIds.includes("broad-web-accessible-resources"));
     assert.ok(report.lanes.some(lane => lane.id === "external-messaging"));
     assert.ok(report.lanes.some(lane => lane.id === "web-accessible-resources"));

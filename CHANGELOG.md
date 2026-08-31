@@ -64,6 +64,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   version 151 compatibility, critical comparisons, and native-viewer fallback.
 - Strict web-accessible-resource rule validation plus critical invalid-path
   findings and a high-risk warning for exposing the entire extension package.
+- External-connectability validation for caller IDs, web matches, wildcard
+  callers, TLS channel-ID privacy, and the undeclared-versus-empty update trap.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

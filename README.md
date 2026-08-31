@@ -102,6 +102,8 @@ The interface also provides:
   handling, embedded documents, version 151 compatibility, and native fallback;
 - strict web-accessible-resource rule validation for resource lists, target
   origins or extension IDs, dynamic URLs, origin-only match paths, and package-wide exposure;
+- external-messaging caller validation, including wildcard extension access,
+  invalid all-URL web access, TLS channel-ID privacy, and implicit-policy changes;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

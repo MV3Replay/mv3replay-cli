@@ -84,6 +84,27 @@ function webAccessibleMatchHasInvalidPath(pattern) {
   return !/^[^:]+:\/\/[^/]*\/\*$/.test(pattern);
 }
 
+function externallyConnectableDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false, invalidAllUrls: false, wildcardIds: false, acceptsTlsChannelId: false };
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { declared: true, invalid: true, invalidAllUrls: false, wildcardIds: false, acceptsTlsChannelId: false };
+  }
+  const ids = value.ids === undefined ? [] : asStrings(value.ids);
+  const matches = value.matches === undefined ? [] : asStrings(value.matches);
+  const invalidIds = value.ids !== undefined && (!Array.isArray(value.ids)
+    || ids.length !== value.ids.length || ids.some(id => id !== "*" && !/^[a-p]{32}$/.test(id)));
+  const invalidMatches = value.matches !== undefined && (!Array.isArray(value.matches)
+    || matches.length !== value.matches.length || matches.some(pattern => !presentString(pattern)));
+  const invalidTls = value.accepts_tls_channel_id !== undefined && typeof value.accepts_tls_channel_id !== "boolean";
+  return {
+    declared: true,
+    invalid: invalidIds || invalidMatches || invalidTls,
+    invalidAllUrls: matches.includes("<all_urls>"),
+    wildcardIds: ids.includes("*"),
+    acceptsTlsChannelId: value.accepts_tls_channel_id === true
+  };
+}
+
 // Top-level fields whose values currently influence identities, surfaces,
 // findings, comparison details, or generated regression lanes. Other fields
 // are valid input, but their behavior is deliberately reported as unmodeled.
@@ -407,6 +428,18 @@ function declarationChanges(previousManifest, currentManifest) {
       ? stableValue(currentManifest.mime_types_handler)
       : null
   );
+  pushIfChanged(
+    "externally_connectable.declared",
+    previousManifest.externally_connectable !== undefined,
+    currentManifest.externally_connectable !== undefined
+  );
+  pushIfChanged(
+    "externally_connectable.accepts_tls_channel_id",
+    typeof previousManifest.externally_connectable?.accepts_tls_channel_id === "boolean"
+      ? previousManifest.externally_connectable.accepts_tls_channel_id : null,
+    typeof currentManifest.externally_connectable?.accepts_tls_channel_id === "boolean"
+      ? currentManifest.externally_connectable.accepts_tls_channel_id : null
+  );
   for (const field of ["default_locale", "description", "homepage_url", "name", "short_name", "version_name"]) {
     pushIfChanged(
       field,
@@ -521,6 +554,7 @@ function manifestSignals(manifest) {
     : [];
   const externalMatches = sortedUnique(asStrings(manifest.externally_connectable?.matches));
   const externalExtensionIds = sortedUnique(asStrings(manifest.externally_connectable?.ids));
+  const externalConnectionStatus = externallyConnectableDiagnostics(manifest.externally_connectable);
   const unmodeledKeys = unmodeledTopLevelKeys(manifest);
 
   return {
@@ -535,6 +569,7 @@ function manifestSignals(manifest) {
     webAccessibleResources,
     externalMatches,
     externalExtensionIds,
+    externalConnectionStatus,
     unmodeledKeys
   };
 }
@@ -565,6 +600,7 @@ export function analyzeManifest(manifest) {
     webAccessibleResources,
     externalMatches,
     externalExtensionIds,
+    externalConnectionStatus,
     unmodeledKeys
   } = manifestSignals(manifest);
 
@@ -1041,6 +1077,18 @@ export function analyzeManifest(manifest) {
   if (exposesEntirePackage) {
     riskFlags.push({ id: "entire-package-web-accessible", level: "high", message: "A web-accessible resource rule exposes the entire extension package; narrow the resource list and verify fingerprinting and untrusted-page access boundaries." });
   }
+  if (externalConnectionStatus.invalid) {
+    riskFlags.push({ id: "externally-connectable-invalid", level: "critical", message: "The external-connectability declaration is malformed; use arrays of valid extension IDs or match patterns and an optional boolean TLS-channel-ID flag." });
+  }
+  if (externalConnectionStatus.invalidAllUrls) {
+    riskFlags.push({ id: "externally-connectable-all-urls-invalid", level: "critical", message: "External web messaging cannot use <all_urls>; replace it with explicit valid site match patterns." });
+  }
+  if (externalConnectionStatus.wildcardIds) {
+    riskFlags.push({ id: "all-extensions-connectable", level: "high", message: "External messaging allows every extension and app ID; authenticate every message and narrow the caller set when possible." });
+  }
+  if (externalConnectionStatus.acceptsTlsChannelId) {
+    riskFlags.push({ id: "tls-channel-id-enabled", level: "high", message: "External web messaging accepts TLS channel IDs; verify explicit need, absent-ID behavior, and that identifiers are never logged or exported." });
+  }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
       id: "unmodeled-manifest-keys",
@@ -1080,9 +1128,6 @@ export function analyzeManifest(manifest) {
   }
   if (webAccessibleResources.some(entry => asStrings(entry.matches).includes("<all_urls>"))) {
     riskFlags.push({ id: "broad-web-accessible-resources", level: "high", message: "Web-accessible resources are exposed to <all_urls>; verify that every exposed file and origin is necessary." });
-  }
-  if (externalMatches.includes("<all_urls>")) {
-    riskFlags.push({ id: "broad-external-messaging", level: "critical", message: "External messaging accepts <all_urls>; treat every message as untrusted input." });
   }
   if (permissions.includes("nativeMessaging")) {
     riskFlags.push({ id: "required-native-messaging", level: "critical", message: "nativeMessaging is required; verify the installed-host boundary, failure states, and user-facing disclosure." });
@@ -1222,6 +1267,7 @@ export function compareManifests(previousManifest, currentManifest) {
   };
   const manifestChanged = previousReport.fingerprint !== currentReport.fingerprint
     || extensionKey.changed
+    || declarations.length > 0
     || unmodeledKeyChanges.added.length > 0
     || unmodeledKeyChanges.removed.length > 0
     || unmodeledKeyChanges.changed.length > 0;
@@ -1311,6 +1357,20 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "mime-types-handler-change",
       level: "critical",
       message: "MIME document-handler declarations changed. Verify top-level and embedded synthetic PDFs, original-address behavior, update continuity, and safe fallback to the native viewer."
+    });
+  }
+  if (declarations.some(change => change.field === "externally_connectable.declared")) {
+    findings.push({
+      id: "external-connectability-policy-change",
+      level: "critical",
+      message: "The external-connectability policy was added or removed. Verify cross-extension compatibility because the undeclared default allows extension callers while a declared empty policy allows none."
+    });
+  }
+  if (declarations.some(change => change.field === "externally_connectable.accepts_tls_channel_id")) {
+    findings.push({
+      id: "tls-channel-id-policy-change",
+      level: "high",
+      message: "The TLS-channel-ID acceptance policy changed. Verify opt-in callers, missing identifiers, and zero logging or export of identifiers."
     });
   }
   if (version.relation === "older") {
