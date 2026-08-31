@@ -158,6 +158,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "export",
   "file_browser_handlers",
   "file_handlers",
+  "file_system_provider_capabilities",
   "homepage_url", "host_permissions", "icons", "import", "incognito",
   "key",
   "manifest_version", "mime_types_handler", "minimum_chrome_version", "name", "oauth2", "omnibox",
@@ -533,6 +534,19 @@ function ttsEngineDiagnostics(ttsEngine) {
     return { declared: true, invalid: true };
   }
   return { declared: true, invalid: false };
+}
+
+const FILE_SYSTEM_PROVIDER_SOURCES = new Set(["file", "device", "network"]);
+
+function fileSystemProviderCapabilitiesDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { declared: true, invalid: true };
+  }
+  if (!FILE_SYSTEM_PROVIDER_SOURCES.has(value.source)) return { declared: true, invalid: true };
+  const optionalBooleansValid = ["configurable", "watchable", "multiple_mounts"]
+    .every(field => value[field] === undefined || typeof value[field] === "boolean");
+  return { declared: true, invalid: !optionalBooleansValid };
 }
 
 function oauth2Diagnostics(oauth2) {
@@ -1118,6 +1132,7 @@ export function analyzeManifest(manifest) {
   const fileBrowserHandlersStatus = fileBrowserHandlersDiagnostics(manifest.file_browser_handlers);
   const requirementsStatus = requirementsDiagnostics(manifest.requirements);
   const ttsEngineStatus = ttsEngineDiagnostics(manifest.tts_engine);
+  const fileSystemProviderCapabilitiesStatus = fileSystemProviderCapabilitiesDiagnostics(manifest.file_system_provider_capabilities);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1244,6 +1259,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "chromeos-file-browser-handlers", "high",
       "The extension registers foreground-only file actions on ChromeOS.",
       ["Test each action with matching files", "Verify non-matching files do not expose the action", "Confirm foreground event handling on ChromeOS"]);
+  }
+  if (fileSystemProviderCapabilitiesStatus.declared) {
+    addLane(lanes, "chromeos-file-system-provider", "high",
+      "The extension provides a virtual file system on ChromeOS and must preserve mount and watcher behavior.",
+      ["Test mounting and unmounting", "Verify configuration and watcher behavior", "Exercise the declared source type on ChromeOS"]);
   }
   if (ttsEngineStatus.declared) {
     addLane(lanes, "text-to-speech-engine", "high",
@@ -1679,6 +1699,12 @@ export function analyzeManifest(manifest) {
   }
   if (fileBrowserHandlersStatus.declared && !permissions.includes("fileBrowserHandler") && !optionalPermissions.includes("fileBrowserHandler")) {
     riskFlags.push({ id: "file-browser-handler-permission-missing", level: "high", message: "File browser handlers are declared without the required fileBrowserHandler permission." });
+  }
+  if (fileSystemProviderCapabilitiesStatus.invalid) {
+    riskFlags.push({ id: "file-system-provider-capabilities-invalid", level: "critical", message: "The file_system_provider_capabilities declaration is malformed; provide a supported source and boolean optional capability flags." });
+  }
+  if (fileSystemProviderCapabilitiesStatus.declared && !permissions.includes("fileSystemProvider") && !optionalPermissions.includes("fileSystemProvider")) {
+    riskFlags.push({ id: "file-system-provider-permission-missing", level: "high", message: "File system provider capabilities are declared without the required fileSystemProvider permission." });
   }
   if (ttsEngineStatus.invalid) {
     riskFlags.push({ id: "tts-engine-declaration-invalid", level: "critical", message: "The tts_engine declaration is malformed; provide a voices array whose entries have a non-empty voice name and correctly typed optional language and unique event declarations." });

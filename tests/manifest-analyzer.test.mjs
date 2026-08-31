@@ -584,6 +584,22 @@ test("validates ChromeOS file browser handlers without exposing handler metadata
   assert.ok(!JSON.stringify(missing).includes(marker));
 });
 
+test("validates ChromeOS file system provider capabilities", () => {
+  const base = { manifest_version: 3, name: "Provider fixture", version: "1.0.0", permissions: ["fileSystemProvider"] };
+  for (const declaration of [{ source: "file" }, { source: "device", configurable: true }, { source: "network", watchable: false, multiple_mounts: true }]) {
+    const report = analyzeManifest({ ...base, file_system_provider_capabilities: declaration });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "file-system-provider-capabilities-invalid"));
+    assert.ok(report.lanes.some(lane => lane.id === "chromeos-file-system-provider"));
+  }
+  for (const declaration of [null, [], "network", {}, { source: "private-source-marker" }, { source: "network", watchable: "yes" }]) {
+    const report = analyzeManifest({ ...base, file_system_provider_capabilities: declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "file-system-provider-capabilities-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes("private-source-marker"));
+  }
+  const missing = analyzeManifest({ ...base, permissions: [], file_system_provider_capabilities: { source: "network" } });
+  assert.ok(missing.riskFlags.some(flag => flag.id === "file-system-provider-permission-missing"));
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
