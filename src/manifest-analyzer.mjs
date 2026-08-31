@@ -51,7 +51,7 @@ function manifestIconDiagnostics(icons) {
   }
   const entries = Object.entries(icons);
   const invalid = entries.length === 0 || entries.some(([size, iconPath]) =>
-    !/^\d+$/.test(size) || Number(size) <= 0 || !presentString(iconPath));
+    !/^\d+$/.test(size) || Number(size) <= 0 || unsafeRulesetPath(iconPath));
   const unsupportedFormat = entries.some(([, iconPath]) =>
     presentString(iconPath) && /\.(?:svg|webp)$/i.test(iconPath.trim()));
   return {
@@ -67,7 +67,7 @@ function actionIconDiagnostics(icon) {
   if (typeof icon === "string") {
     return {
       declared: true,
-      invalid: !presentString(icon),
+      invalid: unsafeRulesetPath(icon),
       unsupportedFormat: presentString(icon) && /\.(?:svg|webp)$/i.test(icon.trim())
     };
   }
@@ -694,12 +694,12 @@ function incognitoDiagnostics(value) {
 
 function descriptionDiagnostics(value) {
   if (value === undefined) return { declared: false, invalid: false };
-  return { declared: true, invalid: typeof value !== "string" || value.length > 132 };
+  return { declared: true, invalid: typeof value !== "string" };
 }
 
 function shortNameDiagnostics(value) {
   if (value === undefined) return { declared: false, invalid: false };
-  return { declared: true, invalid: !presentString(value) || value.length > 12 };
+  return { declared: true, invalid: !presentString(value) };
 }
 
 function versionNameDiagnostics(value) {
@@ -1333,7 +1333,7 @@ export function analyzeManifest(manifest) {
     const handler = mimeHandlers[type];
     return !presentString(type)
       || !handler || typeof handler !== "object" || Array.isArray(handler)
-      || !presentString(handler.handler_url)
+      || unsafeRulesetPath(handler.handler_url)
       || (handler.can_embed !== undefined && typeof handler.can_embed !== "boolean");
   }).length + (mimeHandlersDeclared && Object.keys(mimeHandlers).length === 0 ? 1 : 0);
 

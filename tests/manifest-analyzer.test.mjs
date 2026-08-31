@@ -686,7 +686,7 @@ test("validates public metadata fields without exposing their values", () => {
     { version_name: "" }, { version_name: 42 }, { minimum_chrome_version: "01" }, { minimum_chrome_version: 42 }
   ]) {
     const report = analyzeManifest({ ...base, ...manifest });
-    assert.ok(report.riskFlags.some(flag => ["description-invalid", "short-name-invalid", "version-name-invalid", "minimum-browser-version-invalid"].includes(flag.id)));
+    assert.ok(report.riskFlags.some(flag => ["description-invalid", "description-too-long", "short-name-invalid", "short-name-too-long", "version-name-invalid", "minimum-browser-version-invalid"].includes(flag.id)));
     assert.ok(!JSON.stringify(report).includes(marker));
   }
   const valid = analyzeManifest({ ...base, description: "Useful tool", short_name: "Replay", version_name: "beta", minimum_chrome_version: "120.0" });
@@ -724,6 +724,31 @@ test("validates browser settings override pages without exposing values", () => 
   for (const declaration of [null, [], "settings", {}, { extra: marker }, { homepage: "" }, { startup_pages: [] }, { startup_pages: [marker, marker] }, { startup_pages: [42] }]) {
     const report = analyzeManifest({ ...base, chrome_settings_overrides: declaration });
     assert.ok(report.riskFlags.some(flag => flag.id === "browser-settings-overrides-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
+test("validates referenced asset paths without reading or exposing them", () => {
+  const marker = "private-assets-marker";
+  const base = { manifest_version: 3, name: "Asset fixture", version: "1.0.0" };
+  const valid = analyzeManifest({
+    ...base,
+    icons: { "48": `images/${marker}.png`, "128": "images/large.png" },
+    action: { default_icon: { "16": `images/${marker}-action.png` } },
+    mime_types_handler: { "application/pdf": { handler_url: `viewer/${marker}.html` } },
+    minimum_chrome_version: "151"
+  });
+  assert.ok(!valid.riskFlags.some(flag => ["manifest-icons-invalid", "action-icon-invalid", "mime-types-handler-invalid"].includes(flag.id)));
+  assert.ok(!JSON.stringify(valid).includes(marker));
+  for (const manifest of [
+    { icons: { "48": "/absolute.png" } },
+    { icons: { "48": ["..", "escape.png"].join("/") } },
+    { action: { default_icon: "C:/absolute.png" } },
+    { action: { default_icon: { "16": "/absolute.png" } } },
+    { mime_types_handler: { "application/pdf": { handler_url: ["..", `${marker}.html`].join("/") } }, minimum_chrome_version: "151" }
+  ]) {
+    const report = analyzeManifest({ ...base, ...manifest });
+    assert.ok(report.riskFlags.some(flag => ["manifest-icons-invalid", "action-icon-invalid", "mime-types-handler-invalid"].includes(flag.id)));
     assert.ok(!JSON.stringify(report).includes(marker));
   }
 });
