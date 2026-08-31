@@ -94,6 +94,10 @@ public for testing, but no package, tag, or GitHub Release exists.
 - Content-security-policy structure and isolation validation for extension and sandbox pages.
 - Browser settings override validation for homepage, startup, and search-provider declarations.
 - Safe relative-path enforcement for manifest icons, action icons, and MIME handler pages.
+- Web-accessible-resource and external-connectability validation for paths,
+  origins, identifiers, uniqueness, and supported fields.
+- File/MIME handler, action, and options object hardening for duplicates,
+  unknown fields, and conflicting options declarations.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

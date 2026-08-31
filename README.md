@@ -134,6 +134,9 @@ The interface also provides:
 - Manifest V3 extension-page and sandbox content-security-policy validation;
 - browser homepage, startup-page, and search-provider override validation;
 - safe relative-path enforcement for manifest/action icons and MIME handlers;
+- strict web-accessible-resource and external-connectability target validation;
+- duplicate and unknown-field rejection for file and MIME handlers;
+- strict `action` and options object boundaries, including conflicting options pages;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only
