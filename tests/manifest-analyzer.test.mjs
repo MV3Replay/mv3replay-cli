@@ -248,6 +248,68 @@ for (const [label, background] of [
   });
 }
 
+test("validates action popup entry points", () => {
+  const base = { manifest_version: 3, name: "UI fixture", version: "1.0.0" };
+  for (const action of [undefined, {}, { default_title: "Open", default_popup: "ui/popup.html" }]) {
+    const report = analyzeManifest(action === undefined ? base : { ...base, action });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "action-popup-invalid"));
+  }
+  for (const action of [
+    "popup.html",
+    { default_title: 42 },
+    { default_popup: "" },
+    { default_popup: "/popup.html" },
+    { default_popup: ["..", "popup.html"].join("/") }
+  ]) {
+    const report = analyzeManifest({ ...base, action });
+    assert.ok(report.riskFlags.some(flag => flag.id === "action-popup-invalid" && flag.level === "critical"));
+  }
+});
+
+test("validates options page entry points", () => {
+  const base = { manifest_version: 3, name: "Options fixture", version: "1.0.0" };
+  for (const declaration of [
+    { options_page: "ui/options.html" },
+    { options_ui: { page: "ui/options.html" } },
+    { options_ui: { page: "ui/options.html", open_in_tab: false } }
+  ]) {
+    const report = analyzeManifest({ ...base, ...declaration });
+    assert.ok(report.surfaces.optionsPage);
+    assert.ok(!report.riskFlags.some(flag => flag.id === "options-declaration-invalid"));
+  }
+  for (const declaration of [
+    { options_page: "" },
+    { options_page: "/options.html" },
+    { options_page: ["..", "options.html"].join("/") },
+    { options_ui: "options.html" },
+    { options_ui: {} },
+    { options_ui: { page: "/options.html" } },
+    { options_ui: { page: "options.html", open_in_tab: "no" } }
+  ]) {
+    const report = analyzeManifest({ ...base, ...declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "options-declaration-invalid" && flag.level === "critical"));
+  }
+});
+
+test("validates default side-panel entry points", () => {
+  const base = { manifest_version: 3, name: "Panel fixture", version: "1.0.0" };
+  const valid = analyzeManifest({ ...base, side_panel: { default_path: "ui/panel.html" } });
+  assert.ok(valid.surfaces.sidePanel);
+  assert.ok(valid.lanes.some(lane => lane.id === "side-panel"));
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "side-panel-invalid"));
+
+  for (const side_panel of [
+    "panel.html",
+    {},
+    { default_path: "" },
+    { default_path: "/panel.html" },
+    { default_path: ["..", "panel.html"].join("/") }
+  ]) {
+    const report = analyzeManifest({ ...base, side_panel });
+    assert.ok(report.riskFlags.some(flag => flag.id === "side-panel-invalid" && flag.level === "critical"));
+  }
+});
+
 test("builds reversible lanes for browser setting controls", () => {
   const report = analyzeManifest({
     manifest_version: 3,
