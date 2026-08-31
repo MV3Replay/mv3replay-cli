@@ -144,8 +144,8 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "key",
   "manifest_version", "mime_types_handler", "minimum_chrome_version", "name", "oauth2", "omnibox",
   "optional_host_permissions", "optional_permissions", "options_page", "options_ui",
-  "permissions", "sandbox", "short_name", "side_panel", "storage", "update_url", "version", "version_name",
-  "web_accessible_resources"
+  "permissions", "requirements", "sandbox", "short_name", "side_panel", "storage", "tts_engine",
+  "update_url", "version", "version_name", "web_accessible_resources"
 ]);
 
 const unmodeledTopLevelKeys = manifest => objectKeys(manifest)
@@ -469,6 +469,52 @@ function storageDiagnostics(storage) {
   }
   const invalidManagedSchema = storage.managed_schema !== undefined && unsafeRulesetPath(storage.managed_schema);
   return { declared: true, invalid: false, invalidManagedSchema };
+}
+
+const REQUIREMENTS_3D_FEATURES = new Set(["webgl", "css3d"]);
+
+function requirementsDiagnostics(requirements) {
+  if (requirements === undefined) return { declared: false, invalid: false };
+  if (!requirements || typeof requirements !== "object" || Array.isArray(requirements)) {
+    return { declared: true, invalid: true };
+  }
+  if (requirements.plugins !== undefined) return { declared: true, invalid: true };
+  if (requirements["3D"] !== undefined) {
+    const threeD = requirements["3D"];
+    if (!threeD || typeof threeD !== "object" || Array.isArray(threeD)) {
+      return { declared: true, invalid: true };
+    }
+    const features = threeD.features;
+    if (!Array.isArray(features) || features.length === 0
+      || new Set(features).size !== features.length
+      || !features.every(feature => REQUIREMENTS_3D_FEATURES.has(feature))) {
+      return { declared: true, invalid: true };
+    }
+  }
+  return { declared: true, invalid: false };
+}
+
+function validTtsVoice(voice) {
+  if (!voice || typeof voice !== "object" || Array.isArray(voice)) return false;
+  if (!presentString(voice.voice_name)) return false;
+  if (voice.lang !== undefined && !presentString(voice.lang)) return false;
+  if (voice.event_types !== undefined) {
+    if (!Array.isArray(voice.event_types) || voice.event_types.length === 0) return false;
+    if (!voice.event_types.every(type => presentString(type))) return false;
+    if (new Set(voice.event_types).size !== voice.event_types.length) return false;
+  }
+  return true;
+}
+
+function ttsEngineDiagnostics(ttsEngine) {
+  if (ttsEngine === undefined) return { declared: false, invalid: false };
+  if (!ttsEngine || typeof ttsEngine !== "object" || Array.isArray(ttsEngine)) {
+    return { declared: true, invalid: true };
+  }
+  if (!Array.isArray(ttsEngine.voices) || !ttsEngine.voices.every(validTtsVoice)) {
+    return { declared: true, invalid: true };
+  }
+  return { declared: true, invalid: false };
 }
 
 function oauth2Diagnostics(oauth2) {
@@ -1013,6 +1059,8 @@ export function analyzeManifest(manifest) {
   const coepStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_embedder_policy);
   const coopStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_opener_policy);
   const storageStatus = storageDiagnostics(manifest.storage);
+  const requirementsStatus = requirementsDiagnostics(manifest.requirements);
+  const ttsEngineStatus = ttsEngineDiagnostics(manifest.tts_engine);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1119,6 +1167,16 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "unmodeled-manifest-keys", "high",
       `The analyzer does not interpret these top-level manifest keys: ${unmodeledKeys.join(", ")}.`,
       ["Review each unmodeled key against its browser documentation", "Add manual checks for every behavior the key enables or changes", "Do not treat this report as complete until those checks are covered"]);
+  }
+  if (requirementsStatus.declared) {
+    addLane(lanes, "hardware-requirements", "high",
+      "The extension declares a hardware capability requirement that can affect installation compatibility.",
+      ["Test installation with supported graphics acceleration", "Test the documented fallback on unsupported hardware", "Recheck compatibility after changing the requirement"]);
+  }
+  if (ttsEngineStatus.declared) {
+    addLane(lanes, "text-to-speech-engine", "high",
+      "The extension registers text-to-speech voices and must handle speech lifecycle events safely.",
+      ["Confirm each declared voice is discoverable", "Exercise start, stop, and completion behavior", "Verify behavior when the required permission is unavailable"]);
   }
   if (presentationMetadata) {
     const checks = [
@@ -1528,6 +1586,15 @@ export function analyzeManifest(manifest) {
   }
   if (storageStatus.invalidManagedSchema) {
     riskFlags.push({ id: "managed-storage-schema-path-invalid", level: "critical", message: "The storage.managed_schema path is malformed; it must be a non-empty safe relative path without a leading slash, drive letter, or parent-directory traversal." });
+  }
+  if (requirementsStatus.invalid) {
+    riskFlags.push({ id: "requirements-declaration-invalid", level: "critical", message: "The requirements declaration is malformed; use a non-array object and, for a 3D requirement, a non-empty unique feature list containing only supported graphics capabilities. Deprecated plugin requirements are not accepted." });
+  }
+  if (ttsEngineStatus.invalid) {
+    riskFlags.push({ id: "tts-engine-declaration-invalid", level: "critical", message: "The tts_engine declaration is malformed; provide a voices array whose entries have a non-empty voice name and correctly typed optional language and unique event declarations." });
+  }
+  if (ttsEngineStatus.declared && !permissions.includes("ttsEngine") && !optionalPermissions.includes("ttsEngine")) {
+    riskFlags.push({ id: "tts-engine-permission-missing", level: "high", message: "A text-to-speech engine is declared without the required ttsEngine permission; add the permission or remove the declaration." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

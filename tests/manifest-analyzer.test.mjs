@@ -494,6 +494,43 @@ test("validates managed storage schema paths without reading or exposing them", 
   }
 });
 
+test("validates graphics requirements without exposing feature values", () => {
+  const base = { manifest_version: 3, name: "Requirements fixture", version: "1.0.0" };
+  for (const requirements of [{}, { "3D": { features: ["webgl"] } }, { "3D": { features: ["css3d", "webgl"] } }]) {
+    const report = analyzeManifest({ ...base, requirements });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "requirements-declaration-invalid"));
+    assert.ok(report.lanes.some(lane => lane.id === "hardware-requirements"));
+  }
+  for (const requirements of [null, [], "webgl", { plugins: {} }, { "3D": null }, { "3D": {} },
+    { "3D": { features: [] } }, { "3D": { features: ["webgl", "webgl"] } }, { "3D": { features: ["private-feature-marker"] } }]) {
+    const report = analyzeManifest({ ...base, requirements });
+    assert.ok(report.riskFlags.some(flag => flag.id === "requirements-declaration-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes("private-feature-marker"));
+  }
+});
+
+test("validates text-to-speech engine declarations without exposing voice metadata", () => {
+  const marker = "private-voice-marker";
+  const base = { manifest_version: 3, name: "Speech fixture", version: "1.0.0", permissions: ["ttsEngine"] };
+  for (const tts_engine of [{ voices: [] }, { voices: [{ voice_name: marker }] },
+    { voices: [{ voice_name: marker, lang: "en-CA", event_types: ["start", "end"] }] }]) {
+    const report = analyzeManifest({ ...base, tts_engine });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "tts-engine-declaration-invalid" || flag.id === "tts-engine-permission-missing"));
+    assert.ok(report.lanes.some(lane => lane.id === "text-to-speech-engine"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  for (const tts_engine of [null, [], {}, { voices: "voice" }, { voices: [null] },
+    { voices: [{}] }, { voices: [{ voice_name: "" }] }, { voices: [{ voice_name: marker, lang: "" }] },
+    { voices: [{ voice_name: marker, event_types: [] }] }, { voices: [{ voice_name: marker, event_types: ["end", "end"] }] }]) {
+    const report = analyzeManifest({ ...base, tts_engine });
+    assert.ok(report.riskFlags.some(flag => flag.id === "tts-engine-declaration-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  const missingPermission = analyzeManifest({ ...base, permissions: [], tts_engine: { voices: [{ voice_name: marker }] } });
+  assert.ok(missingPermission.riskFlags.some(flag => flag.id === "tts-engine-permission-missing" && flag.level === "high"));
+  assert.ok(!JSON.stringify(missingPermission).includes(marker));
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
