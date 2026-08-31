@@ -198,6 +198,56 @@ test("builds a toolbar-action lane when no popup is declared", () => {
   assert.ok(!report.lanes.some(lane => lane.id === "action-popup"));
 });
 
+function baseManifest(background) {
+  return {
+    manifest_version: 3,
+    name: "Background validation",
+    version: "1.0.0",
+    ...(background === undefined ? {} : { background })
+  };
+}
+
+test("treats an absent background key as valid", () => {
+  const report = analyzeManifest(baseManifest());
+  assert.equal(report.surfaces.serviceWorker, false);
+  assert.ok(!report.riskFlags.some(flag => flag.id === "background-service-worker-invalid"));
+});
+
+test("accepts a valid classic MV3 service worker", () => {
+  const report = analyzeManifest(baseManifest({ service_worker: "worker.js" }));
+  assert.equal(report.surfaces.serviceWorker, true);
+  assert.ok(report.lanes.some(lane => lane.id === "service-worker-lifecycle"));
+  assert.ok(!report.riskFlags.some(flag => flag.id === "background-service-worker-invalid"));
+});
+
+test("accepts a valid module MV3 service worker", () => {
+  const report = analyzeManifest(baseManifest({ service_worker: "worker.js", type: "module" }));
+  assert.equal(report.surfaces.serviceWorker, true);
+  assert.ok(!report.riskFlags.some(flag => flag.id === "background-service-worker-invalid"));
+});
+
+for (const [label, background] of [
+  ["non-object background", "worker.js"],
+  ["empty background object", {}],
+  ["missing service_worker", { type: "module" }],
+  ["empty service_worker string", { service_worker: "" }],
+  ["non-string service_worker", { service_worker: 42 }],
+  ["MV2 scripts field", { service_worker: "worker.js", scripts: ["bg.js"] }],
+  ["MV2 persistent field", { service_worker: "worker.js", persistent: false }],
+  ["absolute worker path", { service_worker: "/worker.js" }],
+  ["parent-traversal worker path", { service_worker: "../worker.js" }],
+  ["unsupported type value", { service_worker: "worker.js", type: "classic" }]
+]) {
+  test(`rejects malformed MV3 background declaration: ${label}`, () => {
+    const report = analyzeManifest(baseManifest(background));
+    assert.equal(report.surfaces.serviceWorker, false);
+    assert.ok(!report.lanes.some(lane => lane.id === "service-worker-lifecycle"));
+    const flag = report.riskFlags.find(item => item.id === "background-service-worker-invalid");
+    assert.ok(flag);
+    assert.equal(flag.level, "critical");
+  });
+}
+
 test("builds reversible lanes for browser setting controls", () => {
   const report = analyzeManifest({
     manifest_version: 3,

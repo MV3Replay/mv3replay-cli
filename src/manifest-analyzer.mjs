@@ -360,6 +360,21 @@ function unsafeRulesetPath(path) {
   return trimmed.split(/[\\/]/).some(segment => segment === "..");
 }
 
+function backgroundDiagnostics(background) {
+  if (background === undefined) return { declared: false, invalid: false };
+  if (!background || typeof background !== "object" || Array.isArray(background)
+    || Object.keys(background).length === 0) {
+    return { declared: true, invalid: true };
+  }
+  if (!presentString(background.service_worker)) return { declared: true, invalid: true };
+  if (background.scripts !== undefined || background.persistent !== undefined) {
+    return { declared: true, invalid: true };
+  }
+  if (unsafeRulesetPath(background.service_worker)) return { declared: true, invalid: true };
+  if (background.type !== undefined && background.type !== "module") return { declared: true, invalid: true };
+  return { declared: true, invalid: false };
+}
+
 function staticRulesetDiagnostics(declarativeNetRequest) {
   if (declarativeNetRequest === undefined) return { declared: false, invalid: false };
   if (!declarativeNetRequest || typeof declarativeNetRequest !== "object" || Array.isArray(declarativeNetRequest)) {
@@ -696,6 +711,7 @@ function manifestSignals(manifest) {
   const staticRulesetStatus = staticRulesetDiagnostics(manifest.declarative_net_request);
   const contentScriptStatus = contentScriptDiagnostics(manifest.content_scripts);
   const commandStatus = commandDiagnostics(manifest.commands);
+  const backgroundStatus = backgroundDiagnostics(manifest.background);
   const unmodeledKeys = unmodeledTopLevelKeys(manifest);
 
   return {
@@ -714,6 +730,7 @@ function manifestSignals(manifest) {
     staticRulesetStatus,
     contentScriptStatus,
     commandStatus,
+    backgroundStatus,
     unmodeledKeys
   };
 }
@@ -748,6 +765,7 @@ export function analyzeManifest(manifest) {
     staticRulesetStatus,
     contentScriptStatus,
     commandStatus,
+    backgroundStatus,
     unmodeledKeys
   } = manifestSignals(manifest);
 
@@ -755,7 +773,7 @@ export function analyzeManifest(manifest) {
   const actionPopup = presentString(manifest.action?.default_popup);
   const optionsPage = presentString(manifest.options_page)
     || presentString(manifest.options_ui?.page);
-  const serviceWorker = presentString(manifest.background?.service_worker);
+  const serviceWorker = backgroundStatus.declared && !backgroundStatus.invalid;
   const sidePanel = presentString(manifest.side_panel?.default_path);
   const devtoolsPage = presentString(manifest.devtools_page);
   const storage = permissions.includes("storage") || optionalPermissions.includes("storage");
@@ -1256,6 +1274,9 @@ export function analyzeManifest(manifest) {
   }
   if (commandStatus.deprecatedAction) {
     riskFlags.push({ id: "deprecated-action-command", level: "critical", message: "The manifest uses a Manifest V2 action-command name; replace it with _execute_action for Manifest V3." });
+  }
+  if (backgroundStatus.invalid) {
+    riskFlags.push({ id: "background-service-worker-invalid", level: "critical", message: "The Manifest V3 background declaration is malformed; declare only a non-empty relative service_worker path, omit Manifest V2 scripts and persistent fields, avoid absolute or parent-traversal worker paths, and use only \"module\" for an optional type." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
