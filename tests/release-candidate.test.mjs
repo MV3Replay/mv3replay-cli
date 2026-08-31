@@ -110,6 +110,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "external-connectability policy validation",
       "static content-script declaration validation",
       "keyboard-command declaration validation",
+      "static declarative-network-ruleset validation",
       "extension display-name change coverage",
       "ChromeOS file-handler coverage",
       "ChromeOS file-handler declaration validation",

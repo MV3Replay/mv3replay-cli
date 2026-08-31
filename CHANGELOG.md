@@ -70,6 +70,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   fields, injection timing, execution worlds, and origin-fallback paths.
 - Keyboard-command validation for required descriptions, platform-specific
   shortcut syntax, MV3 action names, and the four-suggestion limit.
+- Static declarative-network-ruleset validation for unique IDs, boolean state,
+  and safe relative paths without reading referenced rule files.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

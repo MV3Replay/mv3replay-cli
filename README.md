@@ -108,6 +108,8 @@ The interface also provides:
   field types, injection timing, execution world, and origin-fallback paths;
 - keyboard-command validation for descriptions, platform-specific shortcuts,
   case-sensitive keys, MV3 action names, and the four-suggestion limit;
+- static declarative-network-ruleset validation for unique IDs, enabled flags,
+  and safe relative JSON paths without reading referenced rule files;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only
