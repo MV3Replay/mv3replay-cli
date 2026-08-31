@@ -310,6 +310,60 @@ test("validates default side-panel entry points", () => {
   }
 });
 
+test("validates named permission arrays without silently dropping values", () => {
+  const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
+  const valid = analyzeManifest({
+    ...base,
+    permissions: ["storage", "tabs"],
+    optional_permissions: ["bookmarks"]
+  });
+  assert.ok(!valid.riskFlags.some(flag => flag.id.endsWith("permissions-invalid")
+    || flag.id.includes("host-pattern-misplaced")));
+
+  for (const [field, value, riskId] of [
+    ["permissions", "storage", "permissions-invalid"],
+    ["permissions", ["storage", 42], "permissions-invalid"],
+    ["optional_permissions", [""], "optional-permissions-invalid"],
+    ["permissions", ["https://example.test/*"], "permissions-host-pattern-misplaced"],
+    ["optional_permissions", ["<all_urls>"], "optional-permissions-host-pattern-misplaced"]
+  ]) {
+    const report = analyzeManifest({ ...base, [field]: value });
+    assert.ok(report.riskFlags.some(flag => flag.id === riskId && flag.level === "critical"));
+  }
+});
+
+test("validates required and optional host-permission match patterns", () => {
+  const base = { manifest_version: 3, name: "Host fixture", version: "1.0.0" };
+  const validPatterns = [
+    "<all_urls>",
+    "https://example.test/*",
+    "http://*.example.test/path/*",
+    "*://*/*",
+    "file:///",
+    "file:///*"
+  ];
+  const valid = analyzeManifest({
+    ...base,
+    host_permissions: validPatterns,
+    optional_host_permissions: ["https://optional.test/"]
+  });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "host-permissions-invalid"
+    || flag.id === "optional-host-permissions-invalid"));
+
+  for (const [field, value, riskId] of [
+    ["host_permissions", "https://example.test/*", "host-permissions-invalid"],
+    ["host_permissions", [""], "host-permissions-invalid"],
+    ["host_permissions", ["ftp://example.test/*"], "host-permissions-invalid"],
+    ["host_permissions", ["https://example.test"], "host-permissions-invalid"],
+    ["host_permissions", ["https://bad host/*"], "host-permissions-invalid"],
+    ["optional_host_permissions", [42], "optional-host-permissions-invalid"],
+    ["optional_host_permissions", ["about:blank"], "optional-host-permissions-invalid"]
+  ]) {
+    const report = analyzeManifest({ ...base, [field]: value });
+    assert.ok(report.riskFlags.some(flag => flag.id === riskId && flag.level === "critical"));
+  }
+});
+
 test("builds reversible lanes for browser setting controls", () => {
   const report = analyzeManifest({
     manifest_version: 3,

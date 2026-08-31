@@ -84,6 +84,32 @@ function webAccessibleMatchHasInvalidPath(pattern) {
   return !/^[^:]+:\/\/[^/]*\/\*$/.test(pattern);
 }
 
+const WEB_HOST_PATTERN_REGEX = /^(?:https?|\*):\/\/(?:\*|\*\.[^*/\s]+|[^*/\s]+)\/.*$/;
+const FILE_HOST_PATTERN_REGEX = /^file:\/\/\/.*$/;
+
+function validHostPermissionPattern(pattern) {
+  if (pattern === "<all_urls>") return true;
+  if (!presentString(pattern)) return false;
+  return WEB_HOST_PATTERN_REGEX.test(pattern) || FILE_HOST_PATTERN_REGEX.test(pattern);
+}
+
+function namedPermissionListDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false, misplacedHostPattern: false };
+  if (!Array.isArray(value)) return { declared: true, invalid: true, misplacedHostPattern: false };
+  const invalid = value.some(item => typeof item !== "string" || !presentString(item));
+  const misplacedHostPattern = value.some(item =>
+    typeof item === "string" && (item === "<all_urls>" || item.includes("://")));
+  return { declared: true, invalid, misplacedHostPattern };
+}
+
+function hostPermissionListDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!Array.isArray(value)) return { declared: true, invalid: true };
+  const invalid = value.some(item => typeof item !== "string" || !presentString(item)
+    || !validHostPermissionPattern(item));
+  return { declared: true, invalid };
+}
+
 function externallyConnectableDiagnostics(value) {
   if (value === undefined) return { declared: false, invalid: false, invalidAllUrls: false, wildcardIds: false, acceptsTlsChannelId: false };
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -744,6 +770,10 @@ function manifestSignals(manifest) {
   const externalMatches = sortedUnique(asStrings(manifest.externally_connectable?.matches));
   const externalExtensionIds = sortedUnique(asStrings(manifest.externally_connectable?.ids));
   const externalConnectionStatus = externallyConnectableDiagnostics(manifest.externally_connectable);
+  const permissionsStatus = namedPermissionListDiagnostics(manifest.permissions);
+  const optionalPermissionsStatus = namedPermissionListDiagnostics(manifest.optional_permissions);
+  const hostPermissionsStatus = hostPermissionListDiagnostics(manifest.host_permissions);
+  const optionalHostPermissionsStatus = hostPermissionListDiagnostics(manifest.optional_host_permissions);
   const staticRulesetStatus = staticRulesetDiagnostics(manifest.declarative_net_request);
   const contentScriptStatus = contentScriptDiagnostics(manifest.content_scripts);
   const commandStatus = commandDiagnostics(manifest.commands);
@@ -763,6 +793,10 @@ function manifestSignals(manifest) {
     externalMatches,
     externalExtensionIds,
     externalConnectionStatus,
+    permissionsStatus,
+    optionalPermissionsStatus,
+    hostPermissionsStatus,
+    optionalHostPermissionsStatus,
     staticRulesetStatus,
     contentScriptStatus,
     commandStatus,
@@ -798,6 +832,10 @@ export function analyzeManifest(manifest) {
     externalMatches,
     externalExtensionIds,
     externalConnectionStatus,
+    permissionsStatus,
+    optionalPermissionsStatus,
+    hostPermissionsStatus,
+    optionalHostPermissionsStatus,
     staticRulesetStatus,
     contentScriptStatus,
     commandStatus,
@@ -1292,6 +1330,24 @@ export function analyzeManifest(manifest) {
   }
   if (externalConnectionStatus.acceptsTlsChannelId) {
     riskFlags.push({ id: "tls-channel-id-enabled", level: "high", message: "External web messaging accepts TLS channel IDs; verify explicit need, absent-ID behavior, and that identifiers are never logged or exported." });
+  }
+  if (permissionsStatus.invalid) {
+    riskFlags.push({ id: "permissions-invalid", level: "critical", message: "The permissions declaration is malformed; permissions must be an array containing only non-empty strings." });
+  }
+  if (permissionsStatus.misplacedHostPattern) {
+    riskFlags.push({ id: "permissions-host-pattern-misplaced", level: "critical", message: "The permissions array contains a URL-style or <all_urls> host pattern; move host match patterns to host_permissions instead." });
+  }
+  if (optionalPermissionsStatus.invalid) {
+    riskFlags.push({ id: "optional-permissions-invalid", level: "critical", message: "The optional_permissions declaration is malformed; optional_permissions must be an array containing only non-empty strings." });
+  }
+  if (optionalPermissionsStatus.misplacedHostPattern) {
+    riskFlags.push({ id: "optional-permissions-host-pattern-misplaced", level: "critical", message: "The optional_permissions array contains a URL-style or <all_urls> host pattern; move host match patterns to optional_host_permissions instead." });
+  }
+  if (hostPermissionsStatus.invalid) {
+    riskFlags.push({ id: "host-permissions-invalid", level: "critical", message: "The host_permissions declaration is malformed; host_permissions must be an array containing only non-empty, syntactically valid match patterns or <all_urls>." });
+  }
+  if (optionalHostPermissionsStatus.invalid) {
+    riskFlags.push({ id: "optional-host-permissions-invalid", level: "critical", message: "The optional_host_permissions declaration is malformed; optional_host_permissions must be an array containing only non-empty, syntactically valid match patterns or <all_urls>." });
   }
   if (staticRulesetStatus.invalid) {
     riskFlags.push({ id: "static-rulesets-invalid", level: "critical", message: "The declarative net request rule-resources declaration is malformed; require a non-empty array of rulesets with unique non-empty IDs, boolean enabled flags, and safe relative paths." });
