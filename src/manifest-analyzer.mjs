@@ -283,24 +283,41 @@ function validCommandShortcut(shortcut, platform) {
   return modifiers.some(item => ["Ctrl", "Alt", "MacCtrl", "Option", "Command"].includes(item));
 }
 
+const COMMAND_DECLARATION_KEYS = new Set(["description", "suggested_key", "global"]);
+const RESERVED_COMMAND_NAMES = new Set(["_execute_action", "_execute_browser_action", "_execute_page_action"]);
+
 function commandDiagnostics(value) {
   if (value === undefined) {
-    return { invalid: false, missingDescription: false, tooManySuggested: false, deprecatedAction: false };
+    return { invalid: false, missingDescription: false, tooManySuggested: false, deprecatedAction: false, duplicateShortcut: false };
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { invalid: true, missingDescription: false, tooManySuggested: false, deprecatedAction: false };
+    return { invalid: true, missingDescription: false, tooManySuggested: false, deprecatedAction: false, duplicateShortcut: false };
   }
   let invalid = Object.keys(value).length === 0;
   let missingDescription = false;
   let suggestedCount = 0;
   let deprecatedAction = false;
+  let duplicateShortcut = false;
+  const platformShortcutOwners = new Map([...COMMAND_PLATFORMS].map(platform => [platform, new Map()]));
+
+  const registerShortcut = (platform, shortcut, name) => {
+    const owners = platformShortcutOwners.get(platform);
+    if (owners.has(shortcut) && owners.get(shortcut) !== name) {
+      duplicateShortcut = true;
+    } else {
+      owners.set(shortcut, name);
+    }
+  };
+
   for (const [name, declaration] of Object.entries(value)) {
     if (!presentString(name) || !declaration || typeof declaration !== "object" || Array.isArray(declaration)) {
       invalid = true;
       continue;
     }
+    if (!Object.keys(declaration).every(key => COMMAND_DECLARATION_KEYS.has(key))) invalid = true;
     const actionCommand = name === "_execute_action";
     const legacyActionCommand = name === "_execute_browser_action" || name === "_execute_page_action";
+    if (name.startsWith("_") && !RESERVED_COMMAND_NAMES.has(name)) invalid = true;
     deprecatedAction ||= legacyActionCommand;
     missingDescription ||= !actionCommand && !legacyActionCommand && !presentString(declaration.description);
     if (declaration.description !== undefined && typeof declaration.description !== "string") invalid = true;
@@ -308,7 +325,11 @@ function commandDiagnostics(value) {
     if (declaration.suggested_key === undefined) continue;
     suggestedCount += 1;
     if (typeof declaration.suggested_key === "string") {
-      invalid ||= !validCommandShortcut(declaration.suggested_key, "default");
+      const validShortcut = validCommandShortcut(declaration.suggested_key, "default");
+      invalid ||= !validShortcut;
+      if (validShortcut) {
+        for (const platform of COMMAND_PLATFORMS) registerShortcut(platform, declaration.suggested_key, name);
+      }
       continue;
     }
     if (!declaration.suggested_key || typeof declaration.suggested_key !== "object"
@@ -317,14 +338,24 @@ function commandDiagnostics(value) {
       continue;
     }
     const shortcuts = Object.entries(declaration.suggested_key);
-    invalid ||= shortcuts.length === 0 || shortcuts.some(([platform, shortcut]) =>
+    const shortcutsInvalid = shortcuts.length === 0 || shortcuts.some(([platform, shortcut]) =>
       !COMMAND_PLATFORMS.has(platform) || !validCommandShortcut(shortcut, platform));
+    invalid ||= shortcutsInvalid;
+    if (!shortcutsInvalid) {
+      const declared = Object.fromEntries(shortcuts);
+      for (const platform of COMMAND_PLATFORMS) {
+        const effective = platform === "default" ? declared.default : (declared[platform] ?? declared.default);
+        if (effective === undefined) continue;
+        registerShortcut(platform, effective, name);
+      }
+    }
   }
   return {
     invalid,
     missingDescription,
     tooManySuggested: suggestedCount > 4,
-    deprecatedAction
+    deprecatedAction,
+    duplicateShortcut
   };
 }
 
@@ -1857,6 +1888,9 @@ export function analyzeManifest(manifest) {
   }
   if (commandStatus.deprecatedAction) {
     riskFlags.push({ id: "deprecated-action-command", level: "critical", message: "The manifest uses a Manifest V2 action-command name; replace it with _execute_action for Manifest V3." });
+  }
+  if (commandStatus.duplicateShortcut) {
+    riskFlags.push({ id: "duplicate-command-shortcut", level: "critical", message: "Multiple commands resolve to the same suggested keyboard shortcut on at least one platform; assign unique shortcuts before packaging." });
   }
   if (backgroundStatus.invalid) {
     riskFlags.push({ id: "background-service-worker-invalid", level: "critical", message: "The Manifest V3 background declaration is malformed; declare only a non-empty relative service_worker path, omit Manifest V2 scripts and persistent fields, avoid absolute or parent-traversal worker paths, and use only \"module\" for an optional type." });

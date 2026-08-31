@@ -825,6 +825,25 @@ test("rejects duplicate and overlapping permission declarations", () => {
   }
 });
 
+test("hardens command fields, reserved names, and duplicate shortcuts", () => {
+  const base = { manifest_version: 3, name: "Command hardening fixture", version: "1.0.0" };
+  for (const commands of [
+    { first: { description: "First", extra: true } },
+    { _private_command: { description: "Private" } },
+    { first: { description: "First", suggested_key: { mobile: "Ctrl+F" } } }
+  ]) {
+    const report = analyzeManifest({ ...base, commands });
+    assert.ok(report.riskFlags.some(flag => flag.id === "commands-invalid" && flag.level === "critical"));
+  }
+  for (const commands of [
+    { first: { description: "First", suggested_key: "Ctrl+F" }, second: { description: "Second", suggested_key: "Ctrl+F" } },
+    { first: { description: "First", suggested_key: { default: "Ctrl+F" } }, second: { description: "Second", suggested_key: { windows: "Ctrl+F" } } }
+  ]) {
+    const report = analyzeManifest({ ...base, commands });
+    assert.ok(report.riskFlags.some(flag => flag.id === "duplicate-command-shortcut" && flag.level === "critical"));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
