@@ -63,6 +63,27 @@ function actionIconDiagnostics(icon) {
   };
 }
 
+function validWebAccessibleResource(entry) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+  const resources = asStrings(entry.resources);
+  const matches = asStrings(entry.matches);
+  const extensionIds = asStrings(entry.extension_ids);
+  if (!Array.isArray(entry.resources) || resources.length === 0 || resources.length !== entry.resources.length
+    || resources.some(resource => !presentString(resource))) return false;
+  const hasMatches = Array.isArray(entry.matches) && matches.length > 0 && matches.length === entry.matches.length
+    && matches.every(pattern => presentString(pattern));
+  const hasExtensionIds = Array.isArray(entry.extension_ids) && extensionIds.length > 0
+    && extensionIds.length === entry.extension_ids.length && extensionIds.every(id => presentString(id));
+  if (!hasMatches && !hasExtensionIds) return false;
+  return entry.use_dynamic_url === undefined || typeof entry.use_dynamic_url === "boolean";
+}
+
+function webAccessibleMatchHasInvalidPath(pattern) {
+  if (pattern === "<all_urls>") return false;
+  if (!presentString(pattern) || !pattern.includes("://")) return false;
+  return !/^[^:]+:\/\/[^/]*\/\*$/.test(pattern);
+}
+
 // Top-level fields whose values currently influence identities, surfaces,
 // findings, comparison details, or generated regression lanes. Other fields
 // are valid input, but their behavior is deliberately reported as unmodeled.
@@ -612,6 +633,16 @@ export function analyzeManifest(manifest) {
   const manifestNameDeclared = presentString(manifest.name);
   const validManifestName = manifestNameDeclared && manifest.name.trim().length <= 75;
   const validManifestVersion = parseChromeExtensionVersion(manifest.version) !== null;
+  const webAccessibleResourcesDeclared = manifest.web_accessible_resources !== undefined;
+  const invalidWebAccessibleResourceCount = webAccessibleResourcesDeclared && !Array.isArray(manifest.web_accessible_resources)
+    ? 1
+    : (Array.isArray(manifest.web_accessible_resources)
+      ? manifest.web_accessible_resources.filter(entry => !validWebAccessibleResource(entry)).length
+      : 0);
+  const invalidWebAccessibleMatchPath = webAccessibleResources.some(entry =>
+    asStrings(entry.matches).some(webAccessibleMatchHasInvalidPath));
+  const exposesEntirePackage = webAccessibleResources.some(entry =>
+    asStrings(entry.resources).some(resource => resource === "*" || resource === "/*"));
   const fileHandlersDeclared = manifest.file_handlers !== undefined;
   const fileHandlers = Array.isArray(manifest.file_handlers) ? manifest.file_handlers : [];
   const fileHandling = fileHandlers.length > 0;
@@ -1000,6 +1031,15 @@ export function analyzeManifest(manifest) {
   }
   if (actionIconStatus.unsupportedFormat) {
     riskFlags.push({ id: "action-icon-format-unsupported", level: "high", message: "The action default icon uses SVG or WebP, which is not supported for declared extension icons; use a supported raster format." });
+  }
+  if (invalidWebAccessibleResourceCount > 0) {
+    riskFlags.push({ id: "web-accessible-resources-invalid", level: "critical", message: "At least one web-accessible resource rule is malformed; require non-empty resources plus non-empty site matches or extension IDs, with an optional boolean dynamic-URL flag." });
+  }
+  if (invalidWebAccessibleMatchPath) {
+    riskFlags.push({ id: "web-accessible-match-path-invalid", level: "critical", message: "A web-accessible resource match pattern uses a path other than /*, which is invalid for this declaration." });
+  }
+  if (exposesEntirePackage) {
+    riskFlags.push({ id: "entire-package-web-accessible", level: "high", message: "A web-accessible resource rule exposes the entire extension package; narrow the resource list and verify fingerprinting and untrusted-page access boundaries." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

@@ -495,6 +495,52 @@ test("validates MIME handler declarations and browser support", () => {
   assert.ok(oldBrowser.riskFlags.some(flag => flag.id === "mime-handler-minimum-version"));
 });
 
+test("validates web-accessible resource rule structure and match paths", () => {
+  const base = { manifest_version: 3, name: "Resource fixture", version: "1.0.0" };
+  const invalidRules = [
+    null,
+    {},
+    [null],
+    [{ matches: ["https://example.test/*"] }],
+    [{ resources: [], matches: ["https://example.test/*"] }],
+    [{ resources: ["asset.png"] }],
+    [{ resources: ["asset.png"], matches: [] }],
+    [{ resources: ["asset.png"], matches: ["https://example.test/*"], use_dynamic_url: "yes" }]
+  ];
+  for (const web_accessible_resources of invalidRules) {
+    const report = analyzeManifest({ ...base, web_accessible_resources });
+    assert.ok(report.riskFlags.some(flag => flag.id === "web-accessible-resources-invalid"), JSON.stringify(web_accessible_resources));
+  }
+
+  const badPath = analyzeManifest({
+    ...base,
+    web_accessible_resources: [{ resources: ["asset.png"], matches: ["https://example.test/private/*"] }]
+  });
+  assert.ok(badPath.riskFlags.some(flag => flag.id === "web-accessible-match-path-invalid"));
+
+  for (const target of [
+    { matches: ["https://example.test/*"] },
+    { extension_ids: ["abcdefghijklmnopabcdefghijklmnop"] },
+    { matches: ["<all_urls>"], extension_ids: ["abcdefghijklmnopabcdefghijklmnop"] }
+  ]) {
+    const report = analyzeManifest({
+      ...base,
+      web_accessible_resources: [{ resources: ["asset.png"], ...target, use_dynamic_url: true }]
+    });
+    assert.ok(!report.riskFlags.some(flag => flag.id.startsWith("web-accessible-resources-invalid") || flag.id === "web-accessible-match-path-invalid"));
+  }
+});
+
+test("flags exposure of the entire extension package", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Resource fixture",
+    version: "1.0.0",
+    web_accessible_resources: [{ resources: ["*"], matches: ["https://example.test/*"] }]
+  });
+  assert.ok(report.riskFlags.some(flag => flag.id === "entire-package-web-accessible" && flag.level === "high"));
+});
+
 test("compares MIME document handlers as a critical update boundary", () => {
   const previous = {
     manifest_version: 3,

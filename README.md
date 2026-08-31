@@ -100,6 +100,8 @@ The interface also provides:
   plus enforcement of the public extension name's 75-character maximum;
 - MIME document-handler validation and critical update coverage for public PDF
   handling, embedded documents, version 151 compatibility, and native fallback;
+- strict web-accessible-resource rule validation for resource lists, target
+  origins or extension IDs, dynamic URLs, origin-only match paths, and package-wide exposure;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only
