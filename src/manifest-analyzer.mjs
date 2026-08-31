@@ -471,6 +471,30 @@ function sandboxDiagnostics(sandbox) {
   return { declared: true, invalid: false };
 }
 
+function contentSecurityPolicyDiagnostics(csp) {
+  if (csp === undefined) {
+    return {
+      declared: false, invalid: false,
+      unsafeEvalExtensionPages: false, sandboxMissingDirective: false, sandboxAllowsSameOrigin: false
+    };
+  }
+  if (!csp || typeof csp !== "object" || Array.isArray(csp)) {
+    return {
+      declared: true, invalid: true,
+      unsafeEvalExtensionPages: false, sandboxMissingDirective: false, sandboxAllowsSameOrigin: false
+    };
+  }
+  const keys = Object.keys(csp);
+  const allowedKeys = keys.every(key => key === "extension_pages" || key === "sandbox");
+  const extensionPagesValid = csp.extension_pages === undefined || presentString(csp.extension_pages);
+  const sandboxValid = csp.sandbox === undefined || presentString(csp.sandbox);
+  const invalid = !allowedKeys || !extensionPagesValid || !sandboxValid;
+  const unsafeEvalExtensionPages = presentString(csp.extension_pages) && csp.extension_pages.includes("unsafe-eval");
+  const sandboxMissingDirective = presentString(csp.sandbox) && !/(?:^|;)\s*sandbox(?:\s|;|$)/.test(csp.sandbox);
+  const sandboxAllowsSameOrigin = presentString(csp.sandbox) && csp.sandbox.includes("allow-same-origin");
+  return { declared: true, invalid, unsafeEvalExtensionPages, sandboxMissingDirective, sandboxAllowsSameOrigin };
+}
+
 function crossOriginPolicyDiagnostics(value) {
   if (value === undefined) return { declared: false, invalid: false };
   if (!value || typeof value !== "object" || Array.isArray(value)) return { declared: true, invalid: true };
@@ -1203,6 +1227,7 @@ export function analyzeManifest(manifest) {
   const omniboxStatus = omniboxDiagnostics(manifest.omnibox);
   const chromeUrlOverridesStatus = chromeUrlOverridesDiagnostics(manifest.chrome_url_overrides);
   const sandboxStatus = sandboxDiagnostics(manifest.sandbox);
+  const contentSecurityPolicyStatus = contentSecurityPolicyDiagnostics(manifest.content_security_policy);
   const oauth2Status = oauth2Diagnostics(manifest.oauth2);
   const coepStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_embedder_policy);
   const coopStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_opener_policy);
@@ -1756,6 +1781,18 @@ export function analyzeManifest(manifest) {
   }
   if (sandboxStatus.invalid) {
     riskFlags.push({ id: "sandbox-invalid", level: "critical", message: "The sandbox declaration is malformed; sandbox must be a non-array object with a non-empty pages array of unique, non-empty safe relative paths, and content_security_policy, if present, must be a non-empty string." });
+  }
+  if (contentSecurityPolicyStatus.invalid) {
+    riskFlags.push({ id: "content-security-policy-invalid", level: "critical", message: "The content_security_policy declaration is malformed; use an object containing only optional non-empty extension_pages and sandbox strings." });
+  }
+  if (contentSecurityPolicyStatus.unsafeEvalExtensionPages) {
+    riskFlags.push({ id: "extension-pages-csp-unsafe-eval", level: "critical", message: "The extension-pages content security policy allows unsafe string evaluation, which is not permitted by the Manifest V3 minimum policy." });
+  }
+  if (contentSecurityPolicyStatus.sandboxMissingDirective) {
+    riskFlags.push({ id: "sandbox-csp-directive-missing", level: "critical", message: "The sandbox content security policy omits the required sandbox directive." });
+  }
+  if (contentSecurityPolicyStatus.sandboxAllowsSameOrigin) {
+    riskFlags.push({ id: "sandbox-csp-allows-same-origin", level: "critical", message: "The sandbox content security policy enables same-origin access and breaks the required unique-origin isolation boundary." });
   }
   if (oauth2Status.invalid) {
     riskFlags.push({ id: "oauth2-declaration-invalid", level: "critical", message: "The oauth2 declaration is malformed; oauth2 must be a non-array object with a non-empty client_id string and a non-empty array of unique, non-empty scope strings." });

@@ -653,6 +653,26 @@ test("validates public metadata fields without exposing their values", () => {
   assert.ok(!valid.riskFlags.some(flag => ["description-invalid", "short-name-invalid", "version-name-invalid", "minimum-browser-version-invalid"].includes(flag.id)));
 });
 
+test("validates Manifest V3 content security policies without exposing policy text", () => {
+  const marker = "private-csp-marker.example.invalid";
+  const base = { manifest_version: 3, name: "CSP fixture", version: "1.0.0" };
+  const valid = analyzeManifest({ ...base, content_security_policy: { extension_pages: "script-src 'self'; object-src 'self'", sandbox: "sandbox allow-scripts; script-src 'self'" } });
+  assert.ok(!valid.riskFlags.some(flag => flag.id.startsWith("content-security-policy") || flag.id.startsWith("extension-pages-csp") || flag.id.startsWith("sandbox-csp")));
+  for (const [policy, riskId] of [
+    [null, "content-security-policy-invalid"],
+    [[], "content-security-policy-invalid"],
+    [{ extension_pages: "" }, "content-security-policy-invalid"],
+    [{ extra: marker }, "content-security-policy-invalid"],
+    [{ extension_pages: `script-src 'self' 'unsafe-eval' https://${marker}` }, "extension-pages-csp-unsafe-eval"],
+    [{ sandbox: `script-src 'self' https://${marker}` }, "sandbox-csp-directive-missing"],
+    [{ sandbox: `sandbox allow-scripts allow-same-origin; connect-src https://${marker}` }, "sandbox-csp-allows-same-origin"]
+  ]) {
+    const report = analyzeManifest({ ...base, content_security_policy: policy });
+    assert.ok(report.riskFlags.some(flag => flag.id === riskId && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
