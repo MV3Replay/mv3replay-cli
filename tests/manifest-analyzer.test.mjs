@@ -310,6 +310,34 @@ test("validates default side-panel entry points", () => {
   }
 });
 
+test("validates chrome_url_overrides declarations without reading HTML files", () => {
+  const base = { manifest_version: 3, name: "Override fixture", version: "1.0.0" };
+
+  const absent = analyzeManifest(base);
+  assert.ok(!absent.riskFlags.some(flag => flag.id === "chrome-url-overrides-invalid"));
+
+  for (const page of ["bookmarks", "history", "newtab"]) {
+    const report = analyzeManifest({ ...base, chrome_url_overrides: { [page]: `${page}.html` } });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "chrome-url-overrides-invalid"), page);
+    assert.ok(report.surfaces.chromeUrlOverrides);
+    assert.ok(report.lanes.some(lane => lane.id === "browser-page-override"));
+  }
+
+  for (const chrome_url_overrides of [
+    "newtab.html",
+    [],
+    {},
+    { bookmarks: "bookmarks.html", history: "history.html" },
+    { unsupported: "custom.html" },
+    { newtab: "" },
+    { newtab: "/newtab.html" },
+    { newtab: ["..", "newtab.html"].join("/") }
+  ]) {
+    const report = analyzeManifest({ ...base, chrome_url_overrides });
+    assert.ok(report.riskFlags.some(flag => flag.id === "chrome-url-overrides-invalid" && flag.level === "critical"), JSON.stringify(chrome_url_overrides));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

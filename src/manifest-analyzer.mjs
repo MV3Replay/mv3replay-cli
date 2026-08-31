@@ -422,6 +422,21 @@ function sidePanelDiagnostics(sidePanel) {
   return { declared: true, invalid: false };
 }
 
+const CHROME_URL_OVERRIDE_KEYS = new Set(["bookmarks", "history", "newtab"]);
+
+function chromeUrlOverridesDiagnostics(overrides) {
+  if (overrides === undefined) return { declared: false, invalid: false };
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    return { declared: true, invalid: true };
+  }
+  const keys = Object.keys(overrides);
+  if (keys.length !== 1 || !CHROME_URL_OVERRIDE_KEYS.has(keys[0])) {
+    return { declared: true, invalid: true };
+  }
+  if (unsafeRulesetPath(overrides[keys[0]])) return { declared: true, invalid: true };
+  return { declared: true, invalid: false };
+}
+
 function backgroundDiagnostics(background) {
   if (background === undefined) return { declared: false, invalid: false };
   if (!background || typeof background !== "object" || Array.isArray(background)
@@ -901,6 +916,7 @@ export function analyzeManifest(manifest) {
   const actionStatus = actionDiagnostics(manifest.action);
   const optionsStatus = optionsDiagnostics(manifest);
   const sidePanelStatus = sidePanelDiagnostics(manifest.side_panel);
+  const chromeUrlOverridesStatus = chromeUrlOverridesDiagnostics(manifest.chrome_url_overrides);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1381,6 +1397,9 @@ export function analyzeManifest(manifest) {
   }
   if (sidePanelStatus.invalid) {
     riskFlags.push({ id: "side-panel-invalid", level: "critical", message: "The side panel declaration is malformed; side_panel must be an object with a non-empty safe relative default_path, without a leading slash, drive letter, or parent-directory traversal." });
+  }
+  if (chromeUrlOverridesStatus.invalid) {
+    riskFlags.push({ id: "chrome-url-overrides-invalid", level: "critical", message: "The chrome_url_overrides declaration is malformed; declare exactly one of bookmarks, history, or newtab mapped to a non-empty safe relative path, without a leading slash, drive letter, or parent-directory traversal." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
