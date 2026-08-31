@@ -353,6 +353,41 @@ function staticRulesetDiff(previousRulesets, currentRulesets) {
   };
 }
 
+function unsafeRulesetPath(path) {
+  if (!presentString(path)) return true;
+  const trimmed = path.trim();
+  if (trimmed.startsWith("/") || trimmed.startsWith("\\") || /^[a-zA-Z]:[\\/]/.test(trimmed)) return true;
+  return trimmed.split(/[\\/]/).some(segment => segment === "..");
+}
+
+function staticRulesetDiagnostics(declarativeNetRequest) {
+  if (declarativeNetRequest === undefined) return { declared: false, invalid: false };
+  if (!declarativeNetRequest || typeof declarativeNetRequest !== "object" || Array.isArray(declarativeNetRequest)) {
+    return { declared: true, invalid: true };
+  }
+  const ruleResources = declarativeNetRequest.rule_resources;
+  if (!Array.isArray(ruleResources) || ruleResources.length === 0) {
+    return { declared: true, invalid: true };
+  }
+  const ids = [];
+  let invalid = false;
+  for (const ruleset of ruleResources) {
+    if (!ruleset || typeof ruleset !== "object" || Array.isArray(ruleset)) {
+      invalid = true;
+      continue;
+    }
+    if (!presentString(ruleset.id)) {
+      invalid = true;
+      continue;
+    }
+    ids.push(ruleset.id);
+    if (typeof ruleset.enabled !== "boolean") invalid = true;
+    if (unsafeRulesetPath(ruleset.path)) invalid = true;
+  }
+  if (new Set(ids).size !== ids.length) invalid = true;
+  return { declared: true, invalid };
+}
+
 function normalizeWebAccessibleResource(entry) {
   return {
     resources: sortedUnique(asStrings(entry?.resources)),
