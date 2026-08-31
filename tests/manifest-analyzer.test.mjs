@@ -995,6 +995,52 @@ test("compares content-script registrations deterministically", () => {
   assert.ok(!identical.findings.some(item => item.id === "content-script-registration-change"));
 });
 
+test("validates static content-script declarations", () => {
+  const base = { manifest_version: 3, name: "Content fixture", version: "1.0.0" };
+  for (const content_scripts of [
+    [],
+    [{}],
+    [{ matches: ["https://example.test/*"] }],
+    [{ matches: [], js: ["content.js"] }],
+    [{ matches: ["https://example.test/*"], js: [] }],
+    [{ matches: ["https://example.test/*"], js: [""] }],
+    [{ matches: ["https://example.test/*"], js: ["content.js"], run_at: "later" }],
+    [{ matches: ["https://example.test/*"], css: ["content.css"], world: "PAGE" }],
+    [{ matches: ["https://example.test/*"], js: ["content.js"], all_frames: "yes" }]
+  ]) {
+    const report = analyzeManifest({ ...base, content_scripts });
+    assert.ok(report.riskFlags.some(flag => flag.id === "content-scripts-invalid"), JSON.stringify(content_scripts));
+  }
+
+  const valid = analyzeManifest({
+    ...base,
+    content_scripts: [{
+      matches: ["https://example.test/*"],
+      exclude_matches: ["https://example.test/private/*"],
+      js: ["content.js"],
+      css: ["content.css"],
+      run_at: "document_idle",
+      world: "ISOLATED",
+      all_frames: false
+    }]
+  });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "content-scripts-invalid"));
+});
+
+test("requires wildcard paths for content-script origin fallback", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Fallback fixture",
+    version: "1.0.0",
+    content_scripts: [{
+      matches: ["https://example.test/specific"],
+      js: ["content.js"],
+      match_origin_as_fallback: true
+    }]
+  });
+  assert.ok(report.riskFlags.some(flag => flag.id === "content-script-origin-fallback-path-invalid"));
+});
+
 test("compares commands, DNR rulesets, external messaging, web-accessible resources, and surfaces", () => {
   const previous = {
     manifest_version: 3,

@@ -104,6 +104,8 @@ The interface also provides:
   origins or extension IDs, dynamic URLs, origin-only match paths, and package-wide exposure;
 - external-messaging caller validation, including wildcard extension access,
   invalid all-URL web access, TLS channel-ID privacy, and implicit-policy changes;
+- static content-script validation for required matches and files, optional
+  field types, injection timing, execution world, and origin-fallback paths;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

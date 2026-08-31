@@ -195,6 +195,41 @@ function listDiff(before, after) {
 }
 
 const RUN_AT_VALUES = ["document_start", "document_end", "document_idle"];
+const CONTENT_SCRIPT_WORLDS = ["ISOLATED", "MAIN"];
+
+function contentScriptDiagnostics(value) {
+  if (value === undefined) return { invalid: false, invalidOriginFallbackPath: false };
+  if (!Array.isArray(value) || value.length === 0) {
+    return { invalid: true, invalidOriginFallbackPath: false };
+  }
+  let invalid = false;
+  let invalidOriginFallbackPath = false;
+  const stringArray = entry => Array.isArray(entry) && entry.every(item => presentString(item));
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      invalid = true;
+      continue;
+    }
+    const matchesValid = stringArray(entry.matches) && entry.matches.length > 0;
+    const jsValid = entry.js === undefined || stringArray(entry.js);
+    const cssValid = entry.css === undefined || stringArray(entry.css);
+    const hasFiles = (Array.isArray(entry.js) && entry.js.length > 0)
+      || (Array.isArray(entry.css) && entry.css.length > 0);
+    const optionalArraysValid = ["exclude_matches", "include_globs", "exclude_globs"]
+      .every(field => entry[field] === undefined || stringArray(entry[field]));
+    const optionalBooleansValid = ["all_frames", "match_about_blank", "match_origin_as_fallback"]
+      .every(field => entry[field] === undefined || typeof entry[field] === "boolean");
+    const runAtValid = entry.run_at === undefined || RUN_AT_VALUES.includes(entry.run_at);
+    const worldValid = entry.world === undefined || CONTENT_SCRIPT_WORLDS.includes(entry.world);
+    invalid ||= !matchesValid || !jsValid || !cssValid || !hasFiles
+      || !optionalArraysValid || !optionalBooleansValid || !runAtValid || !worldValid;
+    if (entry.match_origin_as_fallback === true
+      && (!matchesValid || entry.matches.some(pattern => !pattern.endsWith("/*")))) {
+      invalidOriginFallbackPath = true;
+    }
+  }
+  return { invalid, invalidOriginFallbackPath };
+}
 
 function normalizeContentScript(script) {
   return {
@@ -555,6 +590,7 @@ function manifestSignals(manifest) {
   const externalMatches = sortedUnique(asStrings(manifest.externally_connectable?.matches));
   const externalExtensionIds = sortedUnique(asStrings(manifest.externally_connectable?.ids));
   const externalConnectionStatus = externallyConnectableDiagnostics(manifest.externally_connectable);
+  const contentScriptStatus = contentScriptDiagnostics(manifest.content_scripts);
   const unmodeledKeys = unmodeledTopLevelKeys(manifest);
 
   return {
@@ -570,6 +606,7 @@ function manifestSignals(manifest) {
     externalMatches,
     externalExtensionIds,
     externalConnectionStatus,
+    contentScriptStatus,
     unmodeledKeys
   };
 }
@@ -601,6 +638,7 @@ export function analyzeManifest(manifest) {
     externalMatches,
     externalExtensionIds,
     externalConnectionStatus,
+    contentScriptStatus,
     unmodeledKeys
   } = manifestSignals(manifest);
 
@@ -1088,6 +1126,12 @@ export function analyzeManifest(manifest) {
   }
   if (externalConnectionStatus.acceptsTlsChannelId) {
     riskFlags.push({ id: "tls-channel-id-enabled", level: "high", message: "External web messaging accepts TLS channel IDs; verify explicit need, absent-ID behavior, and that identifiers are never logged or exported." });
+  }
+  if (contentScriptStatus.invalid) {
+    riskFlags.push({ id: "content-scripts-invalid", level: "critical", message: "At least one static content-script declaration is malformed; require page matches plus a non-empty JavaScript or CSS file list and valid optional fields." });
+  }
+  if (contentScriptStatus.invalidOriginFallbackPath) {
+    riskFlags.push({ id: "content-script-origin-fallback-path-invalid", level: "critical", message: "A content script enables origin fallback without using /* paths for every match pattern; narrow and correct the declaration before packaging." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
