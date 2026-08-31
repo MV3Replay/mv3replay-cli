@@ -14,6 +14,20 @@ const objectKeys = value => value && typeof value === "object" && !Array.isArray
   ? Object.keys(value)
   : [];
 
+function validFileHandler(handler) {
+  if (!handler || typeof handler !== "object" || Array.isArray(handler)) return false;
+  if (!presentString(handler.action) || !presentString(handler.name)) return false;
+  const acceptedTypes = objectKeys(handler.accept);
+  if (acceptedTypes.length === 0) return false;
+  if (!acceptedTypes.every(type => presentString(type)
+    && Array.isArray(handler.accept[type])
+    && handler.accept[type].length > 0
+    && handler.accept[type].every(extension => presentString(extension) && extension.startsWith(".")))) return false;
+  return handler.launch_type === undefined
+    || handler.launch_type === "single-client"
+    || handler.launch_type === "multiple-clients";
+}
+
 // Top-level fields whose values currently influence identities, surfaces,
 // findings, comparison details, or generated regression lanes. Other fields
 // are valid input, but their behavior is deliberately reported as unmodeled.
@@ -550,10 +564,11 @@ export function analyzeManifest(manifest) {
   ].some(key => manifest[key] !== undefined);
   const validManifestName = presentString(manifest.name);
   const validManifestVersion = parseChromeExtensionVersion(manifest.version) !== null;
-  const fileHandlers = Array.isArray(manifest.file_handlers)
-    ? manifest.file_handlers.filter(handler => handler && typeof handler === "object" && !Array.isArray(handler))
-    : [];
+  const fileHandlersDeclared = manifest.file_handlers !== undefined;
+  const fileHandlers = Array.isArray(manifest.file_handlers) ? manifest.file_handlers : [];
   const fileHandling = fileHandlers.length > 0;
+  const invalidFileHandlerCount = fileHandlers.filter(handler => !validFileHandler(handler)).length
+    + (fileHandlersDeclared && !Array.isArray(manifest.file_handlers) ? 1 : 0);
 
   const surfaces = {
     action,
@@ -646,7 +661,7 @@ export function analyzeManifest(manifest) {
       "A packaged identity key is declared and can affect stable extension identity across installation and update paths.",
       ["Verify the exact packaged extension ID matches the expected release identity", "Test a clean install and an update from the previous shipping package through the intended distribution path", "Treat an unexpected identity mismatch as a replacement install and verify user-visible recovery without exposing the key"]);
   }
-  if (fileHandling) {
+  if (fileHandlersDeclared) {
     addLane(lanes, "chromeos-file-handling", "high",
       "The extension registers one or more ChromeOS file handlers that open user-selected files in extension pages.",
       ["On ChromeOS 120 or later, verify every declared MIME type and extension appears only for matching synthetic files", "Verify each declared action page opens and receives single-client and repeated launches as configured", "Test cancellation, unsupported files, malformed synthetic content, and confirm file contents are neither uploaded nor retained unexpectedly"]);
@@ -889,6 +904,9 @@ export function analyzeManifest(manifest) {
   const minimumBrowserVersion = parseChromeExtensionVersion(manifest.minimum_chrome_version);
   if (fileHandling && (!minimumBrowserVersion || minimumBrowserVersion[0] < 120)) {
     riskFlags.push({ id: "file-handlers-minimum-version", level: "high", message: "File handling requires ChromeOS 120 or later; declare a compatible minimum browser version or document and test the unsupported-install path." });
+  }
+  if (invalidFileHandlerCount > 0 || (fileHandlersDeclared && fileHandlers.length === 0)) {
+    riskFlags.push({ id: "file-handlers-invalid", level: "critical", message: "At least one file-handler declaration is invalid or the declared list is empty; verify action, name, accepted MIME mappings, dot-prefixed extensions, and launch type before packaging." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

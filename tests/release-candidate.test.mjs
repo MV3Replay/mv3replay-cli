@@ -105,6 +105,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "presentation metadata and localization coverage",
       "extension display-name change coverage",
       "ChromeOS file-handler coverage",
+      "ChromeOS file-handler declaration validation",
       "cross-origin and managed-storage policy coverage",
       "privacy-safe extension identity-key continuity",
       "inspect-time manifest identity validation",

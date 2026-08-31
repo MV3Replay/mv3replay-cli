@@ -431,6 +431,26 @@ test("compares ChromeOS file-handler declarations precisely", () => {
   assert.ok(report.findings.some(finding => finding.id === "file-handlers-change"));
 });
 
+test("rejects malformed or empty file-handler declarations without hiding coverage", () => {
+  const base = { manifest_version: 3, name: "File fixture", version: "1.0.0", minimum_chrome_version: "120" };
+  const invalidValues = [
+    {},
+    [],
+    [null],
+    [{ name: "Missing action", accept: { "text/plain": [".txt"] } }],
+    [{ action: "/open.html", name: "Empty accept", accept: {} }],
+    [{ action: "/open.html", name: "Bad extension", accept: { "text/plain": ["txt"] } }],
+    [{ action: "/open.html", name: "Bad launch", accept: { "text/plain": [".txt"] }, launch_type: "other" }]
+  ];
+
+  for (const file_handlers of invalidValues) {
+    const report = analyzeManifest({ ...base, file_handlers });
+    assert.ok(report.riskFlags.some(flag => flag.id === "file-handlers-invalid"), JSON.stringify(file_handlers));
+    assert.ok(report.lanes.some(lane => lane.id === "chromeos-file-handling"));
+    assert.ok(!report.coverage.unmodeledTopLevelKeys.includes("file_handlers"));
+  }
+});
+
 test("flags an overlong manifest description", () => {
   const report = analyzeManifest({
     manifest_version: 3,

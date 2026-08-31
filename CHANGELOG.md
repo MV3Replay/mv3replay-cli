@@ -54,6 +54,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   produce the existing presentation-change finding.
 - ChromeOS file-handler surfaces, declaration comparisons, ChromeOS 120
   compatibility warnings, and privacy-preserving manual regression checks.
+- Critical validation for empty or malformed file-handler declarations,
+  including required action, name, MIME mappings, extensions, and launch type.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

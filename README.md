@@ -99,7 +99,8 @@ The interface also provides:
 - privacy-safe extension identity-key continuity checks that report only
   declaration and change booleans, never the manifest key value;
 - ChromeOS file-handler coverage for matching types, action pages, launch
-  behavior, minimum-version compatibility, updates, and zero-retention checks;
+  behavior, declaration validation, minimum-version compatibility, updates,
+  and zero-retention checks;
 - inspect-time critical checks for a missing extension name or an invalid,
   zero, overlong, or otherwise non-installable package version;
 - user-triggered JSON and escaped Markdown report downloads, including the
