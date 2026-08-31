@@ -119,18 +119,18 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
     }
   };
   if (unmodeledCoverage) {
-    analysisReport.coverage.unmodeledTopLevelKeys = ["icons"];
+    analysisReport.coverage.unmodeledTopLevelKeys = ["future_settings"];
     analysisReport.counts = { unmodeledTopLevelKeys: 1 };
     analysisReport.riskFlags.push({
       id: "unmodeled-manifest-keys",
       level: "high",
-      message: "Coverage gap: icons is not interpreted"
+      message: "Coverage gap: future_settings is not interpreted"
     });
-    comparisonReport.changes.unmodeledTopLevelKeys.changed = ["icons"];
+    comparisonReport.changes.unmodeledTopLevelKeys.changed = ["future_settings"];
     comparisonReport.findings.push({
       id: "unmodeled-manifest-key-change",
       level: "high",
-      message: "Unmodeled top-level manifest key changed: icons"
+      message: "Unmodeled top-level manifest key changed: future_settings"
     });
   }
   if (identicalComparison) {
@@ -237,12 +237,12 @@ test("an identical comparison renders zero structured changes without comparison
 test("coverage gaps render in analysis and comparison summaries", async () => {
   const { elements } = await createClientHarness({ unmodeledCoverage: true });
   await elements.get("analyze-example-button").listeners.get("click")();
-  assert.match(collectText(elements.get("report-details")), /not interpreted by this analyzer: icons/);
+  assert.match(collectText(elements.get("report-details")), /not interpreted by this analyzer: future_settings/);
   assert.match(collectText(elements.get("report-details")), /unmodeled-manifest-keys/);
 
   await elements.get("compare-example-button").listeners.get("click")();
   assert.match(collectText(elements.get("compare-report-summary")), /coverage gaps 1/);
-  assert.match(collectText(elements.get("compare-report-details")), /Changed: icons/);
+  assert.match(collectText(elements.get("compare-report-details")), /Changed: future_settings/);
   assert.match(collectText(elements.get("candidate-checklist-list")), /comparison-unmodeled-manifest-key-change/);
 });
 

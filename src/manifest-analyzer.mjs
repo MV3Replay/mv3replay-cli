@@ -20,10 +20,11 @@ const objectKeys = value => value && typeof value === "object" && !Array.isArray
 const MODELED_TOP_LEVEL_KEYS = new Set([
   "action", "background", "chrome_settings_overrides", "chrome_url_overrides",
   "commands", "content_scripts", "content_security_policy", "declarative_net_request",
-  "devtools_page", "externally_connectable", "host_permissions", "incognito",
+  "default_locale", "description", "devtools_page", "externally_connectable",
+  "homepage_url", "host_permissions", "icons", "incognito",
   "manifest_version", "minimum_chrome_version", "name", "oauth2", "omnibox",
   "optional_host_permissions", "optional_permissions", "options_page", "options_ui",
-  "permissions", "sandbox", "side_panel", "update_url", "version",
+  "permissions", "sandbox", "short_name", "side_panel", "update_url", "version", "version_name",
   "web_accessible_resources"
 ]);
 
@@ -287,6 +288,22 @@ function declarationChanges(previousManifest, currentManifest) {
     presentString(previousManifest.minimum_chrome_version) ? previousManifest.minimum_chrome_version : null,
     presentString(currentManifest.minimum_chrome_version) ? currentManifest.minimum_chrome_version : null
   );
+  for (const field of ["default_locale", "description", "homepage_url", "short_name", "version_name"]) {
+    pushIfChanged(
+      field,
+      presentString(previousManifest[field]) ? previousManifest[field] : null,
+      presentString(currentManifest[field]) ? currentManifest[field] : null
+    );
+  }
+  pushIfChanged(
+    "icons",
+    previousManifest.icons && typeof previousManifest.icons === "object"
+      ? stableValue(previousManifest.icons)
+      : null,
+    currentManifest.icons && typeof currentManifest.icons === "object"
+      ? stableValue(currentManifest.icons)
+      : null
+  );
   pushIfChanged(
     "action.default_title",
     presentString(previousManifest.action?.default_title) ? previousManifest.action.default_title : null,
@@ -484,6 +501,10 @@ export function analyzeManifest(manifest) {
     && !Array.isArray(manifest.chrome_settings_overrides)
     && Object.keys(manifest.chrome_settings_overrides).length > 0
   );
+  const manifestIconSizes = sortedUnique(objectKeys(manifest.icons));
+  const presentationMetadata = [
+    "default_locale", "description", "homepage_url", "icons", "short_name", "version_name"
+  ].some(key => manifest[key] !== undefined);
 
   const surfaces = {
     action,
@@ -540,6 +561,16 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "unmodeled-manifest-keys", "high",
       `The analyzer does not interpret these top-level manifest keys: ${unmodeledKeys.join(", ")}.`,
       ["Review each unmodeled key against its browser documentation", "Add manual checks for every behavior the key enables or changes", "Do not treat this report as complete until those checks are covered"]);
+  }
+  if (presentationMetadata) {
+    const checks = [
+      "Verify the displayed name, description, version label, and homepage in the extension management page as applicable",
+      "Check every declared icon at representative browser sizes and high-contrast backgrounds without assuming the files exist",
+      "If default_locale is declared, verify the default language plus a missing-message and fallback-language path manually"
+    ];
+    addLane(lanes, "extension-presentation", "medium",
+      "Manifest presentation metadata affects browser management UI, installation surfaces, icons, and localization.",
+      checks);
   }
 
   if (contentScripts.length > 0) {
@@ -777,6 +808,12 @@ export function analyzeManifest(manifest) {
       message: `Coverage gap: top-level manifest keys are present but not interpreted: ${unmodeledKeys.join(", ")}. Add manual coverage before relying on this plan.`
     });
   }
+  if (presentString(manifest.description) && manifest.description.length > 132) {
+    riskFlags.push({ id: "description-too-long", level: "medium", message: "The manifest description exceeds Chrome's documented 132-character limit." });
+  }
+  if (presentString(manifest.short_name) && manifest.short_name.length > 12) {
+    riskFlags.push({ id: "short-name-too-long", level: "medium", message: "The manifest short_name exceeds Chrome's documented 12-character maximum." });
+  }
   if (matchPatterns.includes("<all_urls>") || hostPermissions.includes("<all_urls>")) {
     riskFlags.push({ id: "broad-host-scope", level: "high", message: "The manifest includes <all_urls>; use synthetic or explicitly authorized hosts for testing." });
   }
@@ -890,7 +927,8 @@ export function analyzeManifest(manifest) {
       externalMatchPatterns: externalMatches.length,
       externalExtensionIds: externalExtensionIds.length,
       sandboxPages: sandboxPages.length,
-      unmodeledTopLevelKeys: unmodeledKeys.length
+      unmodeledTopLevelKeys: unmodeledKeys.length,
+      manifestIcons: manifestIconSizes.length
     },
     coverage: { unmodeledTopLevelKeys: unmodeledKeys },
     lanes,
@@ -969,6 +1007,22 @@ export function compareManifests(previousManifest, currentManifest) {
       id: "unmodeled-manifest-key-change",
       level: "high",
       message: `Unmodeled top-level manifest keys changed (added: ${changes.unmodeledTopLevelKeys.added.join(", ") || "none"}; removed: ${changes.unmodeledTopLevelKeys.removed.join(", ") || "none"}; changed: ${changes.unmodeledTopLevelKeys.changed.join(", ") || "none"}). Review their browser behavior manually.`
+    });
+  }
+  const metadataFields = new Set(["description", "homepage_url", "icons", "short_name", "version_name"]);
+  const changedMetadataFields = declarations.filter(change => metadataFields.has(change.field));
+  if (changedMetadataFields.length > 0) {
+    findings.push({
+      id: "extension-presentation-change",
+      level: "medium",
+      message: `Extension presentation metadata changed: ${changedMetadataFields.map(change => change.field).join(", ")}. Verify the management UI, installation surfaces, and icons as applicable.`
+    });
+  }
+  if (declarations.some(change => change.field === "default_locale")) {
+    findings.push({
+      id: "default-locale-change",
+      level: "high",
+      message: "The default locale changed. Verify localized manifest strings, missing-message behavior, and language fallback manually."
     });
   }
   if (version.relation === "older") {

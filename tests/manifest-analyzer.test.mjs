@@ -298,8 +298,9 @@ test("makes unmodeled top-level manifest keys explicit", () => {
     custom_future_key: { enabled: true }
   });
 
-  assert.deepEqual(report.coverage.unmodeledTopLevelKeys, ["custom_future_key", "icons"]);
-  assert.equal(report.counts.unmodeledTopLevelKeys, 2);
+  assert.deepEqual(report.coverage.unmodeledTopLevelKeys, ["custom_future_key"]);
+  assert.equal(report.counts.unmodeledTopLevelKeys, 1);
+  assert.equal(report.counts.manifestIcons, 1);
   assert.ok(report.lanes.some(lane => lane.id === "unmodeled-manifest-keys"));
   assert.ok(report.riskFlags.some(flag => flag.id === "unmodeled-manifest-keys"));
 });
@@ -309,14 +310,14 @@ test("compares added, removed, and changed unmodeled manifest keys", () => {
     manifest_version: 3,
     name: "Coverage fixture",
     version: "1.0.0",
-    icons: { "16": "old.png" },
+    future_settings: { mode: "old" },
     removed_key: true
   };
   const current = {
     manifest_version: 3,
     name: "Coverage fixture",
     version: "1.0.0",
-    icons: { "16": "new.png" },
+    future_settings: { mode: "new" },
     added_key: true
   };
   const report = compareManifests(previous, current);
@@ -324,10 +325,59 @@ test("compares added, removed, and changed unmodeled manifest keys", () => {
   assert.deepEqual(report.changes.unmodeledTopLevelKeys, {
     added: ["added_key"],
     removed: ["removed_key"],
-    changed: ["icons"]
+    changed: ["future_settings"]
   });
   assert.ok(report.findings.some(item => item.id === "unmodeled-manifest-key-change"));
   assert.ok(report.findings.some(item => item.id === "extension-version-not-increased"));
+});
+
+test("models presentation metadata, limits, icons, and localization", () => {
+  const previous = {
+    manifest_version: 3,
+    name: "Presentation fixture",
+    version: "1.0.0",
+    description: "Old description",
+    short_name: "Old",
+    version_name: "1.0 stable",
+    homepage_url: "https://example.test/old",
+    default_locale: "en",
+    icons: { "16": "old-16.png", "128": "old-128.png" }
+  };
+  const current = {
+    ...previous,
+    version: "2.0.0",
+    description: "New description",
+    short_name: "A name longer than twelve characters",
+    version_name: "2.0 beta",
+    homepage_url: "https://example.test/new",
+    default_locale: "fr_CA",
+    icons: { "16": "new-16.png", "48": "new-48.png", "128": "new-128.png" }
+  };
+
+  const analysis = analyzeManifest(current);
+  assert.deepEqual(analysis.coverage.unmodeledTopLevelKeys, []);
+  assert.equal(analysis.counts.manifestIcons, 3);
+  assert.ok(analysis.lanes.some(lane => lane.id === "extension-presentation"));
+  assert.ok(analysis.riskFlags.some(flag => flag.id === "short-name-too-long"));
+
+  const comparison = compareManifests(previous, current);
+  const fields = comparison.changes.declarations.map(change => change.field);
+  for (const field of ["default_locale", "description", "homepage_url", "icons", "short_name", "version_name"]) {
+    assert.ok(fields.includes(field));
+  }
+  assert.ok(comparison.findings.some(finding => finding.id === "extension-presentation-change"));
+  assert.ok(comparison.findings.some(finding => finding.id === "default-locale-change"));
+  assert.ok(!comparison.findings.some(finding => finding.id === "unmodeled-manifest-key-change"));
+});
+
+test("flags an overlong manifest description", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Description fixture",
+    version: "1.0.0",
+    description: "x".repeat(133)
+  });
+  assert.ok(report.riskFlags.some(flag => flag.id === "description-too-long"));
 });
 
 test("compares extension versions using Chrome update ordering", () => {

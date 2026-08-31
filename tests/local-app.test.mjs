@@ -708,7 +708,7 @@ test("comparison UI and Markdown expose surface and declaration changes", async 
   assert.match(source, /function formatDeclarationValue/);
   assert.match(source, /\["surfaces", "Extension surfaces"\]/);
   assert.match(source, /\["oauthScopes", "OAuth scopes"\]/);
-  assert.match(source, /### Entry-point declarations/);
+  assert.match(source, /### Manifest declarations/);
   assert.match(source, /escapeMarkdownText\(change\.field\)/);
 });
 

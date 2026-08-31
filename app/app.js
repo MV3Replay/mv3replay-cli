@@ -908,9 +908,9 @@ function formatDeclarationValue(value) {
 
 function renderDeclarationChanges(changes) {
   const container = el("div", { className: "declaration-changes" });
-  container.appendChild(el("strong", { text: "Entry-point declarations" }));
+  container.appendChild(el("strong", { text: "Manifest declarations" }));
   if (changes.length === 0) {
-    container.appendChild(el("p", { text: "No entry-point declaration values changed." }));
+    container.appendChild(el("p", { text: "No modeled manifest declaration values changed." }));
     return container;
   }
   const list = el("ul");
@@ -1150,9 +1150,9 @@ function buildComparisonMarkdown(report, checklist) {
     }
   }
   lines.push("");
-  lines.push("### Entry-point declarations");
+  lines.push("### Manifest declarations");
   if (report.changes.declarations.length === 0) {
-    lines.push("No entry-point declaration values changed.");
+    lines.push("No modeled manifest declaration values changed.");
   } else {
     for (const change of report.changes.declarations) {
       lines.push(

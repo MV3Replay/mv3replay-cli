@@ -129,7 +129,8 @@
         "externalMatchPatterns",
         "externalExtensionIds",
         "sandboxPages",
-        "unmodeledTopLevelKeys"
+        "unmodeledTopLevelKeys",
+        "manifestIcons"
       ],
       "properties": {
         "permissions": { "type": "integer", "minimum": 0 },
@@ -144,7 +145,8 @@
         "externalMatchPatterns": { "type": "integer", "minimum": 0 },
         "externalExtensionIds": { "type": "integer", "minimum": 0 },
         "sandboxPages": { "type": "integer", "minimum": 0 },
-        "unmodeledTopLevelKeys": { "type": "integer", "minimum": 0 }
+        "unmodeledTopLevelKeys": { "type": "integer", "minimum": 0 },
+        "manifestIcons": { "type": "integer", "minimum": 0 }
       }
     },
     "coverage": {
