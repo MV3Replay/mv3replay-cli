@@ -93,6 +93,7 @@ const comparisonSeverityFilterEl = document.getElementById("comparison-severity-
 const comparisonFilterStatusEl = document.getElementById("comparison-filter-status");
 const comparisonChangeFilterControlsEl = document.getElementById("comparison-change-filter-controls");
 const comparisonChangeFilterEl = document.getElementById("comparison-change-filter");
+const comparisonChangedOnlyEl = document.getElementById("comparison-changed-only");
 const comparisonChangeFilterStatusEl = document.getElementById("comparison-change-filter-status");
 
 const candidateChecklistEl = document.getElementById("candidate-checklist");
@@ -389,25 +390,33 @@ comparisonSeverityFilterEl.addEventListener("change", () => {
   applyFindingFilter(comparisonFindingNodes, comparisonSeverityFilterEl.value, comparisonFilterStatusEl);
 });
 
-function appendComparisonChangeSection(category, node) {
+function appendComparisonChangeSection(category, node, hasChanges) {
   node.className = `${node.className || ""} change-section`.trim();
   node.setAttribute("data-change-category", category);
-  comparisonChangeSectionNodes.push({ category, node });
+  node.setAttribute("data-has-changes", String(hasChanges));
+  comparisonChangeSectionNodes.push({ category, hasChanges, node });
   compareReportDetailsEl.appendChild(node);
 }
 
 function applyComparisonChangeFilter(filterValue) {
   let visible = 0;
+  const changedOnly = comparisonChangedOnlyEl.checked === true;
   for (const entry of comparisonChangeSectionNodes) {
-    const matches = filterValue === "all" || entry.category === filterValue;
+    const categoryMatches = filterValue === "all" || entry.category === filterValue;
+    const matches = categoryMatches && (!changedOnly || entry.hasChanges);
     entry.node.hidden = !matches;
     if (matches) visible += 1;
   }
   const label = filterValue === "all" ? "all categories" : filterValue;
-  comparisonChangeFilterStatusEl.textContent = `${visible} of ${comparisonChangeSectionNodes.length} change sections shown (${label}).`;
+  const mode = changedOnly ? "; changed only" : "";
+  comparisonChangeFilterStatusEl.textContent = `${visible} of ${comparisonChangeSectionNodes.length} change sections shown (${label}${mode}).`;
 }
 
 comparisonChangeFilterEl.addEventListener("change", () => {
+  applyComparisonChangeFilter(comparisonChangeFilterEl.value);
+});
+
+comparisonChangedOnlyEl.addEventListener("change", () => {
   applyComparisonChangeFilter(comparisonChangeFilterEl.value);
 });
 
@@ -985,26 +994,27 @@ function renderCompareReport(report) {
   applyFindingFilter(comparisonFindingNodes, "all", comparisonFilterStatusEl);
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Key changes" }));
-  appendComparisonChangeSection("access", renderListDiff("Required permissions", report.changes.requiredPermissions));
-  appendComparisonChangeSection("access", renderListDiff("Optional permissions", report.changes.optionalPermissions));
-  appendComparisonChangeSection("access", renderListDiff("Required host access", report.changes.requiredHosts));
-  appendComparisonChangeSection("access", renderListDiff("Optional host access", report.changes.optionalHosts));
-  appendComparisonChangeSection("access", renderListDiff("OAuth scopes", report.changes.oauthScopes));
-  appendComparisonChangeSection("scripts", renderListDiff("Content-script match scope", report.changes.contentScriptMatches));
-  appendComparisonChangeSection("scripts", renderContentScriptChanges(report.changes.contentScripts));
-  appendComparisonChangeSection("commands", renderListDiff("Keyboard commands", report.changes.commands));
-  appendComparisonChangeSection("surfaces", renderListDiff("Extension surfaces", report.changes.surfaces));
-  appendComparisonChangeSection("rules", renderStaticRulesetChanges(report.changes.staticRulesets));
-  appendComparisonChangeSection("external", renderListDiff("External messaging matches", report.changes.externalMessaging.matches));
-  appendComparisonChangeSection("external", renderListDiff("External messaging extension IDs", report.changes.externalMessaging.ids));
-  appendComparisonChangeSection("external", renderWebAccessibleResourceChanges(report.changes.webAccessibleResources));
-  appendComparisonChangeSection("declarations", renderDeclarationChanges(report.changes.declarations));
+  appendComparisonChangeSection("access", renderListDiff("Required permissions", report.changes.requiredPermissions), countListDiff(report.changes.requiredPermissions) > 0);
+  appendComparisonChangeSection("access", renderListDiff("Optional permissions", report.changes.optionalPermissions), countListDiff(report.changes.optionalPermissions) > 0);
+  appendComparisonChangeSection("access", renderListDiff("Required host access", report.changes.requiredHosts), countListDiff(report.changes.requiredHosts) > 0);
+  appendComparisonChangeSection("access", renderListDiff("Optional host access", report.changes.optionalHosts), countListDiff(report.changes.optionalHosts) > 0);
+  appendComparisonChangeSection("access", renderListDiff("OAuth scopes", report.changes.oauthScopes), countListDiff(report.changes.oauthScopes) > 0);
+  appendComparisonChangeSection("scripts", renderListDiff("Content-script match scope", report.changes.contentScriptMatches), countListDiff(report.changes.contentScriptMatches) > 0);
+  appendComparisonChangeSection("scripts", renderContentScriptChanges(report.changes.contentScripts), countListDiff(report.changes.contentScripts) > 0);
+  appendComparisonChangeSection("commands", renderListDiff("Keyboard commands", report.changes.commands), countListDiff(report.changes.commands) > 0);
+  appendComparisonChangeSection("surfaces", renderListDiff("Extension surfaces", report.changes.surfaces), countListDiff(report.changes.surfaces) > 0);
+  appendComparisonChangeSection("rules", renderStaticRulesetChanges(report.changes.staticRulesets), (report.changes.staticRulesets.added.length + report.changes.staticRulesets.removed.length + report.changes.staticRulesets.changed.length) > 0);
+  appendComparisonChangeSection("external", renderListDiff("External messaging matches", report.changes.externalMessaging.matches), countListDiff(report.changes.externalMessaging.matches) > 0);
+  appendComparisonChangeSection("external", renderListDiff("External messaging extension IDs", report.changes.externalMessaging.ids), countListDiff(report.changes.externalMessaging.ids) > 0);
+  appendComparisonChangeSection("external", renderWebAccessibleResourceChanges(report.changes.webAccessibleResources), countListDiff(report.changes.webAccessibleResources) > 0);
+  appendComparisonChangeSection("declarations", renderDeclarationChanges(report.changes.declarations), report.changes.declarations.length > 0);
   appendComparisonChangeSection("coverage", renderKeyValueChanges(
     "Unmodeled top-level manifest keys",
     report.changes.unmodeledTopLevelKeys
-  ));
+  ), (report.changes.unmodeledTopLevelKeys.added.length + report.changes.unmodeledTopLevelKeys.removed.length + report.changes.unmodeledTopLevelKeys.changed.length) > 0);
   comparisonChangeFilterControlsEl.hidden = false;
   comparisonChangeFilterEl.value = "all";
+  comparisonChangedOnlyEl.checked = false;
   applyComparisonChangeFilter("all");
 
   compareReportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
@@ -1255,6 +1265,7 @@ function resetComparisonResults() {
   comparisonFindingNodes = [];
   comparisonChangeFilterControlsEl.hidden = true;
   comparisonChangeFilterEl.value = "all";
+  comparisonChangedOnlyEl.checked = false;
   comparisonChangeFilterStatusEl.textContent = "";
   comparisonChangeSectionNodes = [];
   candidateChecklistEl.hidden = true;

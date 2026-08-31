@@ -224,6 +224,14 @@ input:focus-visible {
   font-size: 0.85rem;
 }
 
+.inline-filter-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.inline-filter-option input { min-width: 1rem; min-height: 1rem; }
+
 .checklist-controls {
   display: flex;
   flex-wrap: wrap;

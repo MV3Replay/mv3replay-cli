@@ -261,7 +261,28 @@ test("comparison change categories filter rendered sections without changing the
   assert.ok(sections.filter(section => !section.hidden)
     .every(section => section.attributes.get("data-change-category") === "access"));
   assert.match(elements.get("comparison-change-filter-status").textContent, /5 of 15 change sections shown \(access\)/);
+
+  const changedOnly = elements.get("comparison-changed-only");
+  changedOnly.checked = true;
+  changedOnly.listeners.get("change")();
+  assert.equal(sections.filter(section => !section.hidden).length, 3);
+  assert.ok(sections.filter(section => !section.hidden)
+    .every(section => section.attributes.get("data-has-changes") === "true"));
+  assert.match(elements.get("comparison-change-filter-status").textContent, /3 of 15 change sections shown \(access; changed only\)/);
   assert.equal(requests.length, 1);
+});
+
+test("changed-only mode shows zero sections for identical manifests", async () => {
+  const { elements } = await createClientHarness({ identicalComparison: true });
+  await elements.get("compare-example-button").listeners.get("click")();
+
+  const changedOnly = elements.get("comparison-changed-only");
+  changedOnly.checked = true;
+  changedOnly.listeners.get("change")();
+  const sections = elements.get("compare-report-details").children
+    .filter(child => child.className.includes("change-section"));
+  assert.equal(sections.filter(section => !section.hidden).length, 0);
+  assert.match(elements.get("comparison-change-filter-status").textContent, /0 of 15 change sections shown \(all categories; changed only\)/);
 });
 
 test("severity filters execute and hide non-matching rendered findings", async () => {
