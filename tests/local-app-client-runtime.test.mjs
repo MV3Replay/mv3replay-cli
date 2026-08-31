@@ -246,6 +246,24 @@ test("coverage gaps render in analysis and comparison summaries", async () => {
   assert.match(collectText(elements.get("candidate-checklist-list")), /comparison-unmodeled-manifest-key-change/);
 });
 
+test("comparison change categories filter rendered sections without changing the report", async () => {
+  const { elements, requests } = await createClientHarness();
+  await elements.get("compare-example-button").listeners.get("click")();
+
+  const filter = elements.get("comparison-change-filter");
+  filter.value = "access";
+  filter.listeners.get("change")();
+
+  const sections = elements.get("compare-report-details").children
+    .filter(child => child.className.includes("change-section"));
+  assert.equal(sections.length, 15);
+  assert.equal(sections.filter(section => !section.hidden).length, 5);
+  assert.ok(sections.filter(section => !section.hidden)
+    .every(section => section.attributes.get("data-change-category") === "access"));
+  assert.match(elements.get("comparison-change-filter-status").textContent, /5 of 15 change sections shown \(access\)/);
+  assert.equal(requests.length, 1);
+});
+
 test("severity filters execute and hide non-matching rendered findings", async () => {
   const { elements } = await createClientHarness();
   await elements.get("analyze-example-button").listeners.get("click")();

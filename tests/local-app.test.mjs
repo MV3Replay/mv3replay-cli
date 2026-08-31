@@ -671,12 +671,24 @@ test("analysis and comparison provide accessible finding severity filters", asyn
   assert.match(source, /comparisonSeverityFilterEl\.addEventListener\("change"/);
 });
 
+test("comparison change sections have an accessible category filter", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(html, /id="comparison-change-filter"/);
+  assert.match(html, /id="comparison-change-filter-status" role="status" aria-live="polite"/);
+  assert.match(source, /function appendComparisonChangeSection/);
+  assert.match(source, /function applyComparisonChangeFilter/);
+  assert.match(source, /data-change-category/);
+  assert.match(source, /comparisonChangeFilterEl\.addEventListener\("change"/);
+});
+
 test("finding filters reset for every new result and do not alter exports", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /analysisSeverityFilterEl\.value = "all"/);
   assert.match(source, /comparisonSeverityFilterEl\.value = "all"/);
   assert.match(source, /analysisFilterControlsEl\.hidden = report\.riskFlags\.length === 0/);
   assert.match(source, /comparisonFilterControlsEl\.hidden = report\.findings\.length === 0/);
+  assert.match(source, /comparisonChangeFilterEl\.value = "all"/);
   assert.doesNotMatch(source, /filter\([^\n]*buildAnalysisMarkdown/);
   assert.doesNotMatch(source, /filter\([^\n]*buildComparisonMarkdown/);
 });

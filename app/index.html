@@ -158,6 +158,21 @@
       <span id="comparison-filter-status" role="status" aria-live="polite"></span>
     </div>
     <div id="comparison-readiness" class="readiness" role="status" aria-live="polite"></div>
+    <div id="comparison-change-filter-controls" class="filter-controls" hidden>
+      <label for="comparison-change-filter">Show change sections</label>
+      <select id="comparison-change-filter">
+        <option value="all">All categories</option>
+        <option value="access">Access</option>
+        <option value="scripts">Content scripts</option>
+        <option value="commands">Commands</option>
+        <option value="rules">Network rules</option>
+        <option value="external">External boundaries</option>
+        <option value="surfaces">Extension surfaces</option>
+        <option value="declarations">Manifest declarations</option>
+        <option value="coverage">Coverage gaps</option>
+      </select>
+      <span id="comparison-change-filter-status" role="status" aria-live="polite"></span>
+    </div>
     <div id="compare-report-details"></div>
   </section>
 
