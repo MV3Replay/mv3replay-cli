@@ -868,6 +868,25 @@ test("hardens content-script fields, arrays, paths, and registrations privately"
   assert.ok(duplicate.riskFlags.some(flag => flag.id === "content-scripts-invalid"));
 });
 
+test("hardens sandbox, background, and static ruleset object boundaries", () => {
+  const marker = "private-structure-marker";
+  const base = { manifest_version: 3, name: "Structure fixture", version: "1.0.0" };
+  for (const manifest of [
+    { sandbox: { pages: ["sandbox.html"], extra: marker } },
+    { background: { service_worker: "worker.js", extra: marker } },
+    { background: { service_worker: "worker.js", scripts: [marker] } },
+    { declarative_net_request: { rule_resources: [{ id: "rules", enabled: true, path: "rules.json" }], extra: marker }, permissions: ["declarativeNetRequest"] },
+    { declarative_net_request: { rule_resources: [{ id: "rules", enabled: true, path: "rules.json", extra: marker }] }, permissions: ["declarativeNetRequest"] }
+  ]) {
+    const report = analyzeManifest({ ...base, ...manifest });
+    assert.ok(report.riskFlags.some(flag => ["sandbox-invalid", "background-service-worker-invalid", "static-rulesets-invalid"].includes(flag.id)));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  const missing = analyzeManifest({ ...base, declarative_net_request: { rule_resources: [{ id: marker, enabled: true, path: "rules.json" }] } });
+  assert.ok(missing.riskFlags.some(flag => flag.id === "static-rulesets-permission-missing" && flag.level === "high"));
+  assert.ok(!JSON.stringify(missing).includes(marker));
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

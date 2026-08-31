@@ -521,9 +521,12 @@ function omniboxDiagnostics(omnibox) {
   return { declared: true, invalid: false };
 }
 
+const SANDBOX_KEYS = new Set(["pages", "content_security_policy"]);
+
 function sandboxDiagnostics(sandbox) {
   if (sandbox === undefined) return { declared: false, invalid: false };
   if (!sandbox || typeof sandbox !== "object" || Array.isArray(sandbox)) return { declared: true, invalid: true };
+  if (!Object.keys(sandbox).every(key => SANDBOX_KEYS.has(key))) return { declared: true, invalid: true };
   const pages = sandbox.pages;
   if (!Array.isArray(pages) || pages.length === 0) return { declared: true, invalid: true };
   const validPages = pages.every(page => presentString(page) && !unsafeRulesetPath(page));
@@ -858,24 +861,30 @@ function chromeSettingsOverridesDiagnostics(value) {
   return { declared: true, invalid: false };
 }
 
+const BACKGROUND_KEYS = new Set(["service_worker", "type"]);
+
 function backgroundDiagnostics(background) {
   if (background === undefined) return { declared: false, invalid: false };
   if (!background || typeof background !== "object" || Array.isArray(background)
     || Object.keys(background).length === 0) {
     return { declared: true, invalid: true };
   }
+  if (!Object.keys(background).every(key => BACKGROUND_KEYS.has(key))) return { declared: true, invalid: true };
   if (!presentString(background.service_worker)) return { declared: true, invalid: true };
-  if (background.scripts !== undefined || background.persistent !== undefined) {
-    return { declared: true, invalid: true };
-  }
   if (unsafeRulesetPath(background.service_worker)) return { declared: true, invalid: true };
   if (background.type !== undefined && background.type !== "module") return { declared: true, invalid: true };
   return { declared: true, invalid: false };
 }
 
+const DECLARATIVE_NET_REQUEST_KEYS = new Set(["rule_resources"]);
+const RULE_RESOURCE_KEYS = new Set(["id", "enabled", "path"]);
+
 function staticRulesetDiagnostics(declarativeNetRequest) {
   if (declarativeNetRequest === undefined) return { declared: false, invalid: false };
   if (!declarativeNetRequest || typeof declarativeNetRequest !== "object" || Array.isArray(declarativeNetRequest)) {
+    return { declared: true, invalid: true };
+  }
+  if (!Object.keys(declarativeNetRequest).every(key => DECLARATIVE_NET_REQUEST_KEYS.has(key))) {
     return { declared: true, invalid: true };
   }
   const ruleResources = declarativeNetRequest.rule_resources;
@@ -889,6 +898,7 @@ function staticRulesetDiagnostics(declarativeNetRequest) {
       invalid = true;
       continue;
     }
+    if (!Object.keys(ruleset).every(key => RULE_RESOURCE_KEYS.has(key))) invalid = true;
     if (!presentString(ruleset.id)) {
       invalid = true;
       continue;
@@ -1211,6 +1221,8 @@ function manifestSignals(manifest) {
   const hostPermissionsStatus = hostPermissionListDiagnostics(manifest.host_permissions);
   const optionalHostPermissionsStatus = hostPermissionListDiagnostics(manifest.optional_host_permissions);
   const staticRulesetStatus = staticRulesetDiagnostics(manifest.declarative_net_request);
+  const hasDeclarativeNetRequestPermission = ["declarativeNetRequest", "declarativeNetRequestWithHostAccess", "declarativeNetRequestFeedback"]
+    .some(permission => permissions.includes(permission) || optionalPermissions.includes(permission));
   const contentScriptStatus = contentScriptDiagnostics(manifest.content_scripts);
   const commandStatus = commandDiagnostics(manifest.commands);
   const backgroundStatus = backgroundDiagnostics(manifest.background);
@@ -1234,6 +1246,7 @@ function manifestSignals(manifest) {
     hostPermissionsStatus,
     optionalHostPermissionsStatus,
     staticRulesetStatus,
+    hasDeclarativeNetRequestPermission,
     contentScriptStatus,
     commandStatus,
     backgroundStatus,
@@ -1273,6 +1286,7 @@ export function analyzeManifest(manifest) {
     hostPermissionsStatus,
     optionalHostPermissionsStatus,
     staticRulesetStatus,
+    hasDeclarativeNetRequestPermission,
     contentScriptStatus,
     commandStatus,
     backgroundStatus,
@@ -1878,6 +1892,9 @@ export function analyzeManifest(manifest) {
   }
   if (staticRulesetStatus.invalid) {
     riskFlags.push({ id: "static-rulesets-invalid", level: "critical", message: "The declarative net request rule-resources declaration is malformed; require a non-empty array of rulesets with unique non-empty IDs, boolean enabled flags, and safe relative paths." });
+  }
+  if (staticRulesetStatus.declared && !hasDeclarativeNetRequestPermission) {
+    riskFlags.push({ id: "static-rulesets-permission-missing", level: "high", message: "Static network rules are declared without a declarativeNetRequest-family permission; add the appropriate permission or remove the declaration." });
   }
   if (contentScriptStatus.invalid) {
     riskFlags.push({ id: "content-scripts-invalid", level: "critical", message: "At least one static content-script declaration is malformed; require page matches plus a non-empty JavaScript or CSS file list and valid optional fields." });
