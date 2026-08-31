@@ -338,6 +338,29 @@ test("validates chrome_url_overrides declarations without reading HTML files", (
   }
 });
 
+test("validates sandbox page declarations without reading page files", () => {
+  const base = { manifest_version: 3, name: "Sandbox fixture", version: "1.0.0" };
+  for (const sandbox of [
+    { pages: ["sandbox/frame.html"] },
+    { pages: ["one.html", "two.html"], content_security_policy: "sandbox allow-scripts" }
+  ]) {
+    const report = analyzeManifest({ ...base, sandbox });
+    assert.ok(report.surfaces.sandboxPages);
+    assert.ok(!report.riskFlags.some(flag => flag.id === "sandbox-invalid"));
+  }
+  for (const sandbox of [
+    "sandbox.html", {}, { pages: [] }, { pages: [""] }, { pages: [42] },
+    { pages: ["/sandbox.html"] },
+    { pages: [["..", "sandbox.html"].join("/")] },
+    { pages: ["same.html", "same.html"] },
+    { pages: ["sandbox.html"], content_security_policy: "" },
+    { pages: ["sandbox.html"], content_security_policy: 42 }
+  ]) {
+    const report = analyzeManifest({ ...base, sandbox });
+    assert.ok(report.riskFlags.some(flag => flag.id === "sandbox-invalid" && flag.level === "critical"));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

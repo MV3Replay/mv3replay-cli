@@ -422,6 +422,20 @@ function sidePanelDiagnostics(sidePanel) {
   return { declared: true, invalid: false };
 }
 
+function sandboxDiagnostics(sandbox) {
+  if (sandbox === undefined) return { declared: false, invalid: false };
+  if (!sandbox || typeof sandbox !== "object" || Array.isArray(sandbox)) return { declared: true, invalid: true };
+  const pages = sandbox.pages;
+  if (!Array.isArray(pages) || pages.length === 0) return { declared: true, invalid: true };
+  const validPages = pages.every(page => presentString(page) && !unsafeRulesetPath(page));
+  const uniquePages = new Set(pages).size === pages.length;
+  if (!validPages || !uniquePages) return { declared: true, invalid: true };
+  if (sandbox.content_security_policy !== undefined && !presentString(sandbox.content_security_policy)) {
+    return { declared: true, invalid: true };
+  }
+  return { declared: true, invalid: false };
+}
+
 const CHROME_URL_OVERRIDE_KEYS = new Set(["bookmarks", "history", "newtab"]);
 
 function chromeUrlOverridesDiagnostics(overrides) {
@@ -917,6 +931,7 @@ export function analyzeManifest(manifest) {
   const optionsStatus = optionsDiagnostics(manifest);
   const sidePanelStatus = sidePanelDiagnostics(manifest.side_panel);
   const chromeUrlOverridesStatus = chromeUrlOverridesDiagnostics(manifest.chrome_url_overrides);
+  const sandboxStatus = sandboxDiagnostics(manifest.sandbox);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1400,6 +1415,9 @@ export function analyzeManifest(manifest) {
   }
   if (chromeUrlOverridesStatus.invalid) {
     riskFlags.push({ id: "chrome-url-overrides-invalid", level: "critical", message: "The chrome_url_overrides declaration is malformed; declare exactly one of bookmarks, history, or newtab mapped to a non-empty safe relative path, without a leading slash, drive letter, or parent-directory traversal." });
+  }
+  if (sandboxStatus.invalid) {
+    riskFlags.push({ id: "sandbox-invalid", level: "critical", message: "The sandbox declaration is malformed; sandbox must be a non-array object with a non-empty pages array of unique, non-empty safe relative paths, and content_security_policy, if present, must be a non-empty string." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
