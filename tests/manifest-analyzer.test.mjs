@@ -638,6 +638,21 @@ test("validates installation URLs and incognito mode without exposing URLs", () 
   }
 });
 
+test("validates public metadata fields without exposing their values", () => {
+  const marker = "private-metadata-marker";
+  const base = { manifest_version: 3, name: "Metadata fixture", version: "1.0.0" };
+  for (const manifest of [
+    { description: 42 }, { description: marker.repeat(20) }, { short_name: "" }, { short_name: marker },
+    { version_name: "" }, { version_name: 42 }, { minimum_chrome_version: "01" }, { minimum_chrome_version: 42 }
+  ]) {
+    const report = analyzeManifest({ ...base, ...manifest });
+    assert.ok(report.riskFlags.some(flag => ["description-invalid", "short-name-invalid", "version-name-invalid", "minimum-browser-version-invalid"].includes(flag.id)));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  const valid = analyzeManifest({ ...base, description: "Useful tool", short_name: "Replay", version_name: "beta", minimum_chrome_version: "120.0" });
+  assert.ok(!valid.riskFlags.some(flag => ["description-invalid", "short-name-invalid", "version-name-invalid", "minimum-browser-version-invalid"].includes(flag.id)));
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

@@ -668,6 +668,26 @@ function incognitoDiagnostics(value) {
   return { declared: true, invalid: typeof value !== "string" || !INCOGNITO_VALUES.has(value) };
 }
 
+function descriptionDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  return { declared: true, invalid: typeof value !== "string" || value.length > 132 };
+}
+
+function shortNameDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  return { declared: true, invalid: !presentString(value) || value.length > 12 };
+}
+
+function versionNameDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  return { declared: true, invalid: !presentString(value) };
+}
+
+function minimumChromeVersionDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  return { declared: true, invalid: parseChromeExtensionVersion(value) === null };
+}
+
 const MESSAGE_PLACEHOLDER_REGEX = /__MSG_[A-Za-z0-9_@]+__/;
 
 function localizedFieldsUsingPlaceholders(manifest) {
@@ -1205,6 +1225,10 @@ export function analyzeManifest(manifest) {
   const homepageUrlStatus = absoluteUrlFieldDiagnostics(manifest.homepage_url);
   const updateUrlStatus = absoluteUrlFieldDiagnostics(manifest.update_url);
   const incognitoStatus = incognitoDiagnostics(manifest.incognito);
+  const descriptionStatus = descriptionDiagnostics(manifest.description);
+  const shortNameStatus = shortNameDiagnostics(manifest.short_name);
+  const versionNameStatus = versionNameDiagnostics(manifest.version_name);
+  const minimumChromeVersionStatus = minimumChromeVersionDiagnostics(manifest.minimum_chrome_version);
   const localizedPlaceholderFields = localizedFieldsUsingPlaceholders(manifest);
   const manifestNameDeclared = presentString(manifest.name);
   const validManifestName = manifestNameDeclared && manifest.name.trim().length <= 75;
@@ -1781,6 +1805,12 @@ export function analyzeManifest(manifest) {
   if (inputComponentsStatus.declared && !permissions.includes("input") && !optionalPermissions.includes("input")) {
     riskFlags.push({ id: "input-components-permission-missing", level: "high", message: "Input components are declared without the required input permission." });
   }
+  if (presentString(manifest.description) && manifest.description.length > 132) {
+    riskFlags.push({ id: "description-too-long", level: "medium", message: "The manifest description exceeds the documented 132-character limit." });
+  }
+  if (presentString(manifest.short_name) && manifest.short_name.length > 12) {
+    riskFlags.push({ id: "short-name-too-long", level: "medium", message: "The manifest short_name exceeds the documented 12-character maximum." });
+  }
   if (ttsEngineStatus.invalid) {
     riskFlags.push({ id: "tts-engine-declaration-invalid", level: "critical", message: "The tts_engine declaration is malformed; provide a voices array whose entries have a non-empty voice name and correctly typed optional language and unique event declarations." });
   }
@@ -1793,12 +1823,6 @@ export function analyzeManifest(manifest) {
       level: "high",
       message: `Coverage gap: top-level manifest keys are present but not interpreted: ${unmodeledKeys.join(", ")}. Add manual coverage before relying on this plan.`
     });
-  }
-  if (presentString(manifest.description) && manifest.description.length > 132) {
-    riskFlags.push({ id: "description-too-long", level: "medium", message: "The manifest description exceeds Chrome's documented 132-character limit." });
-  }
-  if (presentString(manifest.short_name) && manifest.short_name.length > 12) {
-    riskFlags.push({ id: "short-name-too-long", level: "medium", message: "The manifest short_name exceeds Chrome's documented 12-character maximum." });
   }
   if (managedStorageSchema && !storage) {
     riskFlags.push({ id: "managed-schema-without-storage-permission", level: "high", message: "A managed storage schema is declared without the storage permission required to use the extension storage API." });
@@ -1899,6 +1923,18 @@ export function analyzeManifest(manifest) {
   }
   if (incognitoStatus.invalid) {
     riskFlags.push({ id: "incognito-value-invalid", level: "critical", message: "The incognito declaration is invalid; when present it must be exactly \"spanning\", \"split\", or \"not_allowed\"." });
+  }
+  if (descriptionStatus.invalid) {
+    riskFlags.push({ id: "description-invalid", level: "critical", message: "The description declaration is invalid; when present it must be a string no longer than 132 characters." });
+  }
+  if (shortNameStatus.invalid) {
+    riskFlags.push({ id: "short-name-invalid", level: "critical", message: "The short_name declaration is invalid; when present it must be a non-empty string no longer than 12 characters." });
+  }
+  if (versionNameStatus.invalid) {
+    riskFlags.push({ id: "version-name-invalid", level: "critical", message: "The version_name declaration is invalid; when present it must be a non-empty string." });
+  }
+  if (minimumChromeVersionStatus.invalid) {
+    riskFlags.push({ id: "minimum-browser-version-invalid", level: "critical", message: "The minimum browser version declaration is invalid; use one to four dot-separated integers following browser version syntax." });
   }
 
   const report = {
