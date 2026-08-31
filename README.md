@@ -114,6 +114,8 @@ The interface also provides:
   optional module type, and rejection of legacy scripts or persistence fields;
 - popup, options-page, and default side-panel entry validation for safe local
   paths and correctly typed manifest fields without reading referenced HTML;
+- strict named and host-permission field validation, including misplaced host
+  patterns and malformed required or optional match scopes;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

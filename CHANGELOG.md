@@ -76,6 +76,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   optional module type, and rejected Manifest V2 fields.
 - Popup, options-page, and side-panel entry-point validation for safe relative
   paths and correctly typed declarations without reading referenced HTML.
+- Named and host-permission field validation for malformed arrays, misplaced
+  host patterns, and invalid required or optional match scopes.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.
