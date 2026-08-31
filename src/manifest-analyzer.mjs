@@ -178,6 +178,8 @@ const SURFACE_NAMES = [
   ["page-capture", "pageCaptureAccess"],
   ["active-tab", "activeTabAccess"],
   ["programmatic-injection", "scriptingAccess"],
+  ["context-menus", "contextMenusAccess"],
+  ["alarms", "alarmsAccess"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -441,6 +443,8 @@ export function analyzeManifest(manifest) {
   const pageCaptureAccess = permissions.includes("pageCapture") || optionalPermissions.includes("pageCapture");
   const activeTabAccess = permissions.includes("activeTab") || optionalPermissions.includes("activeTab");
   const scriptingAccess = permissions.includes("scripting") || optionalPermissions.includes("scripting");
+  const contextMenusAccess = permissions.includes("contextMenus") || optionalPermissions.includes("contextMenus");
+  const alarmsAccess = permissions.includes("alarms") || optionalPermissions.includes("alarms");
   const chromeUrlOverridePages = ["bookmarks", "history", "newtab"].filter(page =>
     presentString(manifest.chrome_url_overrides?.[page]));
   const chromeSettingsOverrides = Boolean(
@@ -489,6 +493,8 @@ export function analyzeManifest(manifest) {
     pageCaptureAccess,
     activeTabAccess,
     scriptingAccess,
+    contextMenusAccess,
+    alarmsAccess,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -714,6 +720,16 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "programmatic-injection", "high",
       "Programmatic script or style injection requires scripting plus temporary or persistent host access and explicit targeting.",
       ["Inject only packaged test code into an explicitly authorized synthetic page", "Verify main-frame, selected-frame, all-frame, isolated-world, and rejected-target behavior as applicable", "Confirm injection fails safely without activeTab or host access and does not persist after navigation"]);
+  }
+  if (contextMenusAccess) {
+    addLane(lanes, "context-menu-registration", "medium",
+      "Context-menu items depend on registration lifecycle, page context, and click routing.",
+      ["Register the expected items without creating duplicates after a service-worker restart", "Verify visibility and enabled state on representative synthetic page, selection, link, image, and extension contexts", "Trigger each supported item and confirm unsupported or stale targets fail safely"]);
+  }
+  if (alarmsAccess) {
+    addLane(lanes, "alarm-lifecycle", "high",
+      "Alarm delivery can wake the service worker and must tolerate delayed, restarted, or cleared state.",
+      ["Create a short synthetic alarm and verify the intended handler after the worker has stopped", "Restart the browser and verify the extension recreates any alarm it requires instead of assuming persistence", "Clear the alarm and confirm repeated, delayed, and unexpected names do not duplicate work"]);
   }
 
   const riskFlags = [];

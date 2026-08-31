@@ -60,6 +60,8 @@
         "pageCaptureAccess",
         "activeTabAccess",
         "scriptingAccess",
+        "contextMenusAccess",
+        "alarmsAccess",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -103,6 +105,8 @@
         "pageCaptureAccess": { "type": "boolean" },
         "activeTabAccess": { "type": "boolean" },
         "scriptingAccess": { "type": "boolean" },
+        "contextMenusAccess": { "type": "boolean" },
+        "alarmsAccess": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }

@@ -269,6 +269,26 @@ test("builds gesture and revocation lanes for activeTab and scripting", () => {
   assert.ok(report.riskFlags.some(flag => flag.id === "required-programmatic-injection"));
 });
 
+test("builds lifecycle lanes for context menus and alarms", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Lifecycle extension",
+    version: "1.0.0",
+    permissions: ["contextMenus", "alarms"]
+  });
+
+  assert.equal(report.surfaces.contextMenusAccess, true);
+  assert.equal(report.surfaces.alarmsAccess, true);
+  const contextMenuLane = report.lanes.find(lane => lane.id === "context-menu-registration");
+  const alarmLane = report.lanes.find(lane => lane.id === "alarm-lifecycle");
+  assert.ok(contextMenuLane);
+  assert.ok(alarmLane);
+  assert.ok(contextMenuLane.checks.some(check => /without creating duplicates/i.test(check)));
+  assert.ok(contextMenuLane.checks.some(check => /synthetic page/i.test(check)));
+  assert.ok(alarmLane.checks.some(check => /worker has stopped/i.test(check)));
+  assert.ok(alarmLane.checks.some(check => /recreates any alarm/i.test(check)));
+});
+
 test("compares extension versions using Chrome update ordering", () => {
   const base = {
     manifest_version: 3,
