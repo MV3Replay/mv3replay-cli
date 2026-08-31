@@ -81,6 +81,8 @@ public for testing, but no package, tag, or GitHub Release exists.
 - Built-in page override, sandbox page, DevTools page, and omnibox declaration validation.
 - Locale and message-placeholder validation without reading locale catalogs.
 - Privacy-safe OAuth2 structure validation without reporting client identifiers.
+- Strict cross-origin isolation policy and managed-storage path validation without
+  reading referenced schema files or exposing declaration values.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

@@ -123,6 +123,8 @@ The interface also provides:
 - DevTools-page and omnibox declaration validation for safe local entry points;
 - locale declaration and message-placeholder validation without reading locale files;
 - privacy-safe OAuth2 structure validation that never reports client identifiers;
+- strict cross-origin isolation policy and managed-storage path validation without
+  reading schema files or reporting policy values and paths;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only
