@@ -83,6 +83,8 @@ The interface also provides:
   work, including restart and duplicate-work boundaries;
 - explicit coverage-gap reporting for top-level manifest keys the analyzer does
   not yet interpret, including added, removed, and value-changed keys in comparisons;
+- presentation-metadata coverage for descriptions, short and display versions,
+  homepages, manifest icons, and default-locale changes without reading asset files;
 - user-triggered JSON and escaped Markdown report downloads, including the
   detected-surface and manifest-count inventory; and
 - a private 10-minute tester guide with a local feedback-notes template that

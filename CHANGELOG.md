@@ -46,6 +46,9 @@ public for testing, but no package, tag, or GitHub Release exists.
   declarations, and OAuth scope expansion, with dedicated update findings.
 - Explicit analysis and comparison warnings for unmodeled top-level manifest
   keys, including deterministic added, removed, and value-changed key details.
+- Manifest presentation and localization checks for descriptions, short names,
+  display versions, homepages, icons, and default locales, including documented
+  length-limit warnings and precise comparison findings.
 
 ### Future ideas (not implemented)
 
