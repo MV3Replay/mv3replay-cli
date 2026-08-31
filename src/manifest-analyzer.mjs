@@ -136,16 +136,23 @@ function externallyConnectableDiagnostics(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { declared: true, invalid: true, invalidAllUrls: false, wildcardIds: false, acceptsTlsChannelId: false };
   }
+  const allowedKeys = Object.keys(value).every(key =>
+    key === "ids" || key === "matches" || key === "accepts_tls_channel_id");
   const ids = value.ids === undefined ? [] : asStrings(value.ids);
   const matches = value.matches === undefined ? [] : asStrings(value.matches);
   const invalidIds = value.ids !== undefined && (!Array.isArray(value.ids)
-    || ids.length !== value.ids.length || ids.some(id => id !== "*" && !/^[a-p]{32}$/.test(id)));
+    || ids.length !== value.ids.length || ids.some(id => id !== "*" && !/^[a-p]{32}$/.test(id))
+    || new Set(ids).size !== ids.length);
   const invalidMatches = value.matches !== undefined && (!Array.isArray(value.matches)
-    || matches.length !== value.matches.length || matches.some(pattern => !presentString(pattern)));
+    || matches.length !== value.matches.length || matches.some(pattern => !validHostPermissionPattern(pattern))
+    || new Set(matches).size !== matches.length);
   const invalidTls = value.accepts_tls_channel_id !== undefined && typeof value.accepts_tls_channel_id !== "boolean";
+  const hasIds = value.ids !== undefined && !invalidIds && ids.length > 0;
+  const hasMatches = value.matches !== undefined && !invalidMatches && matches.length > 0;
+  const missingDeclaration = !hasIds && !hasMatches;
   return {
     declared: true,
-    invalid: invalidIds || invalidMatches || invalidTls,
+    invalid: !allowedKeys || invalidIds || invalidMatches || invalidTls || missingDeclaration,
     invalidAllUrls: matches.includes("<all_urls>"),
     wildcardIds: ids.includes("*"),
     acceptsTlsChannelId: value.accepts_tls_channel_id === true

@@ -775,6 +775,23 @@ test("hardens web-accessible resource paths, targets, and identifiers privately"
   }
 });
 
+test("hardens external connection identifiers and matches privately", () => {
+  const marker = "ponmlkjihgfedcbaponmlkjihgfedcba";
+  const base = { manifest_version: 3, name: "External fixture", version: "1.0.0" };
+  for (const declaration of [{ ids: [marker] }, { matches: ["https://example.invalid/*"] }, { ids: ["*"], accepts_tls_channel_id: false }]) {
+    const report = analyzeManifest({ ...base, externally_connectable: declaration });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "externally-connectable-invalid"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  for (const declaration of [{}, { accepts_tls_channel_id: true }, { ids: [] }, { ids: [marker, marker] }, { ids: ["invalid"] },
+    { matches: [] }, { matches: ["https://example.invalid/*", "https://example.invalid/*"] }, { matches: ["invalid"] },
+    { ids: [marker], extra: marker }]) {
+    const report = analyzeManifest({ ...base, externally_connectable: declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "externally-connectable-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
