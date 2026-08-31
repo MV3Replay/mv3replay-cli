@@ -68,6 +68,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   callers, TLS channel-ID privacy, and the undeclared-versus-empty update trap.
 - Static content-script validation for required matches and files, optional
   fields, injection timing, execution worlds, and origin-fallback paths.
+- Keyboard-command validation for required descriptions, platform-specific
+  shortcut syntax, MV3 action names, and the four-suggestion limit.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

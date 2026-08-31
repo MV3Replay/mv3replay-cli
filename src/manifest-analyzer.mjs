@@ -196,6 +196,74 @@ function listDiff(before, after) {
 
 const RUN_AT_VALUES = ["document_start", "document_end", "document_idle"];
 const CONTENT_SCRIPT_WORLDS = ["ISOLATED", "MAIN"];
+const COMMAND_PLATFORMS = new Set(["default", "chromeos", "linux", "mac", "windows"]);
+const COMMAND_KEYS = new Set([
+  ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  "Comma", "Period", "Home", "End", "PageUp", "PageDown", "Space", "Insert", "Delete",
+  "Up", "Down", "Left", "Right",
+  "MediaNextTrack", "MediaPlayPause", "MediaPrevTrack", "MediaStop"
+]);
+const COMMAND_MODIFIERS = new Set(["Ctrl", "Alt", "Shift", "MacCtrl", "Option", "Command", "Search"]);
+
+function validCommandShortcut(shortcut, platform) {
+  if (!presentString(shortcut)) return false;
+  const parts = shortcut.split("+");
+  if (parts.some(part => !presentString(part)) || new Set(parts).size !== parts.length) return false;
+  const keys = parts.filter(part => COMMAND_KEYS.has(part));
+  const modifiers = parts.filter(part => COMMAND_MODIFIERS.has(part));
+  if (keys.length !== 1 || keys.length + modifiers.length !== parts.length) return false;
+  const mediaKey = keys[0].startsWith("Media");
+  if (mediaKey) return modifiers.length === 0;
+  if (modifiers.includes("Ctrl") && modifiers.includes("Alt")) return false;
+  if (["MacCtrl", "Option", "Command"].some(item => modifiers.includes(item)) && platform !== "mac") return false;
+  if (modifiers.includes("Search") && platform !== "chromeos") return false;
+  return modifiers.some(item => ["Ctrl", "Alt", "MacCtrl", "Option", "Command"].includes(item));
+}
+
+function commandDiagnostics(value) {
+  if (value === undefined) {
+    return { invalid: false, missingDescription: false, tooManySuggested: false, deprecatedAction: false };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { invalid: true, missingDescription: false, tooManySuggested: false, deprecatedAction: false };
+  }
+  let invalid = Object.keys(value).length === 0;
+  let missingDescription = false;
+  let suggestedCount = 0;
+  let deprecatedAction = false;
+  for (const [name, declaration] of Object.entries(value)) {
+    if (!presentString(name) || !declaration || typeof declaration !== "object" || Array.isArray(declaration)) {
+      invalid = true;
+      continue;
+    }
+    const actionCommand = name === "_execute_action";
+    const legacyActionCommand = name === "_execute_browser_action" || name === "_execute_page_action";
+    deprecatedAction ||= legacyActionCommand;
+    missingDescription ||= !actionCommand && !legacyActionCommand && !presentString(declaration.description);
+    if (declaration.description !== undefined && typeof declaration.description !== "string") invalid = true;
+    if (declaration.global !== undefined && typeof declaration.global !== "boolean") invalid = true;
+    if (declaration.suggested_key === undefined) continue;
+    suggestedCount += 1;
+    if (typeof declaration.suggested_key === "string") {
+      invalid ||= !validCommandShortcut(declaration.suggested_key, "default");
+      continue;
+    }
+    if (!declaration.suggested_key || typeof declaration.suggested_key !== "object"
+      || Array.isArray(declaration.suggested_key)) {
+      invalid = true;
+      continue;
+    }
+    const shortcuts = Object.entries(declaration.suggested_key);
+    invalid ||= shortcuts.length === 0 || shortcuts.some(([platform, shortcut]) =>
+      !COMMAND_PLATFORMS.has(platform) || !validCommandShortcut(shortcut, platform));
+  }
+  return {
+    invalid,
+    missingDescription,
+    tooManySuggested: suggestedCount > 4,
+    deprecatedAction
+  };
+}
 
 function contentScriptDiagnostics(value) {
   if (value === undefined) return { invalid: false, invalidOriginFallbackPath: false };
@@ -591,6 +659,7 @@ function manifestSignals(manifest) {
   const externalExtensionIds = sortedUnique(asStrings(manifest.externally_connectable?.ids));
   const externalConnectionStatus = externallyConnectableDiagnostics(manifest.externally_connectable);
   const contentScriptStatus = contentScriptDiagnostics(manifest.content_scripts);
+  const commandStatus = commandDiagnostics(manifest.commands);
   const unmodeledKeys = unmodeledTopLevelKeys(manifest);
 
   return {
@@ -607,6 +676,7 @@ function manifestSignals(manifest) {
     externalExtensionIds,
     externalConnectionStatus,
     contentScriptStatus,
+    commandStatus,
     unmodeledKeys
   };
 }
@@ -639,6 +709,7 @@ export function analyzeManifest(manifest) {
     externalExtensionIds,
     externalConnectionStatus,
     contentScriptStatus,
+    commandStatus,
     unmodeledKeys
   } = manifestSignals(manifest);
 
@@ -1132,6 +1203,18 @@ export function analyzeManifest(manifest) {
   }
   if (contentScriptStatus.invalidOriginFallbackPath) {
     riskFlags.push({ id: "content-script-origin-fallback-path-invalid", level: "critical", message: "A content script enables origin fallback without using /* paths for every match pattern; narrow and correct the declaration before packaging." });
+  }
+  if (commandStatus.invalid) {
+    riskFlags.push({ id: "commands-invalid", level: "critical", message: "The keyboard-command declaration is malformed; use valid command objects, platform names, case-sensitive keys, modifiers, descriptions, and optional boolean global flags." });
+  }
+  if (commandStatus.missingDescription) {
+    riskFlags.push({ id: "command-description-missing", level: "critical", message: "A standard keyboard command has no non-empty description and may fail manifest validation; descriptions are optional only for the MV3 action command." });
+  }
+  if (commandStatus.tooManySuggested) {
+    riskFlags.push({ id: "too-many-suggested-shortcuts", level: "critical", message: "More than four commands specify suggested shortcuts, exceeding the documented manifest limit; leave additional commands unbound by default." });
+  }
+  if (commandStatus.deprecatedAction) {
+    riskFlags.push({ id: "deprecated-action-command", level: "critical", message: "The manifest uses a Manifest V2 action-command name; replace it with _execute_action for Manifest V3." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

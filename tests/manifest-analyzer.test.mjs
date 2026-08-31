@@ -1263,6 +1263,63 @@ test("compares browser support, CSP, and OAuth scope policy changes precisely", 
   assert.equal(report.requiresManualUpdateValidation, true);
 });
 
+test("validates keyboard-command declarations and the suggested-shortcut limit", () => {
+  const base = { manifest_version: 3, name: "Command fixture", version: "1.0.0" };
+  for (const commands of [
+    [],
+    {},
+    { run: null },
+    { run: { description: "Run", suggested_key: "ctrl+Shift+Y" } },
+    { run: { description: "Run", suggested_key: "Ctrl+Alt+Y" } },
+    { run: { description: "Run", suggested_key: { android: "Ctrl+Y" } } },
+    { run: { description: "Run", suggested_key: { windows: "Command+Y" } } },
+    { run: { description: 42 } },
+    { run: { description: "Run", global: "yes" } }
+  ]) {
+    const report = analyzeManifest({ ...base, commands });
+    assert.ok(report.riskFlags.some(flag => flag.id === "commands-invalid"), JSON.stringify(commands));
+  }
+
+  const commands = Object.fromEntries(Array.from({ length: 5 }, (_, index) => [
+    `command-${index}`,
+    { description: `Command ${index}`, suggested_key: `Ctrl+Shift+${index}` }
+  ]));
+  const limit = analyzeManifest({ ...base, commands });
+  assert.ok(limit.riskFlags.some(flag => flag.id === "too-many-suggested-shortcuts"));
+});
+
+test("requires descriptions for standard commands and rejects MV2 action names", () => {
+  const base = { manifest_version: 3, name: "Command fixture", version: "1.0.0" };
+  const missing = analyzeManifest({ ...base, commands: { run: { suggested_key: "Ctrl+Shift+Y" } } });
+  assert.ok(missing.riskFlags.some(flag => flag.id === "command-description-missing"));
+
+  const action = analyzeManifest({ ...base, commands: { _execute_action: { suggested_key: "Ctrl+Shift+Y" } } });
+  assert.ok(!action.riskFlags.some(flag => flag.id === "command-description-missing"));
+
+  const legacy = analyzeManifest({ ...base, commands: { _execute_browser_action: {} } });
+  assert.ok(legacy.riskFlags.some(flag => flag.id === "deprecated-action-command"));
+});
+
+test("accepts documented platform-specific and media command shortcuts", () => {
+  const report = analyzeManifest({
+    manifest_version: 3,
+    name: "Command fixture",
+    version: "1.0.0",
+    commands: {
+      run: {
+        description: "Run the command",
+        suggested_key: {
+          default: "Ctrl+Shift+Y",
+          mac: "Command+Shift+Y",
+          chromeos: "Ctrl+Search+Y"
+        }
+      },
+      media: { description: "Pause media", suggested_key: "MediaPlayPause" }
+    }
+  });
+  assert.ok(!report.riskFlags.some(flag => flag.id === "commands-invalid"));
+});
+
 test("detects update-source and incognito-mode changes", () => {
   const previous = {
     manifest_version: 3,
