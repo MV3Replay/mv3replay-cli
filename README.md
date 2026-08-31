@@ -92,7 +92,8 @@ The interface also provides:
 - explicit coverage-gap reporting for top-level manifest keys the analyzer does
   not yet interpret, including added, removed, and value-changed keys in comparisons;
 - presentation-metadata coverage for descriptions, short and display versions,
-  homepages, manifest icons, and default-locale changes without reading asset files;
+  extension names, homepages, manifest icons, and default-locale changes without
+  reading asset files;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

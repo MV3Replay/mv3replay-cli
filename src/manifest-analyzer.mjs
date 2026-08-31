@@ -320,7 +320,7 @@ function declarationChanges(previousManifest, currentManifest) {
       ? currentManifest.storage.managed_schema
       : null
   );
-  for (const field of ["default_locale", "description", "homepage_url", "short_name", "version_name"]) {
+  for (const field of ["default_locale", "description", "homepage_url", "name", "short_name", "version_name"]) {
     pushIfChanged(
       field,
       presentString(previousManifest[field]) ? previousManifest[field] : null,
@@ -1095,7 +1095,7 @@ export function compareManifests(previousManifest, currentManifest) {
       message: `Unmodeled top-level manifest keys changed (added: ${changes.unmodeledTopLevelKeys.added.join(", ") || "none"}; removed: ${changes.unmodeledTopLevelKeys.removed.join(", ") || "none"}; changed: ${changes.unmodeledTopLevelKeys.changed.join(", ") || "none"}). Review their browser behavior manually.`
     });
   }
-  const metadataFields = new Set(["description", "homepage_url", "icons", "short_name", "version_name"]);
+  const metadataFields = new Set(["description", "homepage_url", "icons", "name", "short_name", "version_name"]);
   const changedMetadataFields = declarations.filter(change => metadataFields.has(change.field));
   if (changedMetadataFields.length > 0) {
     findings.push({

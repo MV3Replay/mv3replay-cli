@@ -370,6 +370,21 @@ test("models presentation metadata, limits, icons, and localization", () => {
   assert.ok(!comparison.findings.some(finding => finding.id === "unmodeled-manifest-key-change"));
 });
 
+test("counts and flags an extension name change as presentation metadata", () => {
+  const previous = { manifest_version: 3, name: "Old public name", version: "1.0.0" };
+  const current = { manifest_version: 3, name: "New public name", version: "2.0.0" };
+  const report = compareManifests(previous, current);
+
+  assert.deepEqual(report.changes.declarations.find(change => change.field === "name"), {
+    field: "name",
+    previous: "Old public name",
+    current: "New public name"
+  });
+  const finding = report.findings.find(item => item.id === "extension-presentation-change");
+  assert.ok(finding);
+  assert.match(finding.message, /name/);
+});
+
 test("flags an overlong manifest description", () => {
   const report = analyzeManifest({
     manifest_version: 3,

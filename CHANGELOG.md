@@ -50,6 +50,8 @@ public for testing, but no package, tag, or GitHub Release exists.
 - Manifest presentation and localization checks for descriptions, short names,
   display versions, homepages, icons, and default locales, including documented
   length-limit warnings and precise comparison findings.
+- Extension display-name changes now count as structured declaration changes and
+  produce the existing presentation-change finding.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.
