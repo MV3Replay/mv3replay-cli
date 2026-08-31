@@ -711,6 +711,7 @@ function manifestSignals(manifest) {
     externalMatches,
     externalExtensionIds,
     externalConnectionStatus,
+    staticRulesetStatus,
     contentScriptStatus,
     commandStatus,
     unmodeledKeys
@@ -744,6 +745,7 @@ export function analyzeManifest(manifest) {
     externalMatches,
     externalExtensionIds,
     externalConnectionStatus,
+    staticRulesetStatus,
     contentScriptStatus,
     commandStatus,
     unmodeledKeys
@@ -1233,6 +1235,9 @@ export function analyzeManifest(manifest) {
   }
   if (externalConnectionStatus.acceptsTlsChannelId) {
     riskFlags.push({ id: "tls-channel-id-enabled", level: "high", message: "External web messaging accepts TLS channel IDs; verify explicit need, absent-ID behavior, and that identifiers are never logged or exported." });
+  }
+  if (staticRulesetStatus.invalid) {
+    riskFlags.push({ id: "static-rulesets-invalid", level: "critical", message: "The declarative net request rule-resources declaration is malformed; require a non-empty array of rulesets with unique non-empty IDs, boolean enabled flags, and safe relative paths." });
   }
   if (contentScriptStatus.invalid) {
     riskFlags.push({ id: "content-scripts-invalid", level: "critical", message: "At least one static content-script declaration is malformed; require page matches plus a non-empty JavaScript or CSS file list and valid optional fields." });

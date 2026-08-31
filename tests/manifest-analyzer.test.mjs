@@ -1041,6 +1041,48 @@ test("requires wildcard paths for content-script origin fallback", () => {
   assert.ok(report.riskFlags.some(flag => flag.id === "content-script-origin-fallback-path-invalid"));
 });
 
+test("validates static declarative_net_request ruleset declarations", () => {
+  const base = { manifest_version: 3, name: "DNR fixture", version: "1.0.0" };
+  const invalidValues = [
+    null,
+    [],
+    {},
+    { rule_resources: [] },
+    { rule_resources: [null] },
+    { rule_resources: [{ enabled: true, path: "rules.json" }] },
+    { rule_resources: [{ id: "base", path: "rules.json" }] },
+    { rule_resources: [{ id: "base", enabled: "yes", path: "rules.json" }] },
+    { rule_resources: [{ id: "base", enabled: true }] },
+    { rule_resources: [{ id: "base", enabled: true, path: "/etc/rules.json" }] },
+    { rule_resources: [{ id: "base", enabled: true, path: "../rules.json" }] },
+    { rule_resources: [{ id: "base", enabled: true, path: "sub/../../rules.json" }] },
+    {
+      rule_resources: [
+        { id: "base", enabled: true, path: "rules.json" },
+        { id: "base", enabled: false, path: "extra.json" }
+      ]
+    }
+  ];
+
+  for (const declarative_net_request of invalidValues) {
+    const report = analyzeManifest({ ...base, declarative_net_request });
+    assert.ok(report.riskFlags.some(flag => flag.id === "static-rulesets-invalid" && flag.level === "critical"),
+      JSON.stringify(declarative_net_request));
+  }
+
+  const valid = analyzeManifest({
+    ...base,
+    declarative_net_request: {
+      rule_resources: [
+        { id: "base", enabled: true, path: "rules/base.json" },
+        { id: "extra", enabled: false, path: "rules/extra.json" }
+      ]
+    }
+  });
+  assert.ok(!valid.riskFlags.some(flag => flag.id === "static-rulesets-invalid"));
+  assert.ok(valid.lanes.some(lane => lane.id === "network-rules"));
+});
+
 test("compares commands, DNR rulesets, external messaging, web-accessible resources, and surfaces", () => {
   const previous = {
     manifest_version: 3,
