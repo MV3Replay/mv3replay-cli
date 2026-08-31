@@ -45,6 +45,12 @@ test("inspect accepts exactly one path plus at most one --json", () => {
   assert.equal(runCli("inspect", good, "extra").status, 2);
   assert.equal(runCli("inspect", good, "--json", "--json").status, 2);
   assert.equal(runCli("inspect", good, "--unknown").status, 2);
+  assert.equal(runCli("inspect", good, "--fail-on", "critical").status, 0);
+  assert.equal(runCli("inspect", good, "--json", "--fail-on", "critical").status, 0);
+  assert.equal(runCli("inspect", good, "--fail-on", "critical", "--json").status, 0);
+  assert.equal(runCli("inspect", good, "--fail-on").status, 2);
+  assert.equal(runCli("inspect", good, "--fail-on", "warning").status, 2);
+  assert.equal(runCli("inspect", good, "--fail-on", "high", "--fail-on", "low").status, 2);
 });
 
 test("compare accepts exactly two paths plus at most one --json", () => {
@@ -55,6 +61,8 @@ test("compare accepts exactly two paths plus at most one --json", () => {
   assert.equal(runCli("compare", previous, current, "extra").status, 2);
   assert.equal(runCli("compare", previous, current, "--json", "--json").status, 2);
   assert.equal(runCli("compare", previous, current, "--unknown").status, 2);
+  assert.equal(runCli("compare", previous, current, "--fail-on", "critical").status, 7);
+  assert.equal(runCli("compare", previous, current, "--json", "--fail-on", "critical").status, 7);
 });
 
 test("a missing manifest path exits 3", () => {
@@ -92,4 +100,34 @@ test("unsupported manifest versions exit 6", () => {
   const result = runCli("inspect", path.join(FIXTURE_ROOT, "non-mv3"));
   assert.equal(result.status, 6);
   assert.match(result.stderr, /Manifest V3 only/);
+});
+
+test("--fail-on writes the complete report before exiting 7", () => {
+  const result = runCli(
+    "inspect",
+    path.join(FIXTURE_ROOT, "sensitive-permissions"),
+    "--json",
+    "--fail-on",
+    "critical"
+  );
+  assert.equal(result.status, 7);
+  assert.doesNotThrow(() => JSON.parse(result.stdout));
+  const report = JSON.parse(result.stdout);
+  assert.ok(report.riskFlags.some(flag => flag.level === "critical"));
+  assert.match(result.stderr, /^MV3 Replay: --fail-on critical matched 2 findings\.$/m);
+});
+
+test("--fail-on honors severity ordering without changing defaults", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "mv3-replay-threshold-"));
+  await writeFile(path.join(directory, "manifest.json"), JSON.stringify({
+    manifest_version: 3,
+    name: "Threshold fixture",
+    version: "1.0.0",
+    description: "x".repeat(133)
+  }), "utf8");
+
+  assert.equal(runCli("inspect", directory).status, 0);
+  assert.equal(runCli("inspect", directory, "--fail-on", "high").status, 0);
+  assert.equal(runCli("inspect", directory, "--fail-on", "medium").status, 7);
+  assert.equal(runCli("inspect", directory, "--fail-on", "low").status, 7);
 });

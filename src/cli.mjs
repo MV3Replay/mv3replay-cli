@@ -15,7 +15,8 @@ const EXIT_CODES = {
   inputMissing: 3,
   jsonInvalid: 4,
   inputOversize: 5,
-  manifestUnsupported: 6
+  manifestUnsupported: 6,
+  findingThresholdMet: 7
 };
 
 class CliError extends Error {
@@ -29,8 +30,10 @@ function usage() {
   return `MV3 Replay local manifest analyzer
 
 Usage:
-  node src/cli.mjs inspect <extension-directory|manifest.json> [--json]
-  node src/cli.mjs compare <previous-directory|manifest.json> <current-directory|manifest.json> [--json]
+  node src/cli.mjs inspect <extension-directory|manifest.json> [--json] [--fail-on <level>]
+  node src/cli.mjs compare <previous-directory|manifest.json> <current-directory|manifest.json> [--json] [--fail-on <level>]
+
+Finding levels for --fail-on: critical, high, medium, low
 
 Exit codes:
   0  success
@@ -40,6 +43,7 @@ Exit codes:
   4  input is not valid JSON, not a JSON object, or nests deeper than 128 levels
   5  input exceeds the 1 MiB manifest safety limit
   6  manifest_version other than 3
+  7  configured finding threshold met after the report was written
 
 These commands read only local manifests. They do not upload data, inspect
 source files, connect to Chrome, install an extension, or control a browser.`;
@@ -223,27 +227,51 @@ async function readManifest(input) {
 
 function parseArguments(args) {
   if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
-    return { command: "help", operands: [], json: false };
+    return { command: "help", operands: [], json: false, failOn: null };
   }
   const [command, ...rest] = args;
   if (command !== "inspect" && command !== "compare") {
     throw new CliError(EXIT_CODES.usage, usage());
   }
   const operandCount = command === "inspect" ? 1 : 2;
-  const json =
-    rest.length === operandCount + 1 && rest[operandCount] === "--json";
   const operands = rest.slice(0, operandCount);
-  if (
-    (rest.length !== operandCount && !json) ||
-    operands.some(operand => operand.startsWith("-"))
-  ) {
+  if (operands.length !== operandCount || operands.some(operand => operand.startsWith("-"))) {
     throw new CliError(EXIT_CODES.usage, usage());
   }
-  return { command, operands, json };
+  let json = false;
+  let failOn = null;
+  const options = rest.slice(operandCount);
+  for (let index = 0; index < options.length; index += 1) {
+    const option = options[index];
+    if (option === "--json" && !json) {
+      json = true;
+      continue;
+    }
+    if (option === "--fail-on" && failOn === null) {
+      const level = options[index + 1];
+      if (!["critical", "high", "medium", "low"].includes(level)) {
+        throw new CliError(EXIT_CODES.usage, usage());
+      }
+      failOn = level;
+      index += 1;
+      continue;
+    }
+    throw new CliError(EXIT_CODES.usage, usage());
+  }
+  return { command, operands, json, failOn };
+}
+
+function applyFindingThreshold(items, failOn) {
+  if (failOn === null) return;
+  const rank = { critical: 4, high: 3, medium: 2, low: 1 };
+  const matched = items.filter(item => rank[item.level] >= rank[failOn]).length;
+  if (matched === 0) return;
+  process.stderr.write(`MV3 Replay: --fail-on ${failOn} matched ${matched} finding${matched === 1 ? "" : "s"}.\n`);
+  process.exitCode = EXIT_CODES.findingThresholdMet;
 }
 
 async function main() {
-  const { command, operands, json } = parseArguments(process.argv.slice(2));
+  const { command, operands, json, failOn } = parseArguments(process.argv.slice(2));
   if (command === "help") {
     process.stdout.write(`${usage()}\n`);
     return;
@@ -257,6 +285,7 @@ async function main() {
     } else {
       printComparison(report, inputs[0].file, inputs[1].file);
     }
+    applyFindingThreshold(report.findings, failOn);
     return;
   }
 
@@ -266,6 +295,7 @@ async function main() {
   } else {
     printHuman(report, inputs[0].file);
   }
+  applyFindingThreshold(report.riskFlags, failOn);
 }
 
 const ANALYZER_EXIT_CODES = {
