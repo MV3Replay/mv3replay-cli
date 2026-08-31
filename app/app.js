@@ -274,6 +274,7 @@ function comparisonChangeBreakdown(changes) {
     ["external boundaries", externalBoundaries],
     ["surfaces", countListDiff(changes.surfaces)],
     ["declarations", changes.declarations?.length || 0],
+    ["identity", changes.extensionKey?.changed ? 1 : 0],
     ["coverage gaps", (changes.unmodeledTopLevelKeys?.added?.length || 0)
       + (changes.unmodeledTopLevelKeys?.removed?.length || 0)
       + (changes.unmodeledTopLevelKeys?.changed?.length || 0)]
@@ -1008,6 +1009,15 @@ function renderDeclarationChanges(changes) {
   return container;
 }
 
+function renderExtensionKeyChange(change) {
+  const container = el("div", { className: "declaration-changes" });
+  container.appendChild(el("strong", { text: "Extension identity key" }));
+  container.appendChild(el("p", {
+    text: `Previous declared: ${change.previousDeclared ? "yes" : "no"}; current declared: ${change.currentDeclared ? "yes" : "no"}; changed: ${change.changed ? "yes" : "no"}.`
+  }));
+  return container;
+}
+
 function renderCompareReport(report) {
   compareReportDetailsEl.textContent = "";
   comparisonFindingNodes = [];
@@ -1058,6 +1068,7 @@ function renderCompareReport(report) {
   appendComparisonChangeSection("external", renderListDiff("External messaging extension IDs", report.changes.externalMessaging.ids), countListDiff(report.changes.externalMessaging.ids) > 0);
   appendComparisonChangeSection("external", renderWebAccessibleResourceChanges(report.changes.webAccessibleResources), countListDiff(report.changes.webAccessibleResources) > 0);
   appendComparisonChangeSection("declarations", renderDeclarationChanges(report.changes.declarations), report.changes.declarations.length > 0);
+  appendComparisonChangeSection("identity", renderExtensionKeyChange(report.changes.extensionKey), report.changes.extensionKey.changed);
   appendComparisonChangeSection("coverage", renderKeyValueChanges(
     "Unmodeled top-level manifest keys",
     report.changes.unmodeledTopLevelKeys
@@ -1251,6 +1262,11 @@ function buildComparisonMarkdown(report, checklist) {
       );
     }
   }
+  lines.push("");
+  lines.push("### Extension identity key");
+  lines.push(`- Previous declared: ${report.changes.extensionKey.previousDeclared ? "yes" : "no"}`);
+  lines.push(`- Current declared: ${report.changes.extensionKey.currentDeclared ? "yes" : "no"}`);
+  lines.push(`- Changed: ${report.changes.extensionKey.changed ? "yes" : "no"}`);
   lines.push("");
   lines.push("### Unmodeled top-level manifest keys");
   lines.push(`- Added: ${report.changes.unmodeledTopLevelKeys.added.length ? report.changes.unmodeledTopLevelKeys.added.map(escapeMarkdownText).join(", ") : "none"}`);

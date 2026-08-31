@@ -55,6 +55,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   coverage gaps without changing reports or exports.
 - Extension-origin COEP/COOP and enterprise managed-storage schema surfaces,
   declarations, findings, and privacy-preserving manual regression lanes.
+- Packaged extension identity-key continuity checks, with a critical update
+  finding and boolean-only reports that never reproduce the key value.
 - A changed-sections-only option that combines with every comparison category,
   including an explicit zero-section state for identical manifests.
 - Explicitly user-triggered share-safe analysis and comparison summaries that

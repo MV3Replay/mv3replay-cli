@@ -39,6 +39,7 @@
         "webAccessibleResources",
         "surfaces",
         "declarations",
+        "extensionKey",
         "unmodeledTopLevelKeys"
       ],
       "properties": {
@@ -118,6 +119,16 @@
               "previous": {},
               "current": {}
             }
+          }
+        },
+        "extensionKey": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["previousDeclared", "currentDeclared", "changed"],
+          "properties": {
+            "previousDeclared": { "type": "boolean" },
+            "currentDeclared": { "type": "boolean" },
+            "changed": { "type": "boolean" }
           }
         },
         "unmodeledTopLevelKeys": { "$ref": "#/$defs/keyValueDiff" }

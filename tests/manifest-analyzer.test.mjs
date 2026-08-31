@@ -444,6 +444,46 @@ test("warns when a managed schema lacks storage API permission", () => {
   assert.ok(report.riskFlags.some(flag => flag.id === "managed-schema-without-storage-permission"));
 });
 
+test("models extension identity-key continuity without exposing the key", () => {
+  const secretKey = "PRIVATE_EXTENSION_KEY_MATERIAL";
+  const report = analyzeManifest({ manifest_version: 3, name: "Identity fixture", version: "1.0.0", key: secretKey });
+
+  assert.equal(report.surfaces.extensionKeyDeclared, true);
+  assert.ok(report.lanes.some(lane => lane.id === "extension-identity-continuity"));
+  assert.ok(!report.coverage.unmodeledTopLevelKeys.includes("key"));
+  assert.ok(!JSON.stringify(report).includes(secretKey));
+});
+
+test("gates identity-key changes while returning booleans only", () => {
+  const previousKey = "PRIVATE_PREVIOUS_EXTENSION_KEY";
+  const currentKey = "PRIVATE_CURRENT_EXTENSION_KEY";
+  const base = { manifest_version: 3, name: "Identity fixture", version: "1.0.0" };
+  const report = compareManifests(
+    { ...base, key: previousKey },
+    { ...base, version: "2.0.0", key: currentKey }
+  );
+
+  assert.deepEqual(report.changes.extensionKey, { previousDeclared: true, currentDeclared: true, changed: true });
+  assert.ok(report.findings.some(finding => finding.id === "extension-identity-key-change" && finding.level === "critical"));
+  assert.equal(report.requiresManualUpdateValidation, true);
+  assert.ok(!JSON.stringify(report).includes(previousKey));
+  assert.ok(!JSON.stringify(report).includes(currentKey));
+  assert.equal(compareManifests({ ...base, key: previousKey }, { ...base, key: previousKey }).changes.extensionKey.changed, false);
+});
+
+test("CLI inspection reports identity-key presence without exposing its value", async () => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "mv3replay-key-"));
+  const secretKey = "PRIVATE_CLI_EXTENSION_KEY";
+  const manifestFile = path.join(folder, "manifest.json");
+  await writeFile(manifestFile, JSON.stringify({ manifest_version: 3, name: "Identity fixture", version: "1.0.0", key: secretKey }));
+  const result = runCli("inspect", manifestFile);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Extension identity key declared: yes/);
+  assert.ok(!result.stdout.includes(secretKey));
+  assert.ok(!result.stderr.includes(secretKey));
+});
+
 test("compares extension versions using Chrome update ordering", () => {
   const base = {
     manifest_version: 3,

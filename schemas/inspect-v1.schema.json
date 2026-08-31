@@ -65,6 +65,7 @@
         "alarmsAccess",
         "crossOriginPolicies",
         "managedStorageSchema",
+        "extensionKeyDeclared",
         "chromeUrlOverrides",
         "chromeSettingsOverrides",
         "incognitoMode"
@@ -112,6 +113,7 @@
         "alarmsAccess": { "type": "boolean" },
         "crossOriginPolicies": { "type": "boolean" },
         "managedStorageSchema": { "type": "boolean" },
+        "extensionKeyDeclared": { "type": "boolean" },
         "chromeUrlOverrides": { "type": "boolean" },
         "chromeSettingsOverrides": { "type": "boolean" },
         "incognitoMode": { "enum": ["spanning", "split", "not_allowed", "unspecified"] }

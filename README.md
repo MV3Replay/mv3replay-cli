@@ -95,6 +95,8 @@ The interface also provides:
   homepages, manifest icons, and default-locale changes without reading asset files;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
+- privacy-safe extension identity-key continuity checks that report only
+  declaration and change booleans, never the manifest key value;
 - user-triggered JSON and escaped Markdown report downloads, including the
   detected-surface and manifest-count inventory; and
 - user-triggered share-safe Markdown summaries containing structural counts

@@ -23,6 +23,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "cross_origin_opener_policy", "declarative_net_request",
   "default_locale", "description", "devtools_page", "externally_connectable",
   "homepage_url", "host_permissions", "icons", "incognito",
+  "key",
   "manifest_version", "minimum_chrome_version", "name", "oauth2", "omnibox",
   "optional_host_permissions", "optional_permissions", "options_page", "options_ui",
   "permissions", "sandbox", "short_name", "side_panel", "storage", "update_url", "version", "version_name",
@@ -212,6 +213,7 @@ const SURFACE_NAMES = [
   ["alarms", "alarmsAccess"],
   ["cross-origin-policies", "crossOriginPolicies"],
   ["managed-storage-schema", "managedStorageSchema"],
+  ["extension-identity-key", "extensionKeyDeclared"],
   ["browser-page-override", "chromeUrlOverrides"],
   ["browser-settings-override", "chromeSettingsOverrides"]
 ];
@@ -535,6 +537,7 @@ export function analyzeManifest(manifest) {
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
+  const extensionKeyDeclared = presentString(manifest.key);
   const presentationMetadata = [
     "default_locale", "description", "homepage_url", "icons", "short_name", "version_name"
   ].some(key => manifest[key] !== undefined);
@@ -582,6 +585,7 @@ export function analyzeManifest(manifest) {
     alarmsAccess,
     crossOriginPolicies,
     managedStorageSchema,
+    extensionKeyDeclared,
     chromeUrlOverrides: chromeUrlOverridePages.length > 0,
     chromeSettingsOverrides,
     incognitoMode
@@ -616,6 +620,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "managed-storage-policy", "high",
       "The manifest points to an enterprise managed-storage schema that Chrome validates before exposing read-only policy values.",
       ["Verify the referenced schema file exists and passes Chrome validation without reading it through this tool", "Test missing, valid, invalid, updated, and absent enterprise-policy values in a disposable managed test profile", "Confirm policy values remain read-only, enforcement is explicit, and no policy data is logged or exported"]);
+  }
+  if (extensionKeyDeclared) {
+    addLane(lanes, "extension-identity-continuity", "high",
+      "A packaged identity key is declared and can affect stable extension identity across installation and update paths.",
+      ["Verify the exact packaged extension ID matches the expected release identity", "Test a clean install and an update from the previous shipping package through the intended distribution path", "Treat an unexpected identity mismatch as a replacement install and verify user-visible recovery without exposing the key"]);
   }
 
   if (contentScripts.length > 0) {
@@ -1017,7 +1026,14 @@ export function compareManifests(previousManifest, currentManifest) {
     previous.unmodeledKeys,
     current.unmodeledKeys
   );
+  const extensionKey = {
+    previousDeclared: presentString(previousManifest.key),
+    currentDeclared: presentString(currentManifest.key),
+    changed: (presentString(previousManifest.key) || presentString(currentManifest.key))
+      && previousManifest.key !== currentManifest.key
+  };
   const manifestChanged = previousReport.fingerprint !== currentReport.fingerprint
+    || extensionKey.changed
     || unmodeledKeyChanges.added.length > 0
     || unmodeledKeyChanges.removed.length > 0
     || unmodeledKeyChanges.changed.length > 0;
@@ -1042,10 +1058,18 @@ export function compareManifests(previousManifest, currentManifest) {
     webAccessibleResources: declarationDiff(previous.webAccessibleResources, current.webAccessibleResources),
     surfaces: surfaceDiff(previousReport.surfaces, currentReport.surfaces),
     declarations,
+    extensionKey,
     unmodeledTopLevelKeys: unmodeledKeyChanges
   };
 
   const findings = [];
+  if (changes.extensionKey.changed) {
+    findings.push({
+      id: "extension-identity-key-change",
+      level: "critical",
+      message: "The packaged extension identity key changed. Verify the expected extension ID and the real update path before release; this report intentionally omits the key value."
+    });
+  }
   if (
     changes.unmodeledTopLevelKeys.added.length > 0
     || changes.unmodeledTopLevelKeys.removed.length > 0
