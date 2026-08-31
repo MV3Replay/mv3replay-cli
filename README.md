@@ -86,6 +86,8 @@ The interface also provides:
   not yet interpret, including added, removed, and value-changed keys in comparisons;
 - presentation-metadata coverage for descriptions, short and display versions,
   homepages, manifest icons, and default-locale changes without reading asset files;
+- extension-origin COEP/COOP and enterprise managed-storage schema coverage,
+  including update findings without reading referenced policy schema files;
 - user-triggered JSON and escaped Markdown report downloads, including the
   detected-surface and manifest-count inventory; and
 - a private 10-minute tester guide with a local feedback-notes template that

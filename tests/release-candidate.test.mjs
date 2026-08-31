@@ -102,6 +102,7 @@ test("the compact release-candidate record distinguishes public source from an u
       "context-menu and alarm lifecycle coverage",
       "explicit unmodeled manifest-key coverage gaps",
       "presentation metadata and localization coverage",
+      "cross-origin and managed-storage policy coverage",
       "manual-test readiness gates",
       "JSON export",
       "Markdown export",

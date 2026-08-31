@@ -52,6 +52,8 @@ public for testing, but no package, tag, or GitHub Release exists.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.
+- Extension-origin COEP/COOP and enterprise managed-storage schema surfaces,
+  declarations, findings, and privacy-preserving manual regression lanes.
 
 ### Future ideas (not implemented)
 
