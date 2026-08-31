@@ -57,6 +57,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   declarations, findings, and privacy-preserving manual regression lanes.
 - Packaged extension identity-key continuity checks, with a critical update
   finding and boolean-only reports that never reproduce the key value.
+- Critical inspect-time validation for missing extension names and invalid
+  package versions before a clean-install or update plan is trusted.
 - A changed-sections-only option that combines with every comparison category,
   including an explicit zero-section state for identical manifests.
 - Explicitly user-triggered share-safe analysis and comparison summaries that

@@ -517,6 +517,36 @@ test("compares extension versions using Chrome update ordering", () => {
   assert.ok(invalid.findings.some(item => item.id === "extension-version-invalid"));
 });
 
+test("inspection gates missing names and invalid package versions", () => {
+  const missing = analyzeManifest({ manifest_version: 3 });
+  assert.deepEqual(missing.riskFlags.slice(0, 2).map(flag => [flag.id, flag.level]), [
+    ["manifest-name-invalid", "critical"],
+    ["manifest-version-invalid", "critical"]
+  ]);
+  assert.ok(missing.lanes.some(lane => lane.id === "manifest-identity-validation"));
+
+  for (const version of ["0", "01.2", "1.2.3.4.5", "1.65536", "1.beta"]) {
+    const report = analyzeManifest({ manifest_version: 3, name: "Identity fixture", version });
+    assert.ok(report.riskFlags.some(flag => flag.id === "manifest-version-invalid"), version);
+  }
+
+  const valid = analyzeManifest({ manifest_version: 3, name: "Identity fixture", version: "1.2.0.65535" });
+  assert.ok(!valid.riskFlags.some(flag => flag.id.startsWith("manifest-")));
+  assert.ok(!valid.lanes.some(lane => lane.id === "manifest-identity-validation"));
+});
+
+test("--fail-on critical gates invalid inspect identity after writing the report", async () => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "mv3replay-invalid-identity-"));
+  const manifestFile = path.join(folder, "manifest.json");
+  await writeFile(manifestFile, JSON.stringify({ manifest_version: 3, name: "", version: "01.0" }));
+  const result = runCli("inspect", manifestFile, "--json", "--fail-on", "critical");
+
+  assert.equal(result.status, 7);
+  const report = JSON.parse(result.stdout);
+  assert.ok(report.riskFlags.some(flag => flag.id === "manifest-name-invalid"));
+  assert.ok(report.riskFlags.some(flag => flag.id === "manifest-version-invalid"));
+});
+
 test("detects required-versus-optional permission and host-access transitions", () => {
   const previous = {
     manifest_version: 3,

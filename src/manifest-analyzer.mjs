@@ -541,6 +541,8 @@ export function analyzeManifest(manifest) {
   const presentationMetadata = [
     "default_locale", "description", "homepage_url", "icons", "short_name", "version_name"
   ].some(key => manifest[key] !== undefined);
+  const validManifestName = presentString(manifest.name);
+  const validManifestVersion = parseChromeExtensionVersion(manifest.version) !== null;
 
   const surfaces = {
     action,
@@ -595,6 +597,12 @@ export function analyzeManifest(manifest) {
   addLane(lanes, "install-and-upgrade", "critical",
     "Every release can change manifest wiring, permissions, or persisted state.",
     ["Load the exact shipping build", "Verify a clean install", "Verify an upgrade from the previous version"]);
+
+  if (!validManifestName || !validManifestVersion) {
+    addLane(lanes, "manifest-identity-validation", "critical",
+      "The manifest identity is incomplete or its package version is not valid for browser installation and update ordering.",
+      ["Provide a non-empty manifest name", "Use a non-zero version with one to four dot-separated integers from 0 to 65535 and no leading zeros", "Re-run inspection before attempting a clean install or update"]);
+  }
 
   if (unmodeledKeys.length > 0) {
     addLane(lanes, "unmodeled-manifest-keys", "high",
@@ -855,6 +863,12 @@ export function analyzeManifest(manifest) {
   }
 
   const riskFlags = [];
+  if (!validManifestName) {
+    riskFlags.push({ id: "manifest-name-invalid", level: "critical", message: "The required manifest name is missing or empty; provide a non-empty name before packaging." });
+  }
+  if (!validManifestVersion) {
+    riskFlags.push({ id: "manifest-version-invalid", level: "critical", message: "The required manifest version is invalid; use one to four dot-separated integers from 0 to 65535, without leading zeros, and not all zero." });
+  }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({
       id: "unmodeled-manifest-keys",
