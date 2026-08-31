@@ -28,6 +28,24 @@ function validFileHandler(handler) {
     || handler.launch_type === "multiple-clients";
 }
 
+function manifestIconDiagnostics(icons) {
+  if (icons === undefined) return { declared: false, invalid: false, unsupportedFormat: false, missingRecommended: false };
+  if (!icons || typeof icons !== "object" || Array.isArray(icons)) {
+    return { declared: true, invalid: true, unsupportedFormat: false, missingRecommended: true };
+  }
+  const entries = Object.entries(icons);
+  const invalid = entries.length === 0 || entries.some(([size, iconPath]) =>
+    !/^\d+$/.test(size) || Number(size) <= 0 || !presentString(iconPath));
+  const unsupportedFormat = entries.some(([, iconPath]) =>
+    presentString(iconPath) && /\.(?:svg|webp)$/i.test(iconPath.trim()));
+  return {
+    declared: true,
+    invalid,
+    unsupportedFormat,
+    missingRecommended: !Object.hasOwn(icons, "48") || !Object.hasOwn(icons, "128")
+  };
+}
+
 // Top-level fields whose values currently influence identities, surfaces,
 // findings, comparison details, or generated regression lanes. Other fields
 // are valid input, but their behavior is deliberately reported as unmodeled.
@@ -555,6 +573,7 @@ export function analyzeManifest(manifest) {
     && Object.keys(manifest.chrome_settings_overrides).length > 0
   );
   const manifestIconSizes = sortedUnique(objectKeys(manifest.icons));
+  const iconDiagnostics = manifestIconDiagnostics(manifest.icons);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -907,6 +926,15 @@ export function analyzeManifest(manifest) {
   }
   if (invalidFileHandlerCount > 0 || (fileHandlersDeclared && fileHandlers.length === 0)) {
     riskFlags.push({ id: "file-handlers-invalid", level: "critical", message: "At least one file-handler declaration is invalid or the declared list is empty; verify action, name, accepted MIME mappings, dot-prefixed extensions, and launch type before packaging." });
+  }
+  if (iconDiagnostics.invalid) {
+    riskFlags.push({ id: "manifest-icons-invalid", level: "critical", message: "The manifest icons declaration is empty or malformed; use positive integer size keys and non-empty relative image paths." });
+  }
+  if (iconDiagnostics.unsupportedFormat) {
+    riskFlags.push({ id: "manifest-icon-format-unsupported", level: "high", message: "At least one manifest icon uses SVG or WebP, which is not supported for declared extension icons; use a supported raster format." });
+  }
+  if (iconDiagnostics.declared && !iconDiagnostics.invalid && iconDiagnostics.missingRecommended) {
+    riskFlags.push({ id: "manifest-icon-sizes-incomplete", level: "medium", message: "The manifest icons declaration omits the recommended 48px or 128px size; verify management-page and installation rendering." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

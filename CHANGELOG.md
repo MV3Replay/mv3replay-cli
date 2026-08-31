@@ -56,6 +56,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   compatibility warnings, and privacy-preserving manual regression checks.
 - Critical validation for empty or malformed file-handler declarations,
   including required action, name, MIME mappings, extensions, and launch type.
+- Manifest-icon validation for size/path mappings, unsupported SVG/WebP files,
+  and missing recommended 48px/128px presentation sizes without reading assets.
 - An accessible comparison change-category filter for isolating access, scripts,
   commands, network rules, external boundaries, surfaces, declarations, or
   coverage gaps without changing reports or exports.

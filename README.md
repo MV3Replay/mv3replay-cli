@@ -94,6 +94,8 @@ The interface also provides:
 - presentation-metadata coverage for descriptions, short and display versions,
   extension names, homepages, manifest icons, and default-locale changes without
   reading asset files;
+- manifest-icon declaration checks for valid size/path mappings, unsupported
+  SVG or WebP formats, and recommended 48px/128px presentation coverage;
 - extension-origin COEP/COOP and enterprise managed-storage schema coverage,
   including update findings without reading referenced policy schema files;
 - privacy-safe extension identity-key continuity checks that report only

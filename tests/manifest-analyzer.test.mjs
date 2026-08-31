@@ -461,6 +461,27 @@ test("flags an overlong manifest description", () => {
   assert.ok(report.riskFlags.some(flag => flag.id === "description-too-long"));
 });
 
+test("validates manifest icon declarations without reading image files", () => {
+  const base = { manifest_version: 3, name: "Icon fixture", version: "1.0.0" };
+  for (const icons of [null, [], {}, { zero: "icon.png" }, { "0": "icon.png" }, { "48": "" }]) {
+    const report = analyzeManifest({ ...base, icons });
+    assert.ok(report.riskFlags.some(flag => flag.id === "manifest-icons-invalid"), JSON.stringify(icons));
+  }
+
+  for (const iconPath of ["icon.svg", "images/ICON.WEBP"]) {
+    const report = analyzeManifest({ ...base, icons: { "48": iconPath, "128": "icon.png" } });
+    assert.ok(report.riskFlags.some(flag => flag.id === "manifest-icon-format-unsupported"), iconPath);
+  }
+
+  const incomplete = analyzeManifest({ ...base, icons: { "16": "icon.png" } });
+  assert.ok(incomplete.riskFlags.some(flag => flag.id === "manifest-icon-sizes-incomplete" && flag.level === "medium"));
+
+  const valid = analyzeManifest({ ...base, icons: { "48": "icon-48.png", "128": "icon-128.png" } });
+  assert.ok(!valid.riskFlags.some(flag => flag.id.startsWith("manifest-icon")));
+  assert.equal(valid.counts.manifestIcons, 2);
+  assert.ok(valid.lanes.some(lane => lane.id === "extension-presentation"));
+});
+
 test("models cross-origin policies and managed storage schema boundaries", () => {
   const manifest = {
     manifest_version: 3,
