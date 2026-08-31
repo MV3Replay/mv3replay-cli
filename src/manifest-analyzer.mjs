@@ -452,6 +452,25 @@ function sandboxDiagnostics(sandbox) {
   return { declared: true, invalid: false };
 }
 
+function crossOriginPolicyDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { declared: true, invalid: true };
+  const keys = Object.keys(value);
+  if (keys.length !== 1 || keys[0] !== "value" || !presentString(value.value)) {
+    return { declared: true, invalid: true };
+  }
+  return { declared: true, invalid: false };
+}
+
+function storageDiagnostics(storage) {
+  if (storage === undefined) return { declared: false, invalid: false, invalidManagedSchema: false };
+  if (!storage || typeof storage !== "object" || Array.isArray(storage)) {
+    return { declared: true, invalid: true, invalidManagedSchema: false };
+  }
+  const invalidManagedSchema = storage.managed_schema !== undefined && unsafeRulesetPath(storage.managed_schema);
+  return { declared: true, invalid: false, invalidManagedSchema };
+}
+
 function oauth2Diagnostics(oauth2) {
   if (oauth2 === undefined) return { declared: false, invalid: false };
   if (!oauth2 || typeof oauth2 !== "object" || Array.isArray(oauth2)) return { declared: true, invalid: true };
@@ -991,6 +1010,9 @@ export function analyzeManifest(manifest) {
   const chromeUrlOverridesStatus = chromeUrlOverridesDiagnostics(manifest.chrome_url_overrides);
   const sandboxStatus = sandboxDiagnostics(manifest.sandbox);
   const oauth2Status = oauth2Diagnostics(manifest.oauth2);
+  const coepStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_embedder_policy);
+  const coopStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_opener_policy);
+  const storageStatus = storageDiagnostics(manifest.storage);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
     || presentString(manifest.cross_origin_opener_policy?.value);
   const managedStorageSchema = presentString(manifest.storage?.managed_schema);
@@ -1494,6 +1516,18 @@ export function analyzeManifest(manifest) {
   }
   if (oauth2Status.invalid) {
     riskFlags.push({ id: "oauth2-declaration-invalid", level: "critical", message: "The oauth2 declaration is malformed; oauth2 must be a non-array object with a non-empty client_id string and a non-empty array of unique, non-empty scope strings." });
+  }
+  if (coepStatus.invalid) {
+    riskFlags.push({ id: "cross-origin-embedder-policy-invalid", level: "critical", message: "The cross_origin_embedder_policy declaration is malformed; it must be a non-array object with exactly one property named value set to a non-empty string." });
+  }
+  if (coopStatus.invalid) {
+    riskFlags.push({ id: "cross-origin-opener-policy-invalid", level: "critical", message: "The cross_origin_opener_policy declaration is malformed; it must be a non-array object with exactly one property named value set to a non-empty string." });
+  }
+  if (storageStatus.invalid) {
+    riskFlags.push({ id: "storage-declaration-invalid", level: "critical", message: "The storage declaration is malformed; storage must be a non-array object." });
+  }
+  if (storageStatus.invalidManagedSchema) {
+    riskFlags.push({ id: "managed-storage-schema-path-invalid", level: "critical", message: "The storage.managed_schema path is malformed; it must be a non-empty safe relative path without a leading slash, drive letter, or parent-directory traversal." });
   }
   if (unmodeledKeys.length > 0) {
     riskFlags.push({

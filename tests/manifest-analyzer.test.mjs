@@ -456,6 +456,44 @@ test("validates oauth2 declarations without exposing client identifiers", () => 
   }
 });
 
+test("validates cross-origin policy declarations without exposing values", () => {
+  const marker = "private-policy-marker";
+  const base = { manifest_version: 3, name: "Isolation fixture", version: "1.0.0" };
+  const absent = analyzeManifest(base);
+  assert.ok(!absent.riskFlags.some(flag => flag.id.includes("cross-origin") && flag.id.endsWith("invalid")));
+
+  for (const field of ["cross_origin_embedder_policy", "cross_origin_opener_policy"]) {
+    const valid = analyzeManifest({ ...base, [field]: { value: marker } });
+    assert.ok(!valid.riskFlags.some(flag => flag.id === `${field.replaceAll("_", "-")}-invalid`));
+    assert.ok(!JSON.stringify(valid).includes(marker));
+
+    for (const value of [marker, [], {}, { value: "" }, { value: 42 }, { value: marker, extra: true }]) {
+      const report = analyzeManifest({ ...base, [field]: value });
+      assert.ok(report.riskFlags.some(flag => flag.id === `${field.replaceAll("_", "-")}-invalid` && flag.level === "critical"));
+      assert.ok(!JSON.stringify(report).includes(marker));
+    }
+  }
+});
+
+test("validates managed storage schema paths without reading or exposing them", () => {
+  const marker = "private/schema-marker.json";
+  const base = { manifest_version: 3, name: "Managed storage fixture", version: "1.0.0" };
+  for (const storage of [{}, { managed_schema: marker }]) {
+    const report = analyzeManifest({ ...base, storage });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "storage-declaration-invalid" || flag.id === "managed-storage-schema-path-invalid"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+
+  for (const storage of ["schema.json", [], null]) {
+    const report = analyzeManifest({ ...base, storage });
+    assert.ok(report.riskFlags.some(flag => flag.id === "storage-declaration-invalid" && flag.level === "critical"));
+  }
+  for (const managed_schema of ["", 42, "/schema.json", ["..", "schema.json"].join("/")]) {
+    const report = analyzeManifest({ ...base, storage: { managed_schema } });
+    assert.ok(report.riskFlags.some(flag => flag.id === "managed-storage-schema-path-invalid" && flag.level === "critical"));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({
