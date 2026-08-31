@@ -531,6 +531,23 @@ test("validates text-to-speech engine declarations without exposing voice metada
   assert.ok(!JSON.stringify(missingPermission).includes(marker));
 });
 
+test("validates shared-module exports without exposing importer identifiers", () => {
+  const marker = "abcdefghijklmnopabcdefghijklmnop";
+  const base = { manifest_version: 3, name: "Export fixture", version: "1.0.0" };
+  for (const declaration of [{}, { allowlist: [marker] }]) {
+    const report = analyzeManifest({ ...base, export: declaration });
+    assert.ok(!report.riskFlags.some(flag => flag.id === "shared-module-export-invalid"));
+    assert.ok(report.riskFlags.some(flag => flag.id === "shared-module-store-incompatible" && flag.level === "high"));
+    assert.ok(report.lanes.some(lane => lane.id === "shared-module-export"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+  for (const declaration of [null, [], "module", { allowlist: [] }, { allowlist: ["invalid"] }, { allowlist: [marker, marker] }]) {
+    const report = analyzeManifest({ ...base, export: declaration });
+    assert.ok(report.riskFlags.some(flag => flag.id === "shared-module-export-invalid" && flag.level === "critical"));
+    assert.ok(!JSON.stringify(report).includes(marker));
+  }
+});
+
 test("validates named permission arrays without silently dropping values", () => {
   const base = { manifest_version: 3, name: "Permission fixture", version: "1.0.0" };
   const valid = analyzeManifest({

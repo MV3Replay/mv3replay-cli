@@ -139,6 +139,7 @@ const MODELED_TOP_LEVEL_KEYS = new Set([
   "commands", "content_scripts", "content_security_policy", "cross_origin_embedder_policy",
   "cross_origin_opener_policy", "declarative_net_request",
   "default_locale", "description", "devtools_page", "externally_connectable",
+  "export",
   "file_handlers",
   "homepage_url", "host_permissions", "icons", "incognito",
   "key",
@@ -526,6 +527,19 @@ function oauth2Diagnostics(oauth2) {
   const validScopes = scopes.every(scope => presentString(scope));
   const uniqueScopes = new Set(scopes).size === scopes.length;
   if (!validScopes || !uniqueScopes) return { declared: true, invalid: true };
+  return { declared: true, invalid: false };
+}
+
+function exportDiagnostics(value) {
+  if (value === undefined) return { declared: false, invalid: false };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { declared: true, invalid: true };
+  if (value.allowlist !== undefined) {
+    const allowlist = value.allowlist;
+    if (!Array.isArray(allowlist) || allowlist.length === 0) return { declared: true, invalid: true };
+    const validIds = allowlist.every(id => typeof id === "string" && /^[a-p]{32}$/.test(id));
+    const uniqueIds = new Set(allowlist).size === allowlist.length;
+    if (!validIds || !uniqueIds) return { declared: true, invalid: true };
+  }
   return { declared: true, invalid: false };
 }
 
@@ -1059,6 +1073,7 @@ export function analyzeManifest(manifest) {
   const coepStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_embedder_policy);
   const coopStatus = crossOriginPolicyDiagnostics(manifest.cross_origin_opener_policy);
   const storageStatus = storageDiagnostics(manifest.storage);
+  const exportStatus = exportDiagnostics(manifest.export);
   const requirementsStatus = requirementsDiagnostics(manifest.requirements);
   const ttsEngineStatus = ttsEngineDiagnostics(manifest.tts_engine);
   const crossOriginPolicies = presentString(manifest.cross_origin_embedder_policy?.value)
@@ -1172,6 +1187,11 @@ export function analyzeManifest(manifest) {
     addLane(lanes, "hardware-requirements", "high",
       "The extension declares a hardware capability requirement that can affect installation compatibility.",
       ["Test installation with supported graphics acceleration", "Test the documented fallback on unsupported hardware", "Recheck compatibility after changing the requirement"]);
+  }
+  if (exportStatus.declared) {
+    addLane(lanes, "shared-module-export", "high",
+      "The extension declares a shared-module export boundary that requires compatibility review.",
+      ["Confirm every intended importer remains authorized", "Verify exported resources from an unpacked build", "Use a distribution route that supports shared modules"]);
   }
   if (ttsEngineStatus.declared) {
     addLane(lanes, "text-to-speech-engine", "high",
@@ -1589,6 +1609,12 @@ export function analyzeManifest(manifest) {
   }
   if (requirementsStatus.invalid) {
     riskFlags.push({ id: "requirements-declaration-invalid", level: "critical", message: "The requirements declaration is malformed; use a non-array object and, for a 3D requirement, a non-empty unique feature list containing only supported graphics capabilities. Deprecated plugin requirements are not accepted." });
+  }
+  if (exportStatus.invalid) {
+    riskFlags.push({ id: "shared-module-export-invalid", level: "critical", message: "The export declaration is malformed; use a non-array object with an optional non-empty unique allowlist of valid extension identifiers." });
+  }
+  if (exportStatus.declared) {
+    riskFlags.push({ id: "shared-module-store-incompatible", level: "high", message: "Shared modules cannot be submitted through the Chrome Web Store; confirm the intended distribution route before release." });
   }
   if (ttsEngineStatus.invalid) {
     riskFlags.push({ id: "tts-engine-declaration-invalid", level: "critical", message: "The tts_engine declaration is malformed; provide a voices array whose entries have a non-empty voice name and correctly typed optional language and unique event declarations." });
