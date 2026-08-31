@@ -116,6 +116,12 @@ test("the compact release-candidate record distinguishes public source from an u
     runtimeBrowserTested: false
   });
   assert.ok(Array.isArray(candidate.tests) && candidate.tests.length >= 5);
+  assert.deepEqual(candidate.cliFindingThreshold, {
+    levels: ["critical", "high", "medium", "low"],
+    exitCode: 7,
+    writesReportBeforeExit: true,
+    enabledByDefault: false
+  });
   assert.deepEqual(
     candidate.tests,
     [

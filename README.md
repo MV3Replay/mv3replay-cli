@@ -35,6 +35,7 @@ mv3replay inspect ./my-extension
 mv3replay inspect ./my-extension --json > inspect-report.json
 mv3replay compare ./previous-release ./candidate-release
 mv3replay compare ./previous-release ./candidate-release --json > compare-report.json
+mv3replay compare ./previous-release ./candidate-release --json --fail-on high > compare-report.json
 ```
 
 `inspect` lists detected extension surfaces and a suggested regression plan.
@@ -43,6 +44,12 @@ entry-point changes between two versions.
 Without `--json`, output is human-readable text; diagnostics always go to
 stderr, and exit codes are listed below. From a repository checkout the same
 commands run without installation as `node src/cli.mjs inspect ...`.
+
+`--fail-on critical|high|medium|low` is an optional CI gate for both commands.
+The selected level includes every more severe level. MV3 Replay always writes
+the complete human or JSON report first, then exits with code 7 when the
+threshold is met; without this option, findings do not change the exit code.
+This is a configurable review gate, not proof that a release is safe.
 
 ## Local interface (not published)
 
@@ -160,6 +167,7 @@ Report ordering and the 16-hex-character `fingerprint` are deterministic:
 they do not depend on key order in the input manifest or on the local
 environment. Default (human-readable) output never contains absolute local
 paths or environment data.
+JSON remains complete and valid when `--fail-on` returns code 7.
 
 ## Exit codes
 
@@ -172,6 +180,7 @@ paths or environment data.
 | 4 | Input is not valid JSON, not a JSON object, or nests deeper than 128 levels. |
 | 5 | Input exceeds the 1 MiB manifest safety limit. |
 | 6 | `manifest_version` other than 3. |
+| 7 | The configured `--fail-on` finding threshold was met after writing the report. |
 
 ## Continuous integration
 

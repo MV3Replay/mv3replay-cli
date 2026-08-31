@@ -17,7 +17,8 @@ public for testing, but no package, tag, or GitHub Release exists.
 - Machine-verifiable JSON Schema contracts in `schemas/` for both report
   types.
 - Documented exit codes: success, internal error, usage error, missing
-  input, invalid JSON, oversize manifest, and non-MV3 input.
+  input, invalid JSON, oversize manifest, non-MV3 input, and configured
+  finding-threshold failure.
 - Local-only privacy boundary: only the manifest selected by the user is
   read; no upload, telemetry, analytics, or network access of any kind.
 - An unpublished local interface in `app/` (`npm run start:app`) for
@@ -58,6 +59,8 @@ public for testing, but no package, tag, or GitHub Release exists.
   including an explicit zero-section state for identical manifests.
 - Explicitly user-triggered share-safe analysis and comparison summaries that
   retain structural counts while excluding all tested manifest-controlled text.
+- Optional `--fail-on critical|high|medium|low` CI gating for both commands;
+  complete human or JSON reports are written before exit code 7 is applied.
 
 ### Future ideas (not implemented)
 

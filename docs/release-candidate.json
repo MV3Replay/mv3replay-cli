@@ -39,6 +39,12 @@
     "engines": { "node": ">=20" },
     "license": "Apache-2.0"
   },
+  "cliFindingThreshold": {
+    "levels": ["critical", "high", "medium", "low"],
+    "exitCode": 7,
+    "writesReportBeforeExit": true,
+    "enabledByDefault": false
+  },
   "limitations": [
     "Static manifest-only analysis; extension code is never executed.",
     "No browser automation: the tool never launches, connects to, or controls a browser and observes no runtime behavior.",

@@ -26,6 +26,14 @@ test("README shows runnable inspect, compare, and JSON examples via the document
   assert.match(readme, /```[a-z]*\n[\s\S]*?mv3replay inspect [\s\S]*?\n```/);
   assert.match(readme, /```[a-z]*\n[\s\S]*?mv3replay compare [\s\S]*?\n```/);
   assert.ok(readme.includes("--json"), "--json output mode must be documented");
+  assert.ok(readme.includes("--fail-on"), "finding-threshold mode must be documented");
+});
+
+test("README documents deterministic finding-threshold behavior", () => {
+  assert.match(readme, /--fail-on critical\|high\|medium\|low/);
+  assert.match(readme, /complete human or JSON report first/);
+  assert.match(readme, /code 7/);
+  assert.match(readme, /not proof that a release is safe/);
 });
 
 test("README examples are safe placeholders without machine-specific paths", () => {
