@@ -693,6 +693,7 @@ function manifestSignals(manifest) {
   const externalMatches = sortedUnique(asStrings(manifest.externally_connectable?.matches));
   const externalExtensionIds = sortedUnique(asStrings(manifest.externally_connectable?.ids));
   const externalConnectionStatus = externallyConnectableDiagnostics(manifest.externally_connectable);
+  const staticRulesetStatus = staticRulesetDiagnostics(manifest.declarative_net_request);
   const contentScriptStatus = contentScriptDiagnostics(manifest.content_scripts);
   const commandStatus = commandDiagnostics(manifest.commands);
   const unmodeledKeys = unmodeledTopLevelKeys(manifest);
