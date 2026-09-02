@@ -95,6 +95,11 @@ const resetChecklistButton = document.getElementById("reset-checklist");
 const checklistAddInputEl = document.getElementById("checklist-add-input");
 const checklistAddButtonEl = document.getElementById("checklist-add-button");
 const checklistAddStatusEl = document.getElementById("checklist-add-status");
+const analysisUndoButton = document.getElementById("analysis-undo-button");
+const analysisRedoButton = document.getElementById("analysis-redo-button");
+const analysisClearHistoryButton = document.getElementById("analysis-clear-history-button");
+const analysisHistoryStatusEl = document.getElementById("analysis-history-status");
+const analysisHistoryListEl = document.getElementById("analysis-history-list");
 const exportChecklistTemplateButton = document.getElementById("export-checklist-template");
 const importChecklistTemplateInputEl = document.getElementById("import-checklist-template-input");
 const importChecklistTemplateModeEl = document.getElementById("import-checklist-template-mode");
@@ -235,6 +240,11 @@ const resetCandidateChecklistButton = document.getElementById("reset-candidate-c
 const candidateChecklistAddInputEl = document.getElementById("candidate-checklist-add-input");
 const candidateChecklistAddButtonEl = document.getElementById("candidate-checklist-add-button");
 const candidateChecklistAddStatusEl = document.getElementById("candidate-checklist-add-status");
+const comparisonUndoButton = document.getElementById("comparison-undo-button");
+const comparisonRedoButton = document.getElementById("comparison-redo-button");
+const comparisonClearHistoryButton = document.getElementById("comparison-clear-history-button");
+const comparisonHistoryStatusEl = document.getElementById("comparison-history-status");
+const comparisonHistoryListEl = document.getElementById("comparison-history-list");
 const exportCandidateChecklistTemplateButton = document.getElementById("export-candidate-checklist-template");
 const importCandidateChecklistTemplateInputEl = document.getElementById("import-candidate-checklist-template-input");
 const importCandidateChecklistTemplateModeEl = document.getElementById("import-candidate-checklist-template-mode");
@@ -791,6 +801,11 @@ function createFindingEntry(flag, idPrefix, index) {
   entry.noteStatus = noteStatus;
 
   noteTextarea.addEventListener("input", () => {
+    if (!entry.notedHistoryRecorded && entry.getHistory) {
+      const history = entry.getHistory();
+      if (history) history.record("Finding note updated");
+      entry.notedHistoryRecorded = true;
+    }
     entry.note = noteTextarea.value;
     const hasNote = entry.note.trim().length > 0;
     noteToggle.textContent = hasNote ? "Edit private note" : "Add private note";
@@ -814,8 +829,13 @@ function createFindingEntry(flag, idPrefix, index) {
 // updating accessible pressed state and visible labels, re-sorting pinned
 // findings first, and notifying the caller so readiness and triage filter
 // counts stay in sync.
-function attachFindingTriageHandlers(entry, getContainerEl, getEntries, onChange) {
+function attachFindingTriageHandlers(entry, getContainerEl, getEntries, onChange, getHistory) {
+  entry.notedHistoryRecorded = false;
+  entry.getHistory = getHistory || null;
+  entry.noteTextarea.addEventListener("focus", () => { entry.notedHistoryRecorded = false; });
   entry.pinButton.addEventListener("click", () => {
+    const history = getHistory ? getHistory() : null;
+    if (history) history.record(entry.pinned ? "Finding unpinned" : "Finding pinned");
     entry.pinned = !entry.pinned;
     entry.pinButton.setAttribute("aria-pressed", entry.pinned ? "true" : "false");
     entry.pinButton.textContent = entry.pinned ? "Unpin" : "Pin";
@@ -824,6 +844,8 @@ function attachFindingTriageHandlers(entry, getContainerEl, getEntries, onChange
     onChange();
   });
   entry.ackButton.addEventListener("click", () => {
+    const history = getHistory ? getHistory() : null;
+    if (history) history.record(entry.acknowledged ? "Finding unacknowledged" : "Finding acknowledged");
     entry.acknowledged = !entry.acknowledged;
     entry.ackButton.setAttribute("aria-pressed", entry.acknowledged ? "true" : "false");
     entry.ackButton.textContent = entry.acknowledged ? "Unacknowledge" : "Acknowledge";
@@ -875,7 +897,8 @@ function applyTriageFilter(entries, filterValue, statusEl) {
 // given report's in-memory triage list, restores the fixed "all" triage
 // filter, and re-sorts the container back to report order. Nothing here
 // touches report data or any persistence layer (there is none).
-function resetFindingsTriage(entries, getContainerEl, filterEl, onChange) {
+function resetFindingsTriage(entries, getContainerEl, filterEl, onChange, history) {
+  if (history) history.record("Finding triage reset");
   for (const entry of entries) {
     entry.pinned = false;
     entry.acknowledged = false;
@@ -926,14 +949,14 @@ analysisSeverityFilterEl.addEventListener("change", applyAnalysisFindingFilters)
 analysisFindingSearchEl.addEventListener("input", applyAnalysisFindingFilters);
 analysisTriageFilterEl.addEventListener("change", applyAnalysisTriageFilter);
 resetAnalysisTriageButton.addEventListener("click", () => {
-  resetFindingsTriage(analysisFindingNodes, () => analysisFindingsContentEl, analysisTriageFilterEl, analysisTriageOnChange);
+  resetFindingsTriage(analysisFindingNodes, () => analysisFindingsContentEl, analysisTriageFilterEl, analysisTriageOnChange, analysisHistory);
 });
 
 comparisonSeverityFilterEl.addEventListener("change", applyComparisonFindingFilters);
 comparisonFindingSearchEl.addEventListener("input", applyComparisonFindingFilters);
 comparisonTriageFilterEl.addEventListener("change", applyComparisonTriageFilter);
 resetComparisonTriageButton.addEventListener("click", () => {
-  resetFindingsTriage(comparisonFindingNodes, () => comparisonFindingsContentEl, comparisonTriageFilterEl, comparisonTriageOnChange);
+  resetFindingsTriage(comparisonFindingNodes, () => comparisonFindingsContentEl, comparisonTriageFilterEl, comparisonTriageOnChange, comparisonHistory);
 });
 
 // Builds one collapsible result section with a fully accessible toggle
@@ -1019,8 +1042,15 @@ function isTypingTarget(target) {
 
 document.addEventListener("keydown", event => {
   if (isTypingTarget(event.target)) return;
-  if (event.altKey || event.ctrlKey || event.metaKey) return;
   const key = String(event.key || "").toLowerCase();
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && key === "z") {
+    if (event.preventDefault) event.preventDefault();
+    const activeHistory = !compareReportEl.hidden ? comparisonHistory : analysisHistory;
+    if (event.shiftKey) activeHistory.redo();
+    else activeHistory.undo();
+    return;
+  }
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
   if (key === "i") {
     setWorkflowMode("inspect");
     fileInput.focus();
@@ -1113,7 +1143,7 @@ function renderReport(report) {
     } else {
       report.riskFlags.forEach((flag, index) => {
         const entry = createFindingEntry(flag, "analysis", index);
-        attachFindingTriageHandlers(entry, () => analysisFindingsContentEl, () => analysisFindingNodes, analysisTriageOnChange);
+        attachFindingTriageHandlers(entry, () => analysisFindingsContentEl, () => analysisFindingNodes, analysisTriageOnChange, () => analysisHistory);
         analysisFindingNodes.push(entry);
         content.appendChild(entry.node);
       });
@@ -1159,7 +1189,8 @@ function applyChecklistFilter(state, filterValue, statusEl) {
   statusEl.textContent = `${visible} of ${state.length} checks shown (${label}).`;
 }
 
-function resetChecklist(state, filterEl, updateProgress) {
+function resetChecklist(state, filterEl, updateProgress, history) {
+  if (history) history.record("Checklist reset");
   for (const entry of state) {
     entry.done = false;
     entry.checkbox.checked = false;
@@ -1209,6 +1240,7 @@ function moveChecklistItem(config, entry, direction) {
   if (index === -1) return;
   const target = index + direction;
   if (target < 0 || target >= state.length) return;
+  if (config.history) config.history.record("Checklist item moved");
   const [moved] = state.splice(index, 1);
   state.splice(target, 0, moved);
   syncChecklistOrder(config);
@@ -1219,6 +1251,7 @@ function deleteCustomChecklistItem(config, entry) {
   const state = config.getState();
   const index = state.indexOf(entry);
   if (index === -1) return;
+  if (config.history) config.history.record("Custom check deleted");
   state.splice(index, 1);
   config.listEl.removeChild(entry.node);
   config.updateProgress();
@@ -1273,6 +1306,7 @@ function startEditingCustomChecklistItem(entry) {
       entry.editStatus.textContent = result.error;
       return;
     }
+    if (entry.config && entry.config.history) entry.config.history.record("Custom check edited");
     entry.check = result.value;
     entry.label.textContent = `${entry.laneId}: ${entry.check}`;
     entry.editStatus.textContent = "Custom check updated.";
@@ -1306,9 +1340,10 @@ function createChecklistEntry(config, id, laneId, check, custom) {
   label.htmlFor = id;
   label.textContent = `${laneId}: ${check}`;
 
-  const entry = { id, laneId, check, done: false, node: item, checkbox, label, custom, note: "" };
+  const entry = { id, laneId, check, done: false, node: item, checkbox, label, custom, note: "", config };
 
   checkbox.addEventListener("change", () => {
+    if (config.history) config.history.record("Checklist item toggled");
     entry.done = checkbox.checked;
     config.updateProgress();
   });
@@ -1411,7 +1446,13 @@ function createChecklistEntry(config, id, laneId, check, custom) {
   const noteStatus = el("p", { className: "checklist-note-status" });
   noteStatus.setAttribute("role", "status");
   noteStatus.setAttribute("aria-live", "polite");
+  let notedHistoryRecorded = false;
+  noteTextarea.addEventListener("focus", () => { notedHistoryRecorded = false; });
   noteTextarea.addEventListener("input", () => {
+    if (!notedHistoryRecorded && config.history) {
+      config.history.record("Checklist note updated");
+      notedHistoryRecorded = true;
+    }
     entry.note = noteTextarea.value;
     const hasNote = entry.note.trim().length > 0;
     noteToggle.textContent = hasNote ? "Edit private note" : "Add private note";
@@ -1442,6 +1483,7 @@ function wireCustomChecklistAdd(config, inputEl, buttonEl, statusEl) {
       statusEl.textContent = result.error;
       return;
     }
+    if (config.history) config.history.record("Custom check added");
     const id = `${config.idPrefix}-custom-${config.nextCustomId()}`;
     createChecklistEntry(config, id, "Custom check", result.value, true);
     syncChecklistOrder(config);
@@ -1838,7 +1880,7 @@ checklistFilterEl.addEventListener("change", () => {
 });
 
 resetChecklistButton.addEventListener("click", () => {
-  resetChecklist(checklistState, checklistFilterEl, updateChecklistProgress);
+  resetChecklist(checklistState, checklistFilterEl, updateChecklistProgress, analysisHistory);
 });
 
 function renderChecklist(report) {
@@ -2199,6 +2241,7 @@ function resetAnalysisResults() {
   currentReport = null;
   checklistState = [];
   checklistCustomCounter = 0;
+  analysisHistory.clear();
 }
 
 form.addEventListener("submit", async event => {
@@ -2466,7 +2509,7 @@ function renderCompareReport(report) {
     } else {
       report.findings.forEach((finding, index) => {
         const entry = createFindingEntry(finding, "comparison", index);
-        attachFindingTriageHandlers(entry, () => comparisonFindingsContentEl, () => comparisonFindingNodes, comparisonTriageOnChange);
+        attachFindingTriageHandlers(entry, () => comparisonFindingsContentEl, () => comparisonFindingNodes, comparisonTriageOnChange, () => comparisonHistory);
         comparisonFindingNodes.push(entry);
         content.appendChild(entry.node);
       });
@@ -2534,7 +2577,7 @@ candidateChecklistFilterEl.addEventListener("change", () => {
 });
 
 resetCandidateChecklistButton.addEventListener("click", () => {
-  resetChecklist(candidateChecklistState, candidateChecklistFilterEl, updateCandidateChecklistProgress);
+  resetChecklist(candidateChecklistState, candidateChecklistFilterEl, updateCandidateChecklistProgress, comparisonHistory);
 });
 
 function appendCandidateChecklistItem(id, laneId, check) {
@@ -2831,6 +2874,7 @@ function resetComparisonResults() {
   currentCandidateAnalysis = null;
   candidateChecklistState = [];
   candidateChecklistCustomCounter = 0;
+  comparisonHistory.clear();
 }
 
 async function runComparison(previousManifest, currentManifest, isExample) {

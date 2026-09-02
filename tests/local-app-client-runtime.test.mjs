@@ -1118,6 +1118,82 @@ test("compare findings support the same pin, acknowledge, private note, filter, 
   assert.match(collectText(elements.get("comparison-readiness")), /Update-path validation required/);
 });
 
+test("analysis actions support bounded local undo, redo, and redo invalidation", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const firstCheck = elements.get("checklist-list").children[0].children[0];
+  firstCheck.checked = true;
+  firstCheck.listeners.get("change")();
+  assert.equal(elements.get("analysis-undo-button").disabled, false);
+  assert.match(collectText(elements.get("analysis-history-list")), /Checklist item toggled/);
+  elements.get("analysis-undo-button").listeners.get("click")();
+  assert.equal(elements.get("checklist-list").children[0].children[0].checked, false);
+  assert.equal(elements.get("analysis-redo-button").disabled, false);
+  elements.get("analysis-redo-button").listeners.get("click")();
+  assert.equal(elements.get("checklist-list").children[0].children[0].checked, true);
+  elements.get("analysis-undo-button").listeners.get("click")();
+  const input = elements.get("checklist-add-input");
+  input.value = "New action invalidates redo";
+  elements.get("checklist-add-button").listeners.get("click")();
+  assert.equal(elements.get("analysis-redo-button").disabled, true);
+  for (let index = 0; index < 12; index += 1) {
+    const checkbox = elements.get("checklist-list").children[0].children[0];
+    checkbox.checked = !checkbox.checked;
+    checkbox.listeners.get("change")();
+  }
+  assert.equal(elements.get("analysis-history-list").children.length, 10);
+  assert.doesNotMatch(collectText(elements.get("analysis-history-list")), /New action invalidates redo/);
+});
+
+test("history keyboard shortcuts ignore typing fields and clear history preserves current state", async () => {
+  const { elements, documentListeners } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const checkbox = elements.get("checklist-list").children[0].children[0];
+  checkbox.checked = true;
+  checkbox.listeners.get("change")();
+  const keydown = documentListeners.get("keydown");
+  keydown({ key: "z", ctrlKey: true, target: { tagName: "INPUT" }, preventDefault() { throw new Error("typing shortcut intercepted"); } });
+  assert.equal(elements.get("checklist-list").children[0].children[0].checked, true);
+  let prevented = 0;
+  keydown({ key: "z", ctrlKey: true, target: { tagName: "BODY" }, preventDefault() { prevented += 1; } });
+  assert.equal(elements.get("checklist-list").children[0].children[0].checked, false);
+  keydown({ key: "z", ctrlKey: true, shiftKey: true, target: { tagName: "BODY" }, preventDefault() { prevented += 1; } });
+  assert.equal(elements.get("checklist-list").children[0].children[0].checked, true);
+  assert.equal(prevented, 2);
+  elements.get("analysis-clear-history-button").listeners.get("click")();
+  assert.equal(elements.get("checklist-list").children[0].children[0].checked, true);
+  assert.equal(elements.get("analysis-undo-button").disabled, true);
+  assert.equal(elements.get("analysis-redo-button").disabled, true);
+  assert.match(elements.get("analysis-history-status").textContent, /Current checklist and triage state is unchanged/);
+});
+
+test("analysis and comparison histories stay isolated and restored private state is exported locally", async () => {
+  const { elements, createdBlobs } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const input = elements.get("checklist-add-input");
+  input.value = "Restored private export check";
+  elements.get("checklist-add-button").listeners.get("click")();
+  await elements.get("compare-example-button").listeners.get("click")();
+  const candidateCheck = elements.get("candidate-checklist-list").children[0].children[0];
+  candidateCheck.checked = true;
+  candidateCheck.listeners.get("change")();
+  elements.get("comparison-undo-button").listeners.get("click")();
+  assert.equal(elements.get("candidate-checklist-list").children[0].children[0].checked, false);
+  assert.match(collectText(elements.get("checklist-list")), /Restored private export check/);
+  assert.equal(elements.get("analysis-undo-button").disabled, false);
+  elements.get("analysis-undo-button").listeners.get("click")();
+  assert.doesNotMatch(collectText(elements.get("checklist-list")), /Restored private export check/);
+  elements.get("analysis-redo-button").listeners.get("click")();
+  elements.get("export-checklist").listeners.get("click")();
+  const exported = await createdBlobs.at(-1).text();
+  assert.match(exported, /Restored private export check/);
+  elements.get("clear-workspace-button").listeners.get("click")();
+  assert.equal(elements.get("analysis-undo-button").disabled, true);
+  assert.equal(elements.get("comparison-undo-button").disabled, true);
+  assert.equal(elements.get("analysis-history-list").children.length, 0);
+  assert.equal(elements.get("comparison-history-list").children.length, 0);
+});
+
 test("Inspect/Compare mode tabs show one workflow panel at a time with correct aria-selected and tabindex, and retain in-memory state", async () => {
   const { elements } = await createClientHarness();
 
