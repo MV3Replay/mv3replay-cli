@@ -145,6 +145,12 @@
       <button type="button" id="reset-checklist" class="secondary-button">Reset checks</button>
       <span id="checklist-filter-status" role="status" aria-live="polite"></span>
     </div>
+    <div class="checklist-add" id="checklist-add">
+      <label for="checklist-add-input">Add custom check (3–200 characters)</label>
+      <input type="text" id="checklist-add-input" maxlength="200" aria-describedby="checklist-add-status">
+      <button type="button" id="checklist-add-button">Add check</button>
+      <p id="checklist-add-status" role="status" aria-live="polite"></p>
+    </div>
     <ul id="checklist-list"></ul>
     <div class="export-actions">
       <button type="button" id="export-checklist" disabled>
@@ -158,7 +164,7 @@
       </button>
     </div>
     <p class="export-help">The share-safe summary excludes extension names, versions, URLs, filenames,
-      manifest values, finding messages, and checklist text.</p>
+      manifest values, finding messages, checklist text, and any private checklist notes.</p>
     <p id="export-status" role="status" aria-live="polite"></p>
   </section>
 
@@ -266,6 +272,12 @@
       <button type="button" id="reset-candidate-checklist" class="secondary-button">Reset checks</button>
       <span id="candidate-checklist-filter-status" role="status" aria-live="polite"></span>
     </div>
+    <div class="checklist-add" id="candidate-checklist-add">
+      <label for="candidate-checklist-add-input">Add custom check (3–200 characters)</label>
+      <input type="text" id="candidate-checklist-add-input" maxlength="200" aria-describedby="candidate-checklist-add-status">
+      <button type="button" id="candidate-checklist-add-button">Add check</button>
+      <p id="candidate-checklist-add-status" role="status" aria-live="polite"></p>
+    </div>
     <ul id="candidate-checklist-list"></ul>
     <div class="export-actions">
       <button type="button" id="export-comparison" disabled>
@@ -279,7 +291,8 @@
       </button>
     </div>
     <p class="export-help">The share-safe summary contains structural counts only and excludes release
-      names, versions, URLs, filenames, manifest values, finding messages, and checklist text.</p>
+      names, versions, URLs, filenames, manifest values, finding messages, checklist text, and any
+      private checklist notes.</p>
     <p id="export-comparison-status" role="status" aria-live="polite"></p>
   </section>
 

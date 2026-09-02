@@ -672,3 +672,176 @@ test("checklist completion filters and reset execute against in-memory state", a
   assert.match(elements.get("checklist-progress").textContent, /0 of 1 checklist items completed/);
 });
 
+test("adding a custom checklist item enforces fixed length limits with accessible validation and stays memory-only", async () => {
+  const { elements, requests } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const input = elements.get("checklist-add-input");
+  const button = elements.get("checklist-add-button");
+  const status = elements.get("checklist-add-status");
+
+  input.value = "ab";
+  button.listeners.get("click")();
+  assert.match(status.textContent, /at least 3 characters/);
+  assert.equal(elements.get("checklist-list").children.length, 1);
+
+  input.value = "a".repeat(201);
+  button.listeners.get("click")();
+  assert.match(status.textContent, /200 characters or fewer/);
+  assert.equal(elements.get("checklist-list").children.length, 1);
+
+  input.value = "Verify custom permission dialog";
+  button.listeners.get("click")();
+  assert.match(status.textContent, /Custom check added/);
+  assert.equal(elements.get("checklist-list").children.length, 2);
+  assert.match(collectText(elements.get("checklist-list")), /Custom check: Verify custom permission dialog/);
+  assert.equal(input.value, "");
+  // Nothing about a custom item is ever sent over the network.
+  assert.equal(requests.length, 1);
+});
+
+test("only custom checklist items expose edit and delete controls; built-in text stays immutable", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const input = elements.get("checklist-add-input");
+  input.value = "Custom check about storage quota";
+  elements.get("checklist-add-button").listeners.get("click")();
+
+  const list = elements.get("checklist-list");
+  const builtInItem = list.children[0];
+  const customItem = list.children[1];
+
+  const builtInControls = builtInItem.children[2];
+  assert.ok(!builtInControls.children.some(child => child.textContent === "Edit"));
+  assert.ok(!builtInControls.children.some(child => child.textContent === "Delete"));
+
+  const customControls = customItem.children[2];
+  const editButton = customControls.children.find(child => child.textContent === "Edit");
+  const deleteButton = customControls.children.find(child => child.textContent === "Delete");
+  assert.ok(editButton);
+  assert.ok(deleteButton);
+
+  editButton.listeners.get("click")();
+  const inlineInput = customItem.children.find(child => child.tagName === undefined || child.value === "Custom check about storage quota");
+  assert.ok(inlineInput);
+  inlineInput.value = "Updated custom check text";
+  const saveButton = customItem.children.find(child => child.textContent === "Save");
+  saveButton.listeners.get("click")();
+  assert.match(collectText(customItem), /Custom check: Updated custom check text/);
+});
+
+test("deleting a custom checklist item requires a local confirm step and never calls a browser dialog", async () => {
+  const { elements } = await createClientHarness();
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /window\.confirm|[^.]confirm\(/);
+
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const input = elements.get("checklist-add-input");
+  input.value = "Custom check to delete";
+  elements.get("checklist-add-button").listeners.get("click")();
+
+  const list = elements.get("checklist-list");
+  assert.equal(list.children.length, 2);
+  const customItem = list.children[1];
+  const controls = customItem.children[2];
+  const deleteButton = controls.children.find(child => child.textContent === "Delete");
+  const confirmWrap = controls.children.find(child => child.className === "checklist-delete-confirm");
+
+  deleteButton.listeners.get("click")();
+  assert.equal(confirmWrap.hidden, false);
+  assert.equal(list.children.length, 2);
+
+  const cancelButton = confirmWrap.children.find(child => child.textContent === "Cancel");
+  cancelButton.listeners.get("click")();
+  assert.equal(list.children.length, 2);
+
+  deleteButton.listeners.get("click")();
+  const confirmButton = confirmWrap.children.find(child => child.textContent === "Confirm delete");
+  confirmButton.listeners.get("click")();
+  assert.equal(elements.get("checklist-list").children.length, 1);
+});
+
+test("checklist items move up and down with disabled boundary controls and a stable completion state", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const input = elements.get("checklist-add-input");
+  input.value = "Second custom check for ordering";
+  elements.get("checklist-add-button").listeners.get("click")();
+
+  const list = elements.get("checklist-list");
+  const first = list.children[0];
+  const second = list.children[1];
+
+  const firstControls = first.children[2];
+  const secondControls = second.children[2];
+  const firstUp = firstControls.children.find(child => child.textContent === "Move up");
+  const firstDown = firstControls.children.find(child => child.textContent === "Move down");
+  const secondUp = secondControls.children.find(child => child.textContent === "Move up");
+  const secondDown = secondControls.children.find(child => child.textContent === "Move down");
+
+  assert.equal(firstUp.disabled, true);
+  assert.equal(secondDown.disabled, true);
+
+  const secondCheckbox = second.children[0];
+  secondCheckbox.checked = true;
+  secondCheckbox.listeners.get("change")();
+
+  secondUp.listeners.get("click")();
+
+  const reordered = elements.get("checklist-list").children;
+  assert.equal(reordered[0], second);
+  assert.equal(reordered[1], first);
+  assert.equal(reordered[0].children[0].checked, true);
+  assert.equal(reordered[0].children[2].children.find(child => child.textContent === "Move up").disabled, true);
+  assert.equal(reordered[1].children[2].children.find(child => child.textContent === "Move down").disabled, true);
+  void firstDown; void secondDown;
+});
+
+test("private local notes appear in private exports but never in share-safe summaries, and clear with the workspace", async () => {
+  const { elements, createdBlobs } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const item = elements.get("checklist-list").children[0];
+  const controls = item.children[2];
+  const noteToggle = controls.children.find(child => child.textContent === "Add private note");
+  noteToggle.listeners.get("click")();
+  const noteWrap = item.children[item.children.length - 1];
+  const noteTextarea = noteWrap.children.find(child => child.tagName === "TEXTAREA" || typeof child.value === "string" && child.id && child.id.endsWith("-note"));
+  noteTextarea.value = "PRIVATE_LOCAL_NOTE";
+  noteTextarea.listeners.get("input")();
+
+  elements.get("export-checklist").listeners.get("click")();
+  elements.get("export-analysis-safe-summary").listeners.get("click")();
+
+  assert.equal(createdBlobs.length, 2);
+  const [jsonExport, safeSummary] = await Promise.all(createdBlobs.map(blob => blob.text()));
+  assert.match(jsonExport, /PRIVATE_LOCAL_NOTE/);
+  assert.doesNotMatch(safeSummary, /PRIVATE_LOCAL_NOTE/);
+
+  elements.get("clear-workspace-button").listeners.get("click")();
+  assert.equal(elements.get("checklist-list").textContent, "");
+});
+
+test("the candidate comparison checklist supports the same add, move, and note interactions", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("compare-example-button").listeners.get("click")();
+
+  const input = elements.get("candidate-checklist-add-input");
+  input.value = "Candidate-only custom regression check";
+  elements.get("candidate-checklist-add-button").listeners.get("click")();
+  assert.match(elements.get("candidate-checklist-add-status").textContent, /Custom check added/);
+
+  const list = elements.get("candidate-checklist-list");
+  const addedIndex = list.children.length - 1;
+  const customItem = list.children[addedIndex];
+  const customControls = customItem.children[2];
+  assert.ok(customControls.children.some(child => child.textContent === "Edit"));
+  assert.ok(customControls.children.some(child => child.textContent === "Delete"));
+
+  const up = customControls.children.find(child => child.textContent === "Move up");
+  up.listeners.get("click")();
+  assert.notEqual(elements.get("candidate-checklist-list").children[addedIndex], customItem);
+});
+

@@ -73,6 +73,9 @@ const checklistControlsEl = document.getElementById("checklist-controls");
 const checklistFilterEl = document.getElementById("checklist-filter");
 const checklistFilterStatusEl = document.getElementById("checklist-filter-status");
 const resetChecklistButton = document.getElementById("reset-checklist");
+const checklistAddInputEl = document.getElementById("checklist-add-input");
+const checklistAddButtonEl = document.getElementById("checklist-add-button");
+const checklistAddStatusEl = document.getElementById("checklist-add-status");
 const exportButton = document.getElementById("export-checklist");
 const exportMarkdownButton = document.getElementById("export-checklist-markdown");
 const exportAnalysisSafeSummaryButton = document.getElementById("export-analysis-safe-summary");
@@ -81,6 +84,7 @@ const exportStatusEl = document.getElementById("export-status");
 // Checklist state exists only for the lifetime of this page.
 let currentReport = null;
 let checklistState = [];
+let checklistCustomCounter = 0;
 let analysisFindingNodes = [];
 let analysisCollapsibleSections = [];
 
@@ -147,6 +151,9 @@ const candidateChecklistControlsEl = document.getElementById("candidate-checklis
 const candidateChecklistFilterEl = document.getElementById("candidate-checklist-filter");
 const candidateChecklistFilterStatusEl = document.getElementById("candidate-checklist-filter-status");
 const resetCandidateChecklistButton = document.getElementById("reset-candidate-checklist");
+const candidateChecklistAddInputEl = document.getElementById("candidate-checklist-add-input");
+const candidateChecklistAddButtonEl = document.getElementById("candidate-checklist-add-button");
+const candidateChecklistAddStatusEl = document.getElementById("candidate-checklist-add-status");
 const exportComparisonButton = document.getElementById("export-comparison");
 const exportComparisonMarkdownButton = document.getElementById("export-comparison-markdown");
 const exportComparisonSafeSummaryButton = document.getElementById("export-comparison-safe-summary");
@@ -156,6 +163,7 @@ const exportComparisonStatusEl = document.getElementById("export-comparison-stat
 let currentCompareReport = null;
 let currentCandidateAnalysis = null;
 let candidateChecklistState = [];
+let candidateChecklistCustomCounter = 0;
 let comparisonFindingNodes = [];
 let comparisonChangeSectionNodes = [];
 let comparisonCollapsibleSections = [];
@@ -757,6 +765,308 @@ function resetChecklist(state, filterEl, updateProgress) {
   updateProgress();
 }
 
+// --- Local, memory-only checklist customization -----------------------
+//
+// Every checklist item (built-in or custom) supports: reordering, and a
+// short private note. Only custom items (added locally by the tester)
+// support text editing and deletion; built-in generated check text is
+// immutable. Nothing here reads or writes any storage or network API —
+// state lives only in the in-memory arrays passed as `config.getState()`.
+const MIN_CUSTOM_CHECK_LENGTH = 3;
+const MAX_CUSTOM_CHECK_LENGTH = 200;
+const MAX_CHECKLIST_NOTE_LENGTH = 500;
+
+function validateCustomChecklistText(rawValue) {
+  const value = String(rawValue || "").trim();
+  if (value.length < MIN_CUSTOM_CHECK_LENGTH) {
+    return { valid: false, error: `Enter at least ${MIN_CUSTOM_CHECK_LENGTH} characters for a custom check.` };
+  }
+  if (value.length > MAX_CUSTOM_CHECK_LENGTH) {
+    return { valid: false, error: `Keep a custom check to ${MAX_CUSTOM_CHECK_LENGTH} characters or fewer.` };
+  }
+  return { valid: true, value };
+}
+
+// Rebuilds the list DOM strictly from the current in-memory order (used
+// after add/delete/move) and keeps move-button disabled state in sync with
+// each item's new position, without recreating any item's DOM node.
+function syncChecklistOrder(config) {
+  const state = config.getState();
+  config.listEl.textContent = "";
+  for (const entry of state) config.listEl.appendChild(entry.node);
+  state.forEach((entry, index) => {
+    entry.upButton.disabled = index === 0;
+    entry.downButton.disabled = index === state.length - 1;
+  });
+}
+
+function moveChecklistItem(config, entry, direction) {
+  const state = config.getState();
+  const index = state.indexOf(entry);
+  if (index === -1) return;
+  const target = index + direction;
+  if (target < 0 || target >= state.length) return;
+  const [moved] = state.splice(index, 1);
+  state.splice(target, 0, moved);
+  syncChecklistOrder(config);
+  config.updateProgress();
+}
+
+function deleteCustomChecklistItem(config, entry) {
+  const state = config.getState();
+  const index = state.indexOf(entry);
+  if (index === -1) return;
+  state.splice(index, 1);
+  config.listEl.removeChild(entry.node);
+  config.updateProgress();
+  syncChecklistOrder(config);
+}
+
+// Replaces an item's label with an inline text control, validating the same
+// fixed length limits used when adding a custom item. Only ever invoked for
+// custom items; built-in generated check text has no edit control.
+function startEditingCustomChecklistItem(entry) {
+  if (entry.editing) return;
+  entry.editing = true;
+  entry.label.hidden = true;
+  entry.editButton.hidden = true;
+  entry.deleteButton.hidden = true;
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = MAX_CUSTOM_CHECK_LENGTH;
+  input.value = entry.check;
+  input.id = `${entry.id}-edit-input`;
+  input.setAttribute("aria-label", "Edit custom check text");
+  input.setAttribute("aria-describedby", entry.editStatus.id);
+
+  const saveButton = document.createElement("button");
+  saveButton.type = "button";
+  saveButton.textContent = "Save";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "secondary-button";
+  cancelButton.textContent = "Cancel";
+
+  function finishEditing() {
+    input.remove ? input.remove() : entry.node.removeChild(input);
+    saveButton.remove ? saveButton.remove() : entry.node.removeChild(saveButton);
+    cancelButton.remove ? cancelButton.remove() : entry.node.removeChild(cancelButton);
+    entry.label.hidden = false;
+    entry.editButton.hidden = false;
+    entry.deleteButton.hidden = false;
+    entry.editing = false;
+  }
+
+  cancelButton.addEventListener("click", () => {
+    entry.editStatus.textContent = "";
+    finishEditing();
+  });
+
+  saveButton.addEventListener("click", () => {
+    const result = validateCustomChecklistText(input.value);
+    if (!result.valid) {
+      entry.editStatus.textContent = result.error;
+      return;
+    }
+    entry.check = result.value;
+    entry.label.textContent = `${entry.laneId}: ${entry.check}`;
+    entry.editStatus.textContent = "Custom check updated.";
+    finishEditing();
+  });
+
+  entry.node.insertBefore
+    ? entry.node.insertBefore(input, entry.controlsEl)
+    : entry.node.appendChild(input);
+  entry.node.insertBefore
+    ? entry.node.insertBefore(saveButton, entry.controlsEl)
+    : entry.node.appendChild(saveButton);
+  entry.node.insertBefore
+    ? entry.node.insertBefore(cancelButton, entry.controlsEl)
+    : entry.node.appendChild(cancelButton);
+  if (input.focus) input.focus();
+}
+
+// Builds one checklist item (built-in when custom=false, tester-added when
+// custom=true) with a checkbox/label, move up/down controls, a private note
+// toggle, and — for custom items only — edit and delete-with-local-confirm
+// controls. Pushes the resulting entry into config.getState() and appends
+// its DOM node to config.listEl.
+function createChecklistEntry(config, id, laneId, check, custom) {
+  const state = config.getState();
+  const item = el("li", { className: custom ? "checklist-item checklist-item-custom" : "checklist-item" });
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.id = id;
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = `${laneId}: ${check}`;
+
+  const entry = { id, laneId, check, done: false, node: item, checkbox, label, custom, note: "" };
+
+  checkbox.addEventListener("change", () => {
+    entry.done = checkbox.checked;
+    config.updateProgress();
+  });
+
+  item.appendChild(checkbox);
+  item.appendChild(label);
+
+  const controls = el("div", { className: "checklist-item-controls" });
+  entry.controlsEl = controls;
+
+  const upButton = document.createElement("button");
+  upButton.type = "button";
+  upButton.className = "secondary-button checklist-move-button";
+  upButton.textContent = "Move up";
+  upButton.setAttribute("aria-label", `Move check up: ${laneId}`);
+  upButton.addEventListener("click", () => moveChecklistItem(config, entry, -1));
+
+  const downButton = document.createElement("button");
+  downButton.type = "button";
+  downButton.className = "secondary-button checklist-move-button";
+  downButton.textContent = "Move down";
+  downButton.setAttribute("aria-label", `Move check down: ${laneId}`);
+  downButton.addEventListener("click", () => moveChecklistItem(config, entry, 1));
+
+  entry.upButton = upButton;
+  entry.downButton = downButton;
+  controls.appendChild(upButton);
+  controls.appendChild(downButton);
+
+  const noteToggle = document.createElement("button");
+  noteToggle.type = "button";
+  noteToggle.className = "secondary-button checklist-note-toggle";
+  noteToggle.textContent = "Add private note";
+  noteToggle.setAttribute("aria-expanded", "false");
+  controls.appendChild(noteToggle);
+
+  if (custom) {
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "secondary-button checklist-edit-button";
+    editButton.textContent = "Edit";
+    entry.editButton = editButton;
+    controls.appendChild(editButton);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "secondary-button checklist-delete-button";
+    deleteButton.textContent = "Delete";
+    entry.deleteButton = deleteButton;
+    controls.appendChild(deleteButton);
+
+    const deleteConfirm = el("span", { className: "checklist-delete-confirm" });
+    deleteConfirm.hidden = true;
+    const confirmDeleteButton = document.createElement("button");
+    confirmDeleteButton.type = "button";
+    confirmDeleteButton.textContent = "Confirm delete";
+    const cancelDeleteButton = document.createElement("button");
+    cancelDeleteButton.type = "button";
+    cancelDeleteButton.className = "secondary-button";
+    cancelDeleteButton.textContent = "Cancel";
+    deleteConfirm.appendChild(confirmDeleteButton);
+    deleteConfirm.appendChild(cancelDeleteButton);
+    entry.deleteConfirmEl = deleteConfirm;
+    controls.appendChild(deleteConfirm);
+
+    deleteButton.addEventListener("click", () => {
+      deleteButton.hidden = true;
+      editButton.hidden = true;
+      deleteConfirm.hidden = false;
+    });
+    cancelDeleteButton.addEventListener("click", () => {
+      deleteConfirm.hidden = true;
+      deleteButton.hidden = false;
+      editButton.hidden = false;
+    });
+    confirmDeleteButton.addEventListener("click", () => {
+      deleteCustomChecklistItem(config, entry);
+    });
+
+    const editStatus = el("p", { className: "checklist-edit-status" });
+    editStatus.id = `${id}-edit-status`;
+    editStatus.setAttribute("role", "status");
+    editStatus.setAttribute("aria-live", "polite");
+    entry.editStatus = editStatus;
+    editButton.addEventListener("click", () => startEditingCustomChecklistItem(entry));
+  }
+
+  item.appendChild(controls);
+  if (entry.editStatus) item.appendChild(entry.editStatus);
+
+  const noteWrap = el("div", { className: "checklist-note-wrap" });
+  noteWrap.hidden = true;
+  const noteLabel = document.createElement("label");
+  const noteId = `${id}-note`;
+  noteLabel.htmlFor = noteId;
+  noteLabel.textContent = "Private local note (memory only; never in share-safe exports)";
+  const noteTextarea = document.createElement("textarea");
+  noteTextarea.id = noteId;
+  noteTextarea.maxLength = MAX_CHECKLIST_NOTE_LENGTH;
+  const noteStatus = el("p", { className: "checklist-note-status" });
+  noteStatus.setAttribute("role", "status");
+  noteStatus.setAttribute("aria-live", "polite");
+  noteTextarea.addEventListener("input", () => {
+    entry.note = noteTextarea.value;
+    const hasNote = entry.note.trim().length > 0;
+    noteToggle.textContent = hasNote ? "Edit private note" : "Add private note";
+    noteStatus.textContent = hasNote ? "Private note saved in memory only." : "";
+  });
+  noteToggle.addEventListener("click", () => {
+    const expanded = noteToggle.getAttribute("aria-expanded") === "true";
+    noteWrap.hidden = expanded;
+    noteToggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+    if (!expanded && noteTextarea.focus) noteTextarea.focus();
+  });
+  noteWrap.appendChild(noteLabel);
+  noteWrap.appendChild(noteTextarea);
+  noteWrap.appendChild(noteStatus);
+  entry.noteTextarea = noteTextarea;
+  entry.noteToggle = noteToggle;
+  item.appendChild(noteWrap);
+
+  state.push(entry);
+  config.listEl.appendChild(item);
+  return entry;
+}
+
+function wireCustomChecklistAdd(config, inputEl, buttonEl, statusEl) {
+  buttonEl.addEventListener("click", () => {
+    const result = validateCustomChecklistText(inputEl.value);
+    if (!result.valid) {
+      statusEl.textContent = result.error;
+      return;
+    }
+    const id = `${config.idPrefix}-custom-${config.nextCustomId()}`;
+    createChecklistEntry(config, id, "Custom check", result.value, true);
+    syncChecklistOrder(config);
+    config.updateProgress();
+    inputEl.value = "";
+    statusEl.textContent = "Custom check added.";
+  });
+}
+
+const checklistConfig = {
+  idPrefix: "checklist-item",
+  getState: () => checklistState,
+  listEl: checklistListEl,
+  updateProgress: () => updateChecklistProgress(),
+  nextCustomId: () => ++checklistCustomCounter
+};
+
+const candidateChecklistConfig = {
+  idPrefix: "candidate-checklist-item",
+  getState: () => candidateChecklistState,
+  listEl: candidateChecklistListEl,
+  updateProgress: () => updateCandidateChecklistProgress(),
+  nextCustomId: () => ++candidateChecklistCustomCounter
+};
+
+wireCustomChecklistAdd(checklistConfig, checklistAddInputEl, checklistAddButtonEl, checklistAddStatusEl);
+wireCustomChecklistAdd(candidateChecklistConfig, candidateChecklistAddInputEl, candidateChecklistAddButtonEl, candidateChecklistAddStatusEl);
+
 checklistFilterEl.addEventListener("change", () => {
   applyChecklistFilter(checklistState, checklistFilterEl.value, checklistFilterStatusEl);
 });
@@ -768,30 +1078,17 @@ resetChecklistButton.addEventListener("click", () => {
 function renderChecklist(report) {
   checklistListEl.textContent = "";
   checklistState = [];
+  checklistCustomCounter = 0;
+  checklistAddInputEl.value = "";
+  checklistAddStatusEl.textContent = "";
 
   report.lanes.forEach((lane, laneIndex) => {
     lane.checks.forEach((check, checkIndex) => {
       const id = `checklist-item-${laneIndex}-${checkIndex}`;
-      const item = el("li", { className: "checklist-item" });
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.id = id;
-      checkbox.addEventListener("change", () => {
-        const entry = checklistState.find(candidate => candidate.id === id);
-        if (entry) entry.done = checkbox.checked;
-        updateChecklistProgress();
-      });
-      const label = document.createElement("label");
-      label.htmlFor = id;
-      label.textContent = `${lane.id}: ${check}`;
-
-      checklistState.push({ id, laneId: lane.id, check, done: false, node: item, checkbox });
-
-      item.appendChild(checkbox);
-      item.appendChild(label);
-      checklistListEl.appendChild(item);
+      createChecklistEntry(checklistConfig, id, lane.id, check, false);
     });
   });
+  syncChecklistOrder(checklistConfig);
 
   checklistEl.hidden = checklistState.length === 0;
   checklistControlsEl.hidden = checklistState.length === 0;
@@ -930,6 +1227,9 @@ function buildAnalysisMarkdown(report, checklist) {
       lines.push(
         `- [${item.done ? "x" : " "}] ${escapeMarkdownText(item.laneId)}: ${escapeMarkdownText(item.check)}`
       );
+      if (item.note && String(item.note).trim() !== "") {
+        lines.push(`  - Private note: ${escapeMarkdownText(item.note)}`);
+      }
     }
   }
   lines.push("");
@@ -984,7 +1284,7 @@ exportButton.addEventListener("click", () => {
   const exportPayload = {
     exportedAt: new Date().toISOString(),
     report: currentReport,
-    checklist: checklistState.map(({ id, laneId, check, done }) => ({ id, laneId, check, done }))
+    checklist: checklistState.map(({ id, laneId, check, done, custom, note }) => ({ id, laneId, check, done, custom, note }))
   };
 
   downloadLocalFile(
@@ -1097,12 +1397,15 @@ function resetAnalysisResults() {
   checklistFilterStatusEl.textContent = "";
   checklistListEl.textContent = "";
   checklistProgressEl.textContent = "";
+  checklistAddInputEl.value = "";
+  checklistAddStatusEl.textContent = "";
   exportStatusEl.textContent = "";
   exportButton.disabled = true;
   exportMarkdownButton.disabled = true;
   exportAnalysisSafeSummaryButton.disabled = true;
   currentReport = null;
   checklistState = [];
+  checklistCustomCounter = 0;
 }
 
 form.addEventListener("submit", async event => {
@@ -1433,28 +1736,15 @@ resetCandidateChecklistButton.addEventListener("click", () => {
 });
 
 function appendCandidateChecklistItem(id, laneId, check) {
-  const item = el("li", { className: "checklist-item" });
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.id = id;
-  checkbox.addEventListener("change", () => {
-    const entry = candidateChecklistState.find(candidate => candidate.id === id);
-    if (entry) entry.done = checkbox.checked;
-    updateCandidateChecklistProgress();
-  });
-  const label = document.createElement("label");
-  label.htmlFor = id;
-  label.textContent = `${laneId}: ${check}`;
-
-  candidateChecklistState.push({ id, laneId, check, done: false, node: item, checkbox });
-  item.appendChild(checkbox);
-  item.appendChild(label);
-  candidateChecklistListEl.appendChild(item);
+  createChecklistEntry(candidateChecklistConfig, id, laneId, check, false);
 }
 
 function renderCandidateChecklist(candidateAnalysis, comparisonReport) {
   candidateChecklistListEl.textContent = "";
   candidateChecklistState = [];
+  candidateChecklistCustomCounter = 0;
+  candidateChecklistAddInputEl.value = "";
+  candidateChecklistAddStatusEl.textContent = "";
 
   comparisonReport.findings.forEach((finding, findingIndex) => {
     appendCandidateChecklistItem(
@@ -1470,6 +1760,7 @@ function renderCandidateChecklist(candidateAnalysis, comparisonReport) {
       appendCandidateChecklistItem(id, lane.id, check);
     });
   });
+  syncChecklistOrder(candidateChecklistConfig);
 
   candidateChecklistEl.hidden = candidateChecklistState.length === 0;
   candidateChecklistControlsEl.hidden = candidateChecklistState.length === 0;
@@ -1606,6 +1897,9 @@ function buildComparisonMarkdown(report, checklist) {
       lines.push(
         `- [${item.done ? "x" : " "}] ${escapeMarkdownText(item.laneId)}: ${escapeMarkdownText(item.check)}`
       );
+      if (item.note && String(item.note).trim() !== "") {
+        lines.push(`  - Private note: ${escapeMarkdownText(item.note)}`);
+      }
     }
   }
   lines.push("");
@@ -1652,7 +1946,7 @@ exportComparisonButton.addEventListener("click", () => {
     exportedAt: new Date().toISOString(),
     comparisonReport: currentCompareReport,
     candidateAnalysis: currentCandidateAnalysis,
-    candidateChecklist: candidateChecklistState.map(({ id, laneId, check, done }) => ({ id, laneId, check, done }))
+    candidateChecklist: candidateChecklistState.map(({ id, laneId, check, done, custom, note }) => ({ id, laneId, check, done, custom, note }))
   };
 
   downloadLocalFile(
@@ -1704,6 +1998,8 @@ function resetComparisonResults() {
   candidateChecklistFilterStatusEl.textContent = "";
   candidateChecklistListEl.textContent = "";
   candidateChecklistProgressEl.textContent = "";
+  candidateChecklistAddInputEl.value = "";
+  candidateChecklistAddStatusEl.textContent = "";
   exportComparisonStatusEl.textContent = "";
   exportComparisonButton.disabled = true;
   exportComparisonMarkdownButton.disabled = true;
@@ -1711,6 +2007,7 @@ function resetComparisonResults() {
   currentCompareReport = null;
   currentCandidateAnalysis = null;
   candidateChecklistState = [];
+  candidateChecklistCustomCounter = 0;
 }
 
 async function runComparison(previousManifest, currentManifest, isExample) {
