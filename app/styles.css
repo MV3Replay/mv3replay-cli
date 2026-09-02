@@ -44,6 +44,99 @@
   }
 }
 
+/* Explicit theme override: applied via a documented root attribute only,
+   never persisted. "system" leaves the prefers-color-scheme rule above in
+   control. */
+:root[data-theme="dark"] {
+  --page: #0b1220;
+  --surface: #121c2d;
+  --surface-muted: #19263a;
+  --text: #eef4ff;
+  --muted: #aebbd0;
+  --border: #31425b;
+  --accent: #88a5ff;
+  --accent-strong: #aec0ff;
+  --ok-bg: #153d2b;
+  --ok-text: #99e7bd;
+  --low-bg: #173458;
+  --low-text: #a8ceff;
+  --medium-bg: #473a17;
+  --medium-text: #ffe098;
+  --high-bg: #522c16;
+  --high-text: #ffc397;
+  --critical-bg: #52222b;
+  --critical-text: #ffb2bd;
+}
+
+:root[data-theme="light"] {
+  --page: #f4f7fb;
+  --surface: #ffffff;
+  --surface-muted: #eef3f8;
+  --text: #142033;
+  --muted: #526176;
+  --border: #cad5e2;
+  --accent: #3158d4;
+  --accent-strong: #2543a8;
+  --ok-bg: #daf6e8;
+  --ok-text: #12613b;
+  --low-bg: #e3efff;
+  --low-text: #174f93;
+  --medium-bg: #fff0c7;
+  --medium-text: #765400;
+  --high-bg: #ffe0c7;
+  --high-text: #8b3b00;
+  --critical-bg: #ffdcdc;
+  --critical-text: #8e1d2c;
+}
+
+/* Text size preference scales root font size without invoking browser zoom. */
+:root[data-text-size="large"] {
+  font-size: 118%;
+}
+
+/* Reduced-motion preference disables nonessential transitions/animations
+   regardless of the elements involved. Defaults to the system preference. */
+:root[data-reduced-motion="true"] *,
+:root[data-reduced-motion="true"] *::before,
+:root[data-reduced-motion="true"] *::after {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* High-contrast preference strengthens borders and focus visibility without
+   hiding any content. */
+:root[data-high-contrast="true"] {
+  --border: #000000;
+}
+
+:root[data-theme="dark"][data-high-contrast="true"] {
+  --border: #ffffff;
+}
+
+:root[data-high-contrast="true"] .card,
+:root[data-high-contrast="true"] input,
+:root[data-high-contrast="true"] select,
+:root[data-high-contrast="true"] textarea,
+:root[data-high-contrast="true"] button {
+  border-width: 2px;
+}
+
+:root[data-high-contrast="true"] :focus-visible {
+  outline: 3px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+/* Density preference tightens spacing for compact layouts. */
+:root[data-density="compact"] .card {
+  padding: 0.75rem;
+  margin-block: 0.5rem;
+}
+
+:root[data-density="compact"] .field {
+  margin-block: 0.35rem;
+}
+
 body {
   margin: 0;
   padding: 1.5rem;

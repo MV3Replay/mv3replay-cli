@@ -422,6 +422,34 @@ test("index.html includes a print-report action and an in-memory recent-runs sec
   assert.match(html, /in memory only/);
 });
 
+test("index.html includes accessible memory-only display preference controls", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="preference-theme"/);
+  assert.match(html, /id="preference-density"/);
+  assert.match(html, /id="preference-text-size"/);
+  assert.match(html, /id="preference-reduced-motion"/);
+  assert.match(html, /id="preference-high-contrast"/);
+  assert.match(html, /for="preference-theme"/);
+  assert.match(html, /held in memory only/);
+});
+
+test("app.js applies display preferences as root attributes only, never persisted", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /root\.setAttribute\("data-theme", preferenceThemeEl\.value\)/);
+  assert.match(source, /root\.setAttribute\("data-density", preferenceDensityEl\.value\)/);
+  assert.match(source, /root\.setAttribute\("data-text-size", preferenceTextSizeEl\.value\)/);
+  assert.match(source, /root\.setAttribute\("data-reduced-motion"/);
+  assert.match(source, /root\.setAttribute\("data-high-contrast"/);
+  assert.match(source, /function resetDisplayPreferences/);
+  assert.doesNotMatch(source, /localStorage/);
+  assert.doesNotMatch(source, /document\.cookie/);
+});
+
+test("app.js resets display preferences to defaults on clear workspace", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /recentRuns = \[\];[\s\S]*resetDisplayPreferences\(\);[\s\S]*clearWorkspaceStatusEl\.textContent/);
+});
+
 test("styles.css includes a print rule that shows only the sanitized rendered report", async () => {
   const css = await readFile(new URL("../app/styles.css", import.meta.url), "utf8");
   assert.match(css, /@media print/);

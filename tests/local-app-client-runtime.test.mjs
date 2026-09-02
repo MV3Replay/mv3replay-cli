@@ -75,8 +75,10 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
   const createdElements = [];
   const createdBlobs = [];
   const documentListeners = new Map();
+  const documentElement = new FakeElement("html");
   const document = {
     body: new FakeElement("body"),
+    documentElement,
     listeners: documentListeners,
     addEventListener(type, handler) {
       documentListeners.set(type, handler);
@@ -207,7 +209,10 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
 
   const context = vm.createContext({
     document,
-    window: { print: () => { printCalls.push(true); } },
+    window: {
+      print: () => { printCalls.push(true); },
+      matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })
+    },
     Blob,
     console,
     URL: {
@@ -229,7 +234,7 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
     }
   });
   vm.runInContext(source, context, { filename: "app/app.js" });
-  return { elements, requests, createdElements, createdBlobs, documentListeners, printCalls };
+  return { elements, requests, createdElements, createdBlobs, documentListeners, printCalls, documentElement };
 }
 
 test("built-in analysis example executes the real client request and rendering path", async () => {
@@ -283,6 +288,61 @@ test("an identical comparison renders zero structured changes without comparison
   assert.match(summary, /Breakdown: no structured changes\./);
   assert.match(collectText(elements.get("compare-report-details")), /No comparison findings were detected/);
   assert.doesNotMatch(collectText(elements.get("candidate-checklist-list")), /comparison-/);
+});
+
+test("display preferences default to memory-only root attributes and update on change", async () => {
+  const { elements, documentElement } = await createClientHarness();
+
+  assert.equal(documentElement.getAttribute("data-theme"), "system");
+  assert.equal(documentElement.getAttribute("data-density"), "comfortable");
+  assert.equal(documentElement.getAttribute("data-text-size"), "normal");
+  assert.equal(documentElement.getAttribute("data-reduced-motion"), "false");
+  assert.equal(documentElement.getAttribute("data-high-contrast"), "false");
+
+  const themeSelect = elements.get("preference-theme");
+  themeSelect.value = "dark";
+  themeSelect.listeners.get("change")();
+  assert.equal(documentElement.getAttribute("data-theme"), "dark");
+
+  const densitySelect = elements.get("preference-density");
+  densitySelect.value = "compact";
+  densitySelect.listeners.get("change")();
+  assert.equal(documentElement.getAttribute("data-density"), "compact");
+
+  const textSizeSelect = elements.get("preference-text-size");
+  textSizeSelect.value = "large";
+  textSizeSelect.listeners.get("change")();
+  assert.equal(documentElement.getAttribute("data-text-size"), "large");
+
+  const reducedMotionCheckbox = elements.get("preference-reduced-motion");
+  reducedMotionCheckbox.checked = true;
+  reducedMotionCheckbox.listeners.get("change")();
+  assert.equal(documentElement.getAttribute("data-reduced-motion"), "true");
+
+  const highContrastCheckbox = elements.get("preference-high-contrast");
+  highContrastCheckbox.checked = true;
+  highContrastCheckbox.listeners.get("change")();
+  assert.equal(documentElement.getAttribute("data-high-contrast"), "true");
+
+  assert.match(elements.get("display-preferences-status").textContent, /applied for this tab only/);
+});
+
+test("clear workspace resets display preferences to defaults", async () => {
+  const { elements, documentElement } = await createClientHarness();
+
+  const themeSelect = elements.get("preference-theme");
+  themeSelect.value = "dark";
+  themeSelect.listeners.get("change")();
+  const highContrastCheckbox = elements.get("preference-high-contrast");
+  highContrastCheckbox.checked = true;
+  highContrastCheckbox.listeners.get("change")();
+
+  elements.get("clear-workspace-button").listeners.get("click")();
+
+  assert.equal(documentElement.getAttribute("data-theme"), "system");
+  assert.equal(documentElement.getAttribute("data-high-contrast"), "false");
+  assert.equal(themeSelect.value, "system");
+  assert.equal(highContrastCheckbox.checked, false);
 });
 
 test("coverage gaps render in analysis and comparison summaries", async () => {

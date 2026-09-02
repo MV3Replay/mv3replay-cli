@@ -52,6 +52,45 @@
     <p id="clear-workspace-status" role="status" aria-live="polite"></p>
   </div>
 
+  <section id="display-preferences" class="card" aria-labelledby="display-preferences-heading">
+    <h2 id="display-preferences-heading">Display preferences</h2>
+    <p class="export-help">
+      These preferences only change how this page looks in this tab. They are held in memory only,
+      are never sent anywhere, and reset when you clear the workspace or reload the page.
+    </p>
+    <div class="field">
+      <label for="preference-theme">Color theme</label>
+      <select id="preference-theme">
+        <option value="system">Match system</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="preference-density">Layout density</label>
+      <select id="preference-density">
+        <option value="comfortable">Comfortable</option>
+        <option value="compact">Compact</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="preference-text-size">Text size</label>
+      <select id="preference-text-size">
+        <option value="normal">Normal</option>
+        <option value="large">Large</option>
+      </select>
+    </div>
+    <label class="inline-filter-option" for="preference-reduced-motion">
+      <input type="checkbox" id="preference-reduced-motion">
+      Reduce motion (disables nonessential transitions)
+    </label>
+    <label class="inline-filter-option" for="preference-high-contrast">
+      <input type="checkbox" id="preference-high-contrast">
+      High contrast (stronger borders and focus outlines)
+    </label>
+    <p id="display-preferences-status" role="status" aria-live="polite"></p>
+  </section>
+
   <section id="recent-runs" class="card" hidden aria-labelledby="recent-runs-heading">
     <h2 id="recent-runs-heading">Recent local runs (in memory only, up to 5)</h2>
     <p class="export-help">Structural counts only, no timestamps. Rerun uses the manifest already held in memory; nothing is re-read from disk.</p>

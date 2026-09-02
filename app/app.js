@@ -112,6 +112,55 @@ const pasteJsonStatusEl = document.getElementById("paste-json-status");
 const clearWorkspaceButton = document.getElementById("clear-workspace-button");
 const clearWorkspaceStatusEl = document.getElementById("clear-workspace-status");
 
+const preferenceThemeEl = document.getElementById("preference-theme");
+const preferenceDensityEl = document.getElementById("preference-density");
+const preferenceTextSizeEl = document.getElementById("preference-text-size");
+const preferenceReducedMotionEl = document.getElementById("preference-reduced-motion");
+const preferenceHighContrastEl = document.getElementById("preference-high-contrast");
+const displayPreferencesStatusEl = document.getElementById("display-preferences-status");
+
+// Display preferences are applied as documented attributes on the root
+// element only. They are never persisted (no storage, cookies, or network
+// calls) and never affect report or export data; they reset to defaults on
+// clear workspace or page reload.
+const systemReducedMotionQuery = typeof window.matchMedia === "function"
+  ? window.matchMedia("(prefers-reduced-motion: reduce)")
+  : null;
+
+function applyDisplayPreferences() {
+  const root = document.documentElement;
+  root.setAttribute("data-theme", preferenceThemeEl.value);
+  root.setAttribute("data-density", preferenceDensityEl.value);
+  root.setAttribute("data-text-size", preferenceTextSizeEl.value);
+  root.setAttribute("data-reduced-motion", String(preferenceReducedMotionEl.checked));
+  root.setAttribute("data-high-contrast", String(preferenceHighContrastEl.checked));
+}
+
+function resetDisplayPreferences() {
+  preferenceThemeEl.value = "system";
+  preferenceDensityEl.value = "comfortable";
+  preferenceTextSizeEl.value = "normal";
+  preferenceReducedMotionEl.checked = Boolean(systemReducedMotionQuery && systemReducedMotionQuery.matches);
+  preferenceHighContrastEl.checked = false;
+  applyDisplayPreferences();
+  displayPreferencesStatusEl.textContent = "";
+}
+
+[preferenceThemeEl, preferenceDensityEl, preferenceTextSizeEl].forEach(select => {
+  select.addEventListener("change", () => {
+    applyDisplayPreferences();
+    displayPreferencesStatusEl.textContent = "Display preference applied for this tab only.";
+  });
+});
+[preferenceReducedMotionEl, preferenceHighContrastEl].forEach(checkbox => {
+  checkbox.addEventListener("change", () => {
+    applyDisplayPreferences();
+    displayPreferencesStatusEl.textContent = "Display preference applied for this tab only.";
+  });
+});
+
+resetDisplayPreferences();
+
 // Manifests imported via the paste-JSON panel for the compare sides. These
 // live only in memory for the lifetime of this page and are never rendered
 // back as raw text once imported.
@@ -2468,6 +2517,8 @@ clearWorkspaceButton.addEventListener("click", () => {
 
   recentRuns = [];
   renderRecentRuns();
+
+  resetDisplayPreferences();
 
   clearWorkspaceStatusEl.textContent = "Workspace cleared. All local selections and results were removed.";
 });
