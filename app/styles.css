@@ -675,11 +675,77 @@ kbd {
   background: var(--surface-muted);
 }
 
+.page-toc {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface-muted);
+}
+
+.page-toc h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.page-toc ul {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  list-style: disc;
+}
+
+.back-to-top {
+  margin-block: 0.75rem;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-block: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mode-tab {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 0.4rem 0.4rem 0 0;
+  padding: 0.5rem 1rem;
+}
+
+.mode-tab[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--accent-strong);
+  border-color: var(--border);
+  font-weight: 800;
+}
+
+.jump-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.88rem;
+}
+
+.jump-nav a {
+  color: var(--accent);
+}
+
+.jump-nav a[hidden] {
+  display: none;
+}
+
 @media print {
   body * { visibility: hidden; }
   #report:not([hidden]), #report:not([hidden]) *,
   #compare-report:not([hidden]), #compare-report:not([hidden]) * { visibility: visible; }
   #report, #compare-report { position: absolute; left: 0; top: 0; width: 100%; }
   #print-report-button, .filter-controls, .checklist-controls, .section-controls,
-  .section-toggle, #recent-runs, .finding-triage-controls, .finding-note-wrap { display: none !important; }
+  .section-toggle, #recent-runs, .finding-triage-controls, .finding-note-wrap,
+  .page-toc, .back-to-top, .mode-tabs, .jump-nav { display: none !important; }
 }

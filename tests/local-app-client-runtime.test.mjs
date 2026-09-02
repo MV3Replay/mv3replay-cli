@@ -1084,3 +1084,138 @@ test("compare findings support the same pin, acknowledge, private note, filter, 
   assert.match(collectText(elements.get("comparison-readiness")), /Update-path validation required/);
 });
 
+test("Inspect/Compare mode tabs show one workflow panel at a time with correct aria-selected and tabindex, and retain in-memory state", async () => {
+  const { elements } = await createClientHarness();
+
+  const inspectTab = elements.get("mode-tab-inspect");
+  const compareTab = elements.get("mode-tab-compare");
+  const inspectPanel = elements.get("inspect-panel");
+  const comparePanel = elements.get("compare-panel");
+
+  assert.equal(inspectTab.getAttribute("aria-selected"), "true");
+  assert.equal(inspectTab.tabIndex, 0);
+  assert.equal(compareTab.getAttribute("aria-selected"), "false");
+  assert.equal(compareTab.tabIndex, -1);
+  assert.equal(inspectPanel.hidden, false);
+  assert.equal(comparePanel.hidden, true);
+
+  // Type into an inspect-side status field to simulate in-progress state,
+  // then switch modes and back; the value must be untouched (nothing is
+  // reset or recreated by switching tabs).
+  elements.get("checklist-add-input").value = "in-progress custom check text";
+
+  compareTab.listeners.get("click")();
+  assert.equal(compareTab.getAttribute("aria-selected"), "true");
+  assert.equal(compareTab.tabIndex, 0);
+  assert.equal(inspectTab.getAttribute("aria-selected"), "false");
+  assert.equal(inspectTab.tabIndex, -1);
+  assert.equal(comparePanel.hidden, false);
+  assert.equal(inspectPanel.hidden, true);
+  assert.equal(compareTab.focused, true);
+
+  inspectTab.listeners.get("click")();
+  assert.equal(inspectPanel.hidden, false);
+  assert.equal(comparePanel.hidden, true);
+  assert.equal(elements.get("checklist-add-input").value, "in-progress custom check text");
+});
+
+test("arrow keys move between mode tabs and keyboard shortcuts switch mode before focusing an input", async () => {
+  const { elements, documentListeners } = await createClientHarness();
+  const inspectTab = elements.get("mode-tab-inspect");
+  const compareTab = elements.get("mode-tab-compare");
+
+  inspectTab.listeners.get("keydown")({ key: "ArrowRight", preventDefault() {} });
+  assert.equal(compareTab.getAttribute("aria-selected"), "true");
+  assert.equal(elements.get("compare-panel").hidden, false);
+
+  compareTab.listeners.get("keydown")({ key: "ArrowLeft", preventDefault() {} });
+  assert.equal(inspectTab.getAttribute("aria-selected"), "true");
+  assert.equal(elements.get("inspect-panel").hidden, false);
+
+  const keydown = documentListeners.get("keydown");
+  keydown({ key: "c", target: { tagName: "BODY" } });
+  assert.equal(elements.get("compare-panel").hidden, false);
+  assert.equal(elements.get("previous-manifest-file").focused, true);
+
+  keydown({ key: "i", target: { tagName: "BODY" } });
+  assert.equal(elements.get("inspect-panel").hidden, false);
+});
+
+test("back-to-top focuses the main heading without changing the URL or history", async () => {
+  const { elements } = await createClientHarness();
+  const heading = elements.get("main-heading");
+  assert.equal(heading.focused, false);
+
+  elements.get("back-to-top-button").listeners.get("click")();
+  assert.equal(heading.focused, true);
+});
+
+test("local table of contents links to the tester guide, inspect, compare, recent runs, and display preferences", async () => {
+  const source = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(source, /id="page-toc"/);
+  for (const target of [
+    "#tester-guide-heading", "#inspect-heading", "#compare-heading",
+    "#recent-runs-heading", "#display-preferences-heading"
+  ]) {
+    assert.match(source, new RegExp(`href="${target.replace("#", "#")}"`));
+  }
+});
+
+test("result jump navigation hides unavailable targets and shows them once a result is rendered", async () => {
+  const { elements } = await createClientHarness();
+
+  assert.equal(elements.get("report-jump-nav").hidden, true);
+  await elements.get("analyze-example-button").listeners.get("click")();
+  assert.equal(elements.get("report-jump-nav").hidden, false);
+  assert.equal(elements.get("jump-findings").hidden, false);
+  assert.equal(elements.get("jump-checklist").hidden, false);
+
+  assert.equal(elements.get("compare-jump-nav").hidden, true);
+  await elements.get("compare-example-button").listeners.get("click")();
+  assert.equal(elements.get("compare-jump-nav").hidden, false);
+  assert.equal(elements.get("compare-jump-findings").hidden, false);
+  assert.equal(elements.get("compare-jump-checklist").hidden, false);
+
+  elements.get("clear-workspace-button").listeners.get("click")();
+  assert.equal(elements.get("report-jump-nav").hidden, true);
+  assert.equal(elements.get("compare-jump-nav").hidden, true);
+});
+
+test("a successful inspect run moves focus to the result heading; a failed run focuses status instead", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  assert.equal(elements.get("report-heading").focused, true);
+
+  elements.get("status").focused = false;
+  elements.get("manifest-file").files = [];
+  elements.get("manifest-folder").files = [];
+  await elements.get("analyze-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(elements.get("status").focused, true);
+});
+
+test("a successful compare run moves focus to the comparison result heading; a failed run focuses compare status", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("compare-example-button").listeners.get("click")();
+  assert.equal(elements.get("compare-report-heading").focused, true);
+
+  elements.get("compare-status").focused = false;
+  elements.get("previous-manifest-file").files = [];
+  elements.get("previous-manifest-folder").files = [];
+  elements.get("candidate-manifest-file").files = [];
+  elements.get("candidate-manifest-folder").files = [];
+  await elements.get("compare-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(elements.get("compare-status").focused, true);
+});
+
+test("typing in a search field never steals focus to a result heading", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  elements.get("report-heading").focused = false;
+
+  const search = elements.get("analysis-finding-search");
+  search.value = "notification";
+  search.listeners.get("input")();
+
+  assert.equal(elements.get("report-heading").focused, false);
+});
+

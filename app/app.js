@@ -70,6 +70,21 @@ const printReportButton = document.getElementById("print-report-button");
 const recentRunsEl = document.getElementById("recent-runs");
 const recentRunsListEl = document.getElementById("recent-runs-list");
 
+const mainHeadingEl = document.getElementById("main-heading");
+const backToTopButton = document.getElementById("back-to-top-button");
+const modeTabInspectButton = document.getElementById("mode-tab-inspect");
+const modeTabCompareButton = document.getElementById("mode-tab-compare");
+const inspectPanelEl = document.getElementById("inspect-panel");
+const comparePanelEl = document.getElementById("compare-panel");
+const reportHeadingEl = document.getElementById("report-heading");
+const compareReportHeadingEl = document.getElementById("compare-report-heading");
+const reportJumpNavEl = document.getElementById("report-jump-nav");
+const compareJumpNavEl = document.getElementById("compare-jump-nav");
+const jumpFindingsLink = document.getElementById("jump-findings");
+const jumpChecklistLink = document.getElementById("jump-checklist");
+const compareJumpFindingsLink = document.getElementById("compare-jump-findings");
+const compareJumpChecklistLink = document.getElementById("compare-jump-checklist");
+
 const checklistEl = document.getElementById("checklist");
 const checklistListEl = document.getElementById("checklist-list");
 const checklistProgressEl = document.getElementById("checklist-progress");
@@ -236,6 +251,91 @@ compareReportEl.hidden = true;
 function setStatus(message) {
   statusEl.textContent = message;
 }
+
+// Focuses a status/heading element that is programmatically focusable
+// (tabindex="-1") without adding a history entry or changing the URL, since
+// focus() never touches location.hash or the history API.
+function focusElement(target) {
+  if (target && target.focus) target.focus();
+}
+
+// Moves keyboard/document focus back to the page's single top-level heading
+// without scrolling via a URL fragment (which would add a history entry),
+// so back-to-top behaves like a plain in-page focus move.
+backToTopButton.addEventListener("click", () => {
+  if (typeof window !== "undefined" && window.scrollTo) {
+    try {
+      window.scrollTo(0, 0);
+    } catch {
+      // Some test/DOM environments do not implement scrollTo; focus below
+      // still moves keyboard focus back to the top heading.
+    }
+  }
+  focusElement(mainHeadingEl);
+});
+
+// Inspect/Compare mode tabs show exactly one workflow form at a time. All
+// in-memory state (reports, checklists, filters, pasted manifests) lives
+// outside these panels and is untouched by switching tabs, so switching
+// modes never loses anything already entered or rendered.
+function setWorkflowMode(mode) {
+  const inspectActive = mode !== "compare";
+  modeTabInspectButton.setAttribute("aria-selected", inspectActive ? "true" : "false");
+  modeTabInspectButton.tabIndex = inspectActive ? 0 : -1;
+  modeTabCompareButton.setAttribute("aria-selected", inspectActive ? "false" : "true");
+  modeTabCompareButton.tabIndex = inspectActive ? -1 : 0;
+  inspectPanelEl.hidden = !inspectActive;
+  comparePanelEl.hidden = inspectActive;
+}
+
+function handleModeTabClick(mode) {
+  setWorkflowMode(mode);
+  const activeTab = mode === "compare" ? modeTabCompareButton : modeTabInspectButton;
+  focusElement(activeTab);
+}
+
+modeTabInspectButton.addEventListener("click", () => handleModeTabClick("inspect"));
+modeTabCompareButton.addEventListener("click", () => handleModeTabClick("compare"));
+
+const workflowModeTabs = [modeTabInspectButton, modeTabCompareButton];
+for (const tab of workflowModeTabs) {
+  tab.addEventListener("keydown", event => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    if (event.preventDefault) event.preventDefault();
+    const currentIndex = workflowModeTabs.indexOf(tab);
+    const step = event.key === "ArrowRight" ? 1 : -1;
+    const nextTab = workflowModeTabs[(currentIndex + step + workflowModeTabs.length) % workflowModeTabs.length];
+    handleModeTabClick(nextTab === modeTabCompareButton ? "compare" : "inspect");
+  });
+}
+
+setWorkflowMode("inspect");
+
+// Hides a result-specific jump link when its target section is not
+// currently meaningful (e.g. no findings, or an empty checklist), so the
+// jump navigation only ever offers targets that actually exist right now.
+function updateInspectJumpNav() {
+  if (!currentReport) {
+    reportJumpNavEl.hidden = true;
+    return;
+  }
+  reportJumpNavEl.hidden = false;
+  jumpFindingsLink.hidden = !currentReport.riskFlags || currentReport.riskFlags.length === 0;
+  jumpChecklistLink.hidden = checklistState.length === 0;
+}
+
+function updateCompareJumpNav() {
+  if (!currentCompareReport) {
+    compareJumpNavEl.hidden = true;
+    return;
+  }
+  compareJumpNavEl.hidden = false;
+  compareJumpFindingsLink.hidden = !currentCompareReport.findings || currentCompareReport.findings.length === 0;
+  compareJumpChecklistLink.hidden = candidateChecklistState.length === 0;
+}
+
+updateInspectJumpNav();
+updateCompareJumpNav();
 
 // Keeps a file input and its matching folder input mutually exclusive so the
 // selected manifest source is always unambiguous.
@@ -906,8 +1006,10 @@ document.addEventListener("keydown", event => {
   if (event.altKey || event.ctrlKey || event.metaKey) return;
   const key = String(event.key || "").toLowerCase();
   if (key === "i") {
+    setWorkflowMode("inspect");
     fileInput.focus();
   } else if (key === "c") {
+    setWorkflowMode("compare");
     previousFileInput.focus();
   } else if (key === "s" || key === "/") {
     if (event.preventDefault) event.preventDefault();
@@ -1025,6 +1127,7 @@ function updateChecklistProgress() {
     : `${completed} of ${total} checklist items completed.`;
   updateAnalysisReadiness();
   applyChecklistFilter(checklistState, checklistFilterEl.value, checklistFilterStatusEl);
+  updateInspectJumpNav();
 }
 
 function applyChecklistFilter(state, filterValue, statusEl) {
@@ -1661,6 +1764,7 @@ async function runAnalysis(manifest, isExample) {
     const data = await response.json();
     if (!response.ok) {
       setStatus(data.error || "The manifest could not be analyzed.");
+      focusElement(statusEl);
       return;
     }
     setStatus(isExample ? "Built-in example analysis complete — this is sample data." : "Analysis complete.");
@@ -1671,17 +1775,23 @@ async function runAnalysis(manifest, isExample) {
       reportSummaryEl.prepend(el("p", { className: "example-label", text: "Built-in example — not your extension" }));
     }
     renderChecklist(data.report);
+    updateInspectJumpNav();
     addRecentRun(
       `Inspect — lanes: ${data.report.lanes.length}, findings: ${data.report.riskFlags.length}`,
       () => runAnalysis(manifest, isExample)
     );
+    // Move focus to the result heading only after a successful run, never
+    // while the user might still be typing in a form field.
+    focusElement(reportHeadingEl);
   } catch {
     setStatus("The local analyzer could not be reached.");
+    focusElement(statusEl);
   }
 }
 
 function resetAnalysisResults() {
   reportEl.hidden = true;
+  reportJumpNavEl.hidden = true;
   reportSummaryEl.textContent = "";
   reportDetailsEl.textContent = "";
   analysisReadinessEl.textContent = "";
@@ -1722,12 +1832,14 @@ form.addEventListener("submit", async event => {
       const { file: folderManifest, error } = findRootManifestInFolder(folderInput.files);
       if (error) {
         setStatus(error);
+        focusElement(statusEl);
         return;
       }
       file = folderManifest;
     }
     if (!file) {
       setStatus("Select a local manifest.json file or an unpacked extension folder first.");
+      focusElement(statusEl);
       return;
     }
 
@@ -1738,11 +1850,13 @@ form.addEventListener("submit", async event => {
       manifest = JSON.parse(text);
     } catch {
       setStatus("The selected file is not valid JSON.");
+      focusElement(statusEl);
       return;
     }
 
     if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
       setStatus("The selected file must contain a JSON object.");
+      focusElement(statusEl);
       return;
     }
 
@@ -2028,6 +2142,7 @@ function updateCandidateChecklistProgress() {
     : `${completed} of ${total} candidate-release checklist items completed.`;
   updateComparisonReadiness();
   applyChecklistFilter(candidateChecklistState, candidateChecklistFilterEl.value, candidateChecklistFilterStatusEl);
+  updateCompareJumpNav();
 }
 
 candidateChecklistFilterEl.addEventListener("change", () => {
@@ -2301,6 +2416,7 @@ exportComparisonSafeSummaryButton.addEventListener("click", () => {
 
 function resetComparisonResults() {
   compareReportEl.hidden = true;
+  compareJumpNavEl.hidden = true;
   compareReportSummaryEl.textContent = "";
   compareReportDetailsEl.textContent = "";
   comparisonReadinessEl.textContent = "";
@@ -2347,6 +2463,7 @@ async function runComparison(previousManifest, currentManifest, isExample) {
     const data = await response.json();
     if (!response.ok) {
       setCompareStatus(data.error || "The manifests could not be compared.");
+      focusElement(compareStatusEl);
       return;
     }
     setCompareStatus(isExample ? "Built-in example comparison complete — this is sample data." : "Comparison complete.");
@@ -2358,12 +2475,17 @@ async function runComparison(previousManifest, currentManifest, isExample) {
       compareReportSummaryEl.prepend(el("p", { className: "example-label", text: "Built-in example — not your extension" }));
     }
     renderCandidateChecklist(data.candidateAnalysis, data.report);
+    updateCompareJumpNav();
     addRecentRun(
       `Compare — changes: ${countComparisonChanges(data.report.changes)}, findings: ${data.report.findings.length}`,
       () => runComparison(previousManifest, currentManifest, isExample)
     );
+    // Move focus to the result heading only after a successful run, never
+    // while the user might still be typing in a form field.
+    focusElement(compareReportHeadingEl);
   } catch {
     setCompareStatus("The local comparison endpoint could not be reached.");
+    focusElement(compareStatusEl);
   }
 }
 
@@ -2401,15 +2523,18 @@ async function performCompare() {
     const previousResult = await resolveCompareSideManifest(previousFileInput, previousFolderInput, pastedPreviousManifest, "Previous release");
     if (previousResult.error) {
       setCompareStatus(previousResult.error);
+      focusElement(compareStatusEl);
       return;
     }
     const candidateResult = await resolveCompareSideManifest(candidateFileInput, candidateFolderInput, pastedCurrentManifest, "Candidate release");
     if (candidateResult.error) {
       setCompareStatus(candidateResult.error);
+      focusElement(compareStatusEl);
       return;
     }
     if (!previousResult.manifest || !candidateResult.manifest) {
       setCompareStatus("Select both a previous and a candidate manifest.json file, folder, or pasted JSON.");
+      focusElement(compareStatusEl);
       return;
     }
     await runComparison(previousResult.manifest, candidateResult.manifest, false);
@@ -2519,6 +2644,7 @@ clearWorkspaceButton.addEventListener("click", () => {
   renderRecentRuns();
 
   resetDisplayPreferences();
+  setWorkflowMode("inspect");
 
   clearWorkspaceStatusEl.textContent = "Workspace cleared. All local selections and results were removed.";
 });

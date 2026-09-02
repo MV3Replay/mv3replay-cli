@@ -8,7 +8,7 @@
 </head>
 <body>
 <main>
-  <h1>MV3 Replay: local manifest analyzer</h1>
+  <h1 id="main-heading" tabindex="-1">MV3 Replay: local manifest analyzer</h1>
   <p>
     This page runs entirely on your machine against a local server bound to
     <code>127.0.0.1</code>. Selecting a file only reads it in your browser; only the
@@ -21,6 +21,21 @@
     previous-release file input, <kbd>S</kbd> or <kbd>/</kbd> focuses the visible findings
     search box, and <kbd>Escape</kbd> clears the workspace.
   </p>
+
+  <nav id="page-toc" class="page-toc" aria-labelledby="page-toc-heading">
+    <h2 id="page-toc-heading">Jump to a section</h2>
+    <ul>
+      <li><a href="#tester-guide-heading">Tester guide</a></li>
+      <li><a href="#inspect-heading">Inspect a manifest</a></li>
+      <li><a href="#compare-heading">Compare releases</a></li>
+      <li><a href="#recent-runs-heading">Recent runs</a></li>
+      <li><a href="#display-preferences-heading">Display preferences</a></li>
+    </ul>
+  </nav>
+
+  <button type="button" id="back-to-top-button" class="secondary-button back-to-top">
+    Back to top
+  </button>
 
   <section class="card tester-guide" aria-labelledby="tester-guide-heading">
     <div>
@@ -97,28 +112,38 @@
     <ul id="recent-runs-list"></ul>
   </section>
 
-  <form id="analyze-form" class="card">
-    <div class="field drop-zone" id="manifest-file-field">
-      <label for="manifest-file">Local manifest.json</label>
-      <input type="file" id="manifest-file" accept="application/json,.json">
-      <p id="manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
-    </div>
-    <div class="field">
-      <label for="manifest-folder">Or unpacked extension folder</label>
-      <input type="file" id="manifest-folder" webkitdirectory directory multiple
-        aria-describedby="manifest-folder-help">
-      <p id="manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
-    </div>
-    <div class="form-actions">
-      <button type="submit" id="analyze-submit" aria-busy="false">Analyze locally</button>
-      <button type="button" id="analyze-example-button" class="secondary-button" aria-busy="false">
-        Try built-in example
-      </button>
-      <button type="button" id="analyze-paste-button" class="secondary-button">
-        Paste manifest JSON
-      </button>
-    </div>
-  </form>
+  <div class="mode-tabs" role="tablist" aria-label="Workflow mode">
+    <button type="button" id="mode-tab-inspect" class="mode-tab" role="tab"
+      aria-selected="true" aria-controls="inspect-panel" tabindex="0">Inspect</button>
+    <button type="button" id="mode-tab-compare" class="mode-tab" role="tab"
+      aria-selected="false" aria-controls="compare-panel" tabindex="-1">Compare</button>
+  </div>
+
+  <div id="inspect-panel" role="tabpanel" aria-labelledby="mode-tab-inspect">
+    <h2 id="inspect-heading">Inspect a manifest</h2>
+    <form id="analyze-form" class="card">
+      <div class="field drop-zone" id="manifest-file-field">
+        <label for="manifest-file">Local manifest.json</label>
+        <input type="file" id="manifest-file" accept="application/json,.json">
+        <p id="manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
+      </div>
+      <div class="field">
+        <label for="manifest-folder">Or unpacked extension folder</label>
+        <input type="file" id="manifest-folder" webkitdirectory directory multiple
+          aria-describedby="manifest-folder-help">
+        <p id="manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="analyze-submit" aria-busy="false">Analyze locally</button>
+        <button type="button" id="analyze-example-button" class="secondary-button" aria-busy="false">
+          Try built-in example
+        </button>
+        <button type="button" id="analyze-paste-button" class="secondary-button">
+          Paste manifest JSON
+        </button>
+      </div>
+    </form>
+  </div>
 
   <div id="paste-json-panel" class="card paste-panel" hidden aria-labelledby="paste-json-heading">
     <h2 id="paste-json-heading">Paste manifest JSON</h2>
@@ -147,8 +172,15 @@
     anywhere.
   </p>
 
-  <p id="status" role="status" aria-live="polite"></p>
+  <p id="status" role="status" aria-live="polite" tabindex="-1"></p>
   <section id="report" class="card" hidden>
+    <h2 id="report-heading" tabindex="-1">Inspect result</h2>
+    <nav id="report-jump-nav" class="jump-nav" aria-label="Jump within this result">
+      <a href="#report-summary" id="jump-summary">Summary</a>
+      <a href="#analysis-findings-content" id="jump-findings">Findings</a>
+      <a href="#checklist-heading" id="jump-checklist">Checklist</a>
+      <a href="#export-checklist" id="jump-exports">Exports</a>
+    </nav>
     <div id="report-summary" class="summary"></div>
     <div id="analysis-filter-controls" class="filter-controls" hidden>
       <label for="analysis-severity-filter">Show findings</label>
@@ -220,53 +252,62 @@
 
   <hr>
 
-  <h2>Compare a previous and candidate release</h2>
-  <p>
-    Select two local <code>manifest.json</code> files. Only the two parsed manifest
-    objects are sent to the local comparison endpoint.
-  </p>
-  <form id="compare-form" class="card">
-    <div class="field drop-zone" id="previous-manifest-file-field">
-      <label for="previous-manifest-file">Previous manifest.json (drop target: previous release)</label>
-      <input type="file" id="previous-manifest-file" accept="application/json,.json">
-      <p id="previous-manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
-    </div>
-    <div class="field">
-      <label for="previous-manifest-folder">Or previous unpacked extension folder</label>
-      <input type="file" id="previous-manifest-folder" webkitdirectory directory multiple
-        aria-describedby="compare-folder-help">
-      <p id="previous-manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
-    </div>
-    <div class="field drop-zone" id="candidate-manifest-file-field">
-      <label for="candidate-manifest-file">Candidate manifest.json (drop target: current release)</label>
-      <input type="file" id="candidate-manifest-file" accept="application/json,.json">
-      <p id="candidate-manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
-    </div>
-    <div class="field">
-      <label for="candidate-manifest-folder">Or candidate unpacked extension folder</label>
-      <input type="file" id="candidate-manifest-folder" webkitdirectory directory multiple
-        aria-describedby="compare-folder-help">
-      <p id="candidate-manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
-    </div>
-    <div class="form-actions">
-      <button type="submit" id="compare-submit" aria-busy="false">Compare locally</button>
-      <button type="button" id="compare-example-button" class="secondary-button" aria-busy="false">
-        Try built-in release comparison
-      </button>
-      <button type="button" id="swap-compare-button" class="secondary-button">
-        Swap previous/current
-      </button>
-    </div>
-  </form>
-  <p id="compare-folder-help" class="folder-help">
-    For each release, choose either the file input or the folder input; selecting one clears the
-    other so the selection stays unambiguous. If you select a folder, only its root
-    <code>manifest.json</code> content is read. Relative paths are checked only to find it; no
-    other file content or path is sent anywhere.
-  </p>
+  <div id="compare-panel" role="tabpanel" aria-labelledby="mode-tab-compare" hidden>
+    <h2 id="compare-heading">Compare a previous and candidate release</h2>
+    <p>
+      Select two local <code>manifest.json</code> files. Only the two parsed manifest
+      objects are sent to the local comparison endpoint.
+    </p>
+    <form id="compare-form" class="card">
+      <div class="field drop-zone" id="previous-manifest-file-field">
+        <label for="previous-manifest-file">Previous manifest.json (drop target: previous release)</label>
+        <input type="file" id="previous-manifest-file" accept="application/json,.json">
+        <p id="previous-manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
+      </div>
+      <div class="field">
+        <label for="previous-manifest-folder">Or previous unpacked extension folder</label>
+        <input type="file" id="previous-manifest-folder" webkitdirectory directory multiple
+          aria-describedby="compare-folder-help">
+        <p id="previous-manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
+      </div>
+      <div class="field drop-zone" id="candidate-manifest-file-field">
+        <label for="candidate-manifest-file">Candidate manifest.json (drop target: current release)</label>
+        <input type="file" id="candidate-manifest-file" accept="application/json,.json">
+        <p id="candidate-manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
+      </div>
+      <div class="field">
+        <label for="candidate-manifest-folder">Or candidate unpacked extension folder</label>
+        <input type="file" id="candidate-manifest-folder" webkitdirectory directory multiple
+          aria-describedby="compare-folder-help">
+        <p id="candidate-manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
+      </div>
+      <div class="form-actions">
+        <button type="submit" id="compare-submit" aria-busy="false">Compare locally</button>
+        <button type="button" id="compare-example-button" class="secondary-button" aria-busy="false">
+          Try built-in release comparison
+        </button>
+        <button type="button" id="swap-compare-button" class="secondary-button">
+          Swap previous/current
+        </button>
+      </div>
+    </form>
+    <p id="compare-folder-help" class="folder-help">
+      For each release, choose either the file input or the folder input; selecting one clears the
+      other so the selection stays unambiguous. If you select a folder, only its root
+      <code>manifest.json</code> content is read. Relative paths are checked only to find it; no
+      other file content or path is sent anywhere.
+    </p>
+  </div>
 
-  <p id="compare-status" role="status" aria-live="polite"></p>
+  <p id="compare-status" role="status" aria-live="polite" tabindex="-1"></p>
   <section id="compare-report" class="card" hidden>
+    <h2 id="compare-report-heading" tabindex="-1">Compare result</h2>
+    <nav id="compare-jump-nav" class="jump-nav" aria-label="Jump within this comparison result">
+      <a href="#compare-report-summary" id="compare-jump-summary">Summary</a>
+      <a href="#comparison-findings-content" id="compare-jump-findings">Findings</a>
+      <a href="#candidate-checklist-heading" id="compare-jump-checklist">Checklist</a>
+      <a href="#export-comparison" id="compare-jump-exports">Exports</a>
+    </nav>
     <div id="compare-report-summary" class="summary"></div>
     <div id="comparison-filter-controls" class="filter-controls" hidden>
       <label for="comparison-severity-filter">Show findings</label>
