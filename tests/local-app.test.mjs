@@ -885,8 +885,8 @@ test("both in-memory checklists have accessible completion filters and reset con
 
 test("checklist filtering never removes items from exports", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
-  assert.match(source, /buildAnalysisMarkdown\(currentReport, checklistState\)/);
-  assert.match(source, /buildComparisonMarkdown\(currentCompareReport, candidateChecklistState\)/);
+  assert.match(source, /buildAnalysisMarkdown\(currentReport, checklistState, analysisFindingNodes\.map/);
+  assert.match(source, /buildComparisonMarkdown\(currentCompareReport, candidateChecklistState, comparisonFindingNodes\.map/);
   assert.doesNotMatch(source, /buildAnalysisMarkdown\([^\n]*\.filter/);
   assert.doesNotMatch(source, /buildComparisonMarkdown\([^\n]*\.filter/);
 });

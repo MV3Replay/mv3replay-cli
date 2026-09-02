@@ -60,6 +60,10 @@ const analysisFilterControlsEl = document.getElementById("analysis-filter-contro
 const analysisSeverityFilterEl = document.getElementById("analysis-severity-filter");
 const analysisFilterStatusEl = document.getElementById("analysis-filter-status");
 const analysisFindingSearchEl = document.getElementById("analysis-finding-search");
+const analysisTriageControlsEl = document.getElementById("analysis-triage-controls");
+const analysisTriageFilterEl = document.getElementById("analysis-triage-filter");
+const analysisTriageFilterStatusEl = document.getElementById("analysis-triage-filter-status");
+const resetAnalysisTriageButton = document.getElementById("reset-analysis-triage");
 const reportExpandAllButton = document.getElementById("report-expand-all");
 const reportCollapseAllButton = document.getElementById("report-collapse-all");
 const printReportButton = document.getElementById("print-report-button");
@@ -87,6 +91,7 @@ let checklistState = [];
 let checklistCustomCounter = 0;
 let analysisFindingNodes = [];
 let analysisCollapsibleSections = [];
+let analysisFindingsContentEl = null;
 
 // In-memory-only recent run history: at most five structural, timestamp-free
 // summaries. Rerun replays an already-held manifest reference; nothing is
@@ -133,6 +138,10 @@ const comparisonChangeFilterEl = document.getElementById("comparison-change-filt
 const comparisonChangedOnlyEl = document.getElementById("comparison-changed-only");
 const comparisonChangeFilterStatusEl = document.getElementById("comparison-change-filter-status");
 const comparisonFindingSearchEl = document.getElementById("comparison-finding-search");
+const comparisonTriageControlsEl = document.getElementById("comparison-triage-controls");
+const comparisonTriageFilterEl = document.getElementById("comparison-triage-filter");
+const comparisonTriageFilterStatusEl = document.getElementById("comparison-triage-filter-status");
+const resetComparisonTriageButton = document.getElementById("reset-comparison-triage");
 const compareReportExpandAllButton = document.getElementById("compare-report-expand-all");
 const compareReportCollapseAllButton = document.getElementById("compare-report-collapse-all");
 
@@ -167,6 +176,7 @@ let candidateChecklistCustomCounter = 0;
 let comparisonFindingNodes = [];
 let comparisonChangeSectionNodes = [];
 let comparisonCollapsibleSections = [];
+let comparisonFindingsContentEl = null;
 
 // Both result panels start hidden until their respective local analysis or
 // comparison has actually run, so shortcuts and other visibility checks never
@@ -426,14 +436,23 @@ function updateAnalysisReadiness() {
     analysisReadinessEl.textContent = "";
     return;
   }
-  const criticalCount = currentReport.riskFlags.filter(flag => flag.level === "critical").length;
+  const criticalEntries = analysisFindingNodes.filter(entry => entry.level === "critical");
+  const criticalCount = criticalEntries.length;
+  const acknowledgedCriticalCount = criticalEntries.filter(entry => entry.acknowledged).length;
   const remaining = checklistState.filter(item => !item.done).length;
-  if (criticalCount > 0) {
+  if (criticalCount > 0 && acknowledgedCriticalCount === criticalCount) {
+    setReadiness(
+      analysisReadinessEl,
+      "acknowledged",
+      "Critical findings acknowledged",
+      `All ${criticalCount} critical finding${criticalCount === 1 ? "" : "s"} acknowledged. This is not the same as resolved — manual review is still required.`
+    );
+  } else if (criticalCount > 0) {
     setReadiness(
       analysisReadinessEl,
       "blocked",
       "Review required",
-      `${criticalCount} critical finding${criticalCount === 1 ? "" : "s"} must be reviewed before browser testing.`
+      `${criticalCount} critical finding${criticalCount === 1 ? "" : "s"} must be reviewed before browser testing (${acknowledgedCriticalCount} acknowledged).`
     );
   } else if (remaining > 0) {
     setReadiness(
@@ -458,7 +477,17 @@ function updateComparisonReadiness() {
     return;
   }
   const remaining = candidateChecklistState.filter(item => !item.done).length;
-  if (currentCompareReport.requiresManualUpdateValidation) {
+  const criticalEntries = comparisonFindingNodes.filter(entry => entry.level === "critical");
+  const criticalCount = criticalEntries.length;
+  const acknowledgedCriticalCount = criticalEntries.filter(entry => entry.acknowledged).length;
+  if (currentCompareReport.requiresManualUpdateValidation && criticalCount > 0 && acknowledgedCriticalCount === criticalCount) {
+    setReadiness(
+      comparisonReadinessEl,
+      "acknowledged",
+      "Critical comparison findings acknowledged",
+      `All ${criticalCount} critical finding${criticalCount === 1 ? "" : "s"} acknowledged. This is not the same as resolved — manual update-path validation is still required.`
+    );
+  } else if (currentCompareReport.requiresManualUpdateValidation) {
     setReadiness(
       comparisonReadinessEl,
       "blocked",
@@ -507,11 +536,143 @@ function renderFinding(flag) {
   return container;
 }
 
+// --- Local, memory-only finding triage -------------------------------
+//
+// Every rendered finding (inspect or compare) supports: pin/unpin, an
+// acknowledge/unacknowledge toggle, and a short private local note. None of
+// this mutates the underlying report object — it only tracks extra fields on
+// a parallel in-memory entry and reorders/hides already-rendered DOM nodes.
+function updateFindingNodeClass(entry) {
+  let className = "finding";
+  if (entry.pinned) className += " finding-pinned";
+  if (entry.acknowledged) className += " finding-acknowledged";
+  entry.node.className = className;
+}
+
+// Reorders a findings container so pinned entries render first, preserving
+// relative order within each group. The underlying report/riskFlags array
+// passed in elsewhere is never touched — only DOM node order changes.
+function sortFindingsContainer(containerEl, entries) {
+  if (!containerEl) return;
+  const ordered = [...entries].sort((first, second) => (second.pinned === true ? 1 : 0) - (first.pinned === true ? 1 : 0));
+  containerEl.textContent = "";
+  for (const entry of ordered) containerEl.appendChild(entry.node);
+}
+
+// Builds one finding's triage entry: pin, acknowledge, and private note
+// controls appended to its already-rendered node. Returns the entry object
+// tracked in the relevant findings array (analysisFindingNodes /
+// comparisonFindingNodes) for filtering, sorting, and export.
+function createFindingEntry(flag, idPrefix, index) {
+  const node = renderFinding(flag);
+  const id = `${idPrefix}-finding-${index}`;
+  const entry = {
+    id,
+    findingId: flag.id,
+    level: flag.level,
+    node,
+    searchText: `${flag.id} ${flag.level} ${flag.message}`.toLowerCase(),
+    pinned: false,
+    acknowledged: false,
+    note: "",
+    severityHidden: false,
+    triageHidden: false
+  };
+
+  const controls = el("div", { className: "finding-triage-controls" });
+
+  const pinButton = document.createElement("button");
+  pinButton.type = "button";
+  pinButton.className = "secondary-button finding-pin-button";
+  pinButton.setAttribute("aria-pressed", "false");
+  pinButton.setAttribute("aria-label", `Pin finding: ${flag.id}`);
+  pinButton.textContent = "Pin";
+  entry.pinButton = pinButton;
+  controls.appendChild(pinButton);
+
+  const ackButton = document.createElement("button");
+  ackButton.type = "button";
+  ackButton.className = "secondary-button finding-ack-button";
+  ackButton.setAttribute("aria-pressed", "false");
+  ackButton.setAttribute("aria-label", `Acknowledge finding: ${flag.id}`);
+  ackButton.textContent = "Acknowledge";
+  entry.ackButton = ackButton;
+  controls.appendChild(ackButton);
+
+  const noteToggle = document.createElement("button");
+  noteToggle.type = "button";
+  noteToggle.className = "secondary-button finding-note-toggle";
+  noteToggle.textContent = "Add private note";
+  noteToggle.setAttribute("aria-expanded", "false");
+  entry.noteToggle = noteToggle;
+  controls.appendChild(noteToggle);
+
+  node.appendChild(controls);
+
+  const noteWrap = el("div", { className: "finding-note-wrap" });
+  noteWrap.hidden = true;
+  const noteLabel = document.createElement("label");
+  const noteId = `${id}-note`;
+  noteLabel.htmlFor = noteId;
+  noteLabel.textContent = "Private local note (memory only; never in share-safe exports)";
+  const noteTextarea = document.createElement("textarea");
+  noteTextarea.id = noteId;
+  noteTextarea.maxLength = MAX_CHECKLIST_NOTE_LENGTH;
+  const noteStatus = el("p", { className: "finding-note-status" });
+  noteStatus.setAttribute("role", "status");
+  noteStatus.setAttribute("aria-live", "polite");
+  entry.noteTextarea = noteTextarea;
+  entry.noteWrap = noteWrap;
+  entry.noteStatus = noteStatus;
+
+  noteTextarea.addEventListener("input", () => {
+    entry.note = noteTextarea.value;
+    const hasNote = entry.note.trim().length > 0;
+    noteToggle.textContent = hasNote ? "Edit private note" : "Add private note";
+    noteStatus.textContent = hasNote ? "Private note saved in memory only." : "";
+  });
+  noteToggle.addEventListener("click", () => {
+    const expanded = noteToggle.getAttribute("aria-expanded") === "true";
+    noteWrap.hidden = expanded;
+    noteToggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+    if (!expanded && noteTextarea.focus) noteTextarea.focus();
+  });
+  noteWrap.appendChild(noteLabel);
+  noteWrap.appendChild(noteTextarea);
+  noteWrap.appendChild(noteStatus);
+  node.appendChild(noteWrap);
+
+  return entry;
+}
+
+// Wires pin/acknowledge behavior for one finding entry: toggling state,
+// updating accessible pressed state and visible labels, re-sorting pinned
+// findings first, and notifying the caller so readiness and triage filter
+// counts stay in sync.
+function attachFindingTriageHandlers(entry, getContainerEl, getEntries, onChange) {
+  entry.pinButton.addEventListener("click", () => {
+    entry.pinned = !entry.pinned;
+    entry.pinButton.setAttribute("aria-pressed", entry.pinned ? "true" : "false");
+    entry.pinButton.textContent = entry.pinned ? "Unpin" : "Pin";
+    updateFindingNodeClass(entry);
+    sortFindingsContainer(getContainerEl(), getEntries());
+    onChange();
+  });
+  entry.ackButton.addEventListener("click", () => {
+    entry.acknowledged = !entry.acknowledged;
+    entry.ackButton.setAttribute("aria-pressed", entry.acknowledged ? "true" : "false");
+    entry.ackButton.textContent = entry.acknowledged ? "Unacknowledge" : "Acknowledge";
+    updateFindingNodeClass(entry);
+    onChange();
+  });
+}
+
 // Filters rendered finding nodes by severity and, optionally, an accessible
 // local text search over each finding's already-rendered text. This only
 // hides/shows DOM nodes and never mutates the underlying report object. The
 // status message always uses fixed, count-based wording — it never echoes
-// the raw search text back into the page.
+// the raw search text back into the page. Visibility is combined with any
+// active triage filter so both controls can hide a finding independently.
 function applyFindingFilter(entries, filterValue, statusEl, searchValue = "") {
   const query = String(searchValue || "").trim().toLowerCase();
   let visible = 0;
@@ -519,11 +680,55 @@ function applyFindingFilter(entries, filterValue, statusEl, searchValue = "") {
     const severityMatches = filterValue === "all" || entry.level === filterValue;
     const textMatches = query === "" || (entry.searchText || "").includes(query);
     const matches = severityMatches && textMatches;
-    entry.node.hidden = !matches;
+    entry.severityHidden = !matches;
+    entry.node.hidden = entry.severityHidden || entry.triageHidden === true;
     if (matches) visible += 1;
   }
   const label = filterValue === "all" ? "all severities" : filterValue;
   statusEl.textContent = `${visible} finding${visible === 1 ? "" : "s"} shown (${label}).`;
+}
+
+// Filters rendered finding nodes by fixed triage state (all/pinned/
+// unacknowledged/acknowledged). Counts are always computed over every
+// rendered finding for this report, independent of the severity/search
+// filter, and never mutate the underlying report object.
+function applyTriageFilter(entries, filterValue, statusEl) {
+  let visible = 0;
+  for (const entry of entries) {
+    const matches = filterValue === "all"
+      || (filterValue === "pinned" && entry.pinned)
+      || (filterValue === "unacknowledged" && !entry.acknowledged)
+      || (filterValue === "acknowledged" && entry.acknowledged);
+    entry.triageHidden = !matches;
+    entry.node.hidden = entry.severityHidden === true || entry.triageHidden;
+    if (matches) visible += 1;
+  }
+  statusEl.textContent = `${visible} of ${entries.length} finding${entries.length === 1 ? "" : "s"} shown (${filterValue}).`;
+}
+
+// Resets pin, acknowledge, and private note state for every finding in the
+// given report's in-memory triage list, restores the fixed "all" triage
+// filter, and re-sorts the container back to report order. Nothing here
+// touches report data or any persistence layer (there is none).
+function resetFindingsTriage(entries, getContainerEl, filterEl, onChange) {
+  for (const entry of entries) {
+    entry.pinned = false;
+    entry.acknowledged = false;
+    entry.note = "";
+    entry.pinButton.setAttribute("aria-pressed", "false");
+    entry.pinButton.textContent = "Pin";
+    entry.ackButton.setAttribute("aria-pressed", "false");
+    entry.ackButton.textContent = "Acknowledge";
+    entry.noteTextarea.value = "";
+    entry.noteToggle.textContent = "Add private note";
+    entry.noteToggle.setAttribute("aria-expanded", "false");
+    entry.noteWrap.hidden = true;
+    entry.noteStatus.textContent = "";
+    updateFindingNodeClass(entry);
+  }
+  filterEl.value = "all";
+  sortFindingsContainer(getContainerEl(), entries);
+  onChange();
 }
 
 function applyAnalysisFindingFilters() {
@@ -534,11 +739,37 @@ function applyComparisonFindingFilters() {
   applyFindingFilter(comparisonFindingNodes, comparisonSeverityFilterEl.value, comparisonFilterStatusEl, comparisonFindingSearchEl.value);
 }
 
+function applyAnalysisTriageFilter() {
+  applyTriageFilter(analysisFindingNodes, analysisTriageFilterEl.value, analysisTriageFilterStatusEl);
+}
+
+function applyComparisonTriageFilter() {
+  applyTriageFilter(comparisonFindingNodes, comparisonTriageFilterEl.value, comparisonTriageFilterStatusEl);
+}
+
+function analysisTriageOnChange() {
+  updateAnalysisReadiness();
+  applyAnalysisTriageFilter();
+}
+
+function comparisonTriageOnChange() {
+  updateComparisonReadiness();
+  applyComparisonTriageFilter();
+}
+
 analysisSeverityFilterEl.addEventListener("change", applyAnalysisFindingFilters);
 analysisFindingSearchEl.addEventListener("input", applyAnalysisFindingFilters);
+analysisTriageFilterEl.addEventListener("change", applyAnalysisTriageFilter);
+resetAnalysisTriageButton.addEventListener("click", () => {
+  resetFindingsTriage(analysisFindingNodes, () => analysisFindingsContentEl, analysisTriageFilterEl, analysisTriageOnChange);
+});
 
 comparisonSeverityFilterEl.addEventListener("change", applyComparisonFindingFilters);
 comparisonFindingSearchEl.addEventListener("input", applyComparisonFindingFilters);
+comparisonTriageFilterEl.addEventListener("change", applyComparisonTriageFilter);
+resetComparisonTriageButton.addEventListener("click", () => {
+  resetFindingsTriage(comparisonFindingNodes, () => comparisonFindingsContentEl, comparisonTriageFilterEl, comparisonTriageOnChange);
+});
 
 // Builds one collapsible result section with a fully accessible toggle
 // button (correct aria-expanded state kept in sync with the visually
@@ -709,21 +940,25 @@ function renderReport(report) {
   }, analysisCollapsibleSections);
 
   appendCollapsibleSection(reportDetailsEl, "analysis-findings", "Findings", content => {
+    analysisFindingsContentEl = content;
     if (report.riskFlags.length === 0) {
       content.appendChild(el("p", { text: "No risk flags were detected in this static analysis." }));
     } else {
-      for (const flag of report.riskFlags) {
-        const node = renderFinding(flag);
-        const searchText = `${flag.id} ${flag.level} ${flag.message}`.toLowerCase();
-        analysisFindingNodes.push({ level: flag.level, node, searchText });
-        content.appendChild(node);
-      }
+      report.riskFlags.forEach((flag, index) => {
+        const entry = createFindingEntry(flag, "analysis", index);
+        attachFindingTriageHandlers(entry, () => analysisFindingsContentEl, () => analysisFindingNodes, analysisTriageOnChange);
+        analysisFindingNodes.push(entry);
+        content.appendChild(entry.node);
+      });
     }
   }, analysisCollapsibleSections);
   analysisFilterControlsEl.hidden = report.riskFlags.length === 0;
+  analysisTriageControlsEl.hidden = report.riskFlags.length === 0;
   analysisSeverityFilterEl.value = "all";
   analysisFindingSearchEl.value = "";
+  analysisTriageFilterEl.value = "all";
   applyAnalysisFindingFilters();
+  applyAnalysisTriageFilter();
 
   appendCollapsibleSection(reportDetailsEl, "analysis-limitations", "Limitations", content => {
     content.appendChild(el("p", {
@@ -1180,7 +1415,7 @@ function escapeMarkdownText(value) {
   return result.replace(/\s+/g, " ").trim();
 }
 
-function buildAnalysisMarkdown(report, checklist) {
+function buildAnalysisMarkdown(report, checklist, findingsTriage = []) {
   const lines = [];
   lines.push("# MV3 Replay analysis report");
   lines.push("");
@@ -1216,6 +1451,20 @@ function buildAnalysisMarkdown(report, checklist) {
       lines.push(
         `- **${escapeMarkdownText(flag.id)}** (${escapeMarkdownText(flag.level)}): ${escapeMarkdownText(flag.message)}`
       );
+    }
+  }
+  lines.push("");
+  lines.push("## Finding triage (private)");
+  if (findingsTriage.length === 0) {
+    lines.push("No findings to triage.");
+  } else {
+    for (const triage of findingsTriage) {
+      lines.push(
+        `- ${escapeMarkdownText(triage.findingId)}: pinned=${triage.pinned ? "yes" : "no"}; acknowledged=${triage.acknowledged ? "yes" : "no"}`
+      );
+      if (triage.note && String(triage.note).trim() !== "") {
+        lines.push(`  - Private note: ${escapeMarkdownText(triage.note)}`);
+      }
     }
   }
   lines.push("");
@@ -1284,7 +1533,8 @@ exportButton.addEventListener("click", () => {
   const exportPayload = {
     exportedAt: new Date().toISOString(),
     report: currentReport,
-    checklist: checklistState.map(({ id, laneId, check, done, custom, note }) => ({ id, laneId, check, done, custom, note }))
+    checklist: checklistState.map(({ id, laneId, check, done, custom, note }) => ({ id, laneId, check, done, custom, note })),
+    findingsTriage: analysisFindingNodes.map(({ findingId, pinned, acknowledged, note }) => ({ findingId, pinned, acknowledged, note }))
   };
 
   downloadLocalFile(
@@ -1299,7 +1549,7 @@ exportButton.addEventListener("click", () => {
 exportMarkdownButton.addEventListener("click", () => {
   if (!currentReport) return;
 
-  const markdown = buildAnalysisMarkdown(currentReport, checklistState);
+  const markdown = buildAnalysisMarkdown(currentReport, checklistState, analysisFindingNodes.map(({ findingId, pinned, acknowledged, note }) => ({ findingId, pinned, acknowledged, note })));
   downloadLocalFile("mv3-replay-checklist.md", markdown, "text/markdown");
 
   exportStatusEl.textContent = "Checklist exported to a local Markdown file.";
@@ -1390,7 +1640,11 @@ function resetAnalysisResults() {
   analysisSeverityFilterEl.value = "all";
   analysisFindingSearchEl.value = "";
   analysisFilterStatusEl.textContent = "";
+  analysisTriageControlsEl.hidden = true;
+  analysisTriageFilterEl.value = "all";
+  analysisTriageFilterStatusEl.textContent = "";
   analysisFindingNodes = [];
+  analysisFindingsContentEl = null;
   analysisCollapsibleSections = [];
   checklistEl.hidden = true;
   checklistControlsEl.hidden = true;
@@ -1663,21 +1917,25 @@ function renderCompareReport(report) {
   }, comparisonCollapsibleSections);
 
   appendCollapsibleSection(compareReportDetailsEl, "comparison-findings", "Findings", content => {
+    comparisonFindingsContentEl = content;
     if (report.findings.length === 0) {
       content.appendChild(el("p", { text: "No comparison findings were detected in this static analysis." }));
     } else {
-      for (const finding of report.findings) {
-        const node = renderFinding(finding);
-        const searchText = `${finding.id} ${finding.level} ${finding.message}`.toLowerCase();
-        comparisonFindingNodes.push({ level: finding.level, node, searchText });
-        content.appendChild(node);
-      }
+      report.findings.forEach((finding, index) => {
+        const entry = createFindingEntry(finding, "comparison", index);
+        attachFindingTriageHandlers(entry, () => comparisonFindingsContentEl, () => comparisonFindingNodes, comparisonTriageOnChange);
+        comparisonFindingNodes.push(entry);
+        content.appendChild(entry.node);
+      });
     }
   }, comparisonCollapsibleSections);
   comparisonFilterControlsEl.hidden = report.findings.length === 0;
+  comparisonTriageControlsEl.hidden = report.findings.length === 0;
   comparisonSeverityFilterEl.value = "all";
   comparisonFindingSearchEl.value = "";
+  comparisonTriageFilterEl.value = "all";
   applyComparisonFindingFilters();
+  applyComparisonTriageFilter();
 
   appendCollapsibleSection(compareReportDetailsEl, "comparison-key-changes", "Key changes", content => {
     appendComparisonChangeSection("access", renderListDiff("Required permissions", report.changes.requiredPermissions), countListDiff(report.changes.requiredPermissions) > 0, content);
@@ -1772,7 +2030,7 @@ function renderCandidateChecklist(candidateAnalysis, comparisonReport) {
   updateCandidateChecklistProgress();
 }
 
-function buildComparisonMarkdown(report, checklist) {
+function buildComparisonMarkdown(report, checklist, findingsTriage = []) {
   const lines = [];
   lines.push("# MV3 Replay comparison report");
   lines.push("");
@@ -1889,6 +2147,20 @@ function buildComparisonMarkdown(report, checklist) {
   lines.push(`- Removed: ${report.changes.unmodeledTopLevelKeys.removed.length ? report.changes.unmodeledTopLevelKeys.removed.map(escapeMarkdownText).join(", ") : "none"}`);
   lines.push(`- Changed: ${report.changes.unmodeledTopLevelKeys.changed.length ? report.changes.unmodeledTopLevelKeys.changed.map(escapeMarkdownText).join(", ") : "none"}`);
   lines.push("");
+  lines.push("## Finding triage (private)");
+  if (findingsTriage.length === 0) {
+    lines.push("No findings to triage.");
+  } else {
+    for (const triage of findingsTriage) {
+      lines.push(
+        `- ${escapeMarkdownText(triage.findingId)}: pinned=${triage.pinned ? "yes" : "no"}; acknowledged=${triage.acknowledged ? "yes" : "no"}`
+      );
+      if (triage.note && String(triage.note).trim() !== "") {
+        lines.push(`  - Private note: ${escapeMarkdownText(triage.note)}`);
+      }
+    }
+  }
+  lines.push("");
   lines.push("## Candidate-release checklist");
   if (checklist.length === 0) {
     lines.push("No candidate-release checklist items for this comparison.");
@@ -1946,7 +2218,8 @@ exportComparisonButton.addEventListener("click", () => {
     exportedAt: new Date().toISOString(),
     comparisonReport: currentCompareReport,
     candidateAnalysis: currentCandidateAnalysis,
-    candidateChecklist: candidateChecklistState.map(({ id, laneId, check, done, custom, note }) => ({ id, laneId, check, done, custom, note }))
+    candidateChecklist: candidateChecklistState.map(({ id, laneId, check, done, custom, note }) => ({ id, laneId, check, done, custom, note })),
+    findingsTriage: comparisonFindingNodes.map(({ findingId, pinned, acknowledged, note }) => ({ findingId, pinned, acknowledged, note }))
   };
 
   downloadLocalFile(
@@ -1961,7 +2234,7 @@ exportComparisonButton.addEventListener("click", () => {
 exportComparisonMarkdownButton.addEventListener("click", () => {
   if (!currentCompareReport || !currentCandidateAnalysis) return;
 
-  const markdown = buildComparisonMarkdown(currentCompareReport, candidateChecklistState);
+  const markdown = buildComparisonMarkdown(currentCompareReport, candidateChecklistState, comparisonFindingNodes.map(({ findingId, pinned, acknowledged, note }) => ({ findingId, pinned, acknowledged, note })));
   downloadLocalFile("mv3-replay-comparison-checklist.md", markdown, "text/markdown");
 
   exportComparisonStatusEl.textContent = "Comparison and candidate checklist exported to a local Markdown file.";
@@ -1986,7 +2259,11 @@ function resetComparisonResults() {
   comparisonSeverityFilterEl.value = "all";
   comparisonFindingSearchEl.value = "";
   comparisonFilterStatusEl.textContent = "";
+  comparisonTriageControlsEl.hidden = true;
+  comparisonTriageFilterEl.value = "all";
+  comparisonTriageFilterStatusEl.textContent = "";
   comparisonFindingNodes = [];
+  comparisonFindingsContentEl = null;
   comparisonChangeFilterControlsEl.hidden = true;
   comparisonChangeFilterEl.value = "all";
   comparisonChangedOnlyEl.checked = false;

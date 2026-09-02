@@ -193,9 +193,12 @@ input:focus-visible {
 .readiness-pending { border-left-color: var(--medium-text); background: var(--medium-bg); }
 .readiness-blocked { border-left-color: var(--critical-text); background: var(--critical-bg); }
 
+.readiness-acknowledged { border-left-color: var(--accent-strong); background: var(--low-bg); }
+
 .readiness-ready span,
 .readiness-pending span,
-.readiness-blocked span { color: inherit; }
+.readiness-blocked span,
+.readiness-acknowledged span { color: inherit; }
 
 .filter-controls {
   display: flex;
@@ -322,6 +325,50 @@ input:focus-visible {
   border-radius: 0.35rem;
   padding: 0.6rem 0.8rem;
   margin-block: 0.5rem;
+}
+
+#report .finding.finding-pinned,
+#compare-report .finding.finding-pinned {
+  border-color: var(--accent);
+  border-left-width: 0.35rem;
+}
+
+#report .finding.finding-acknowledged,
+#compare-report .finding.finding-acknowledged {
+  opacity: 0.75;
+}
+
+.finding-triage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.finding-triage-controls button {
+  min-height: 2rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+.finding-note-wrap {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.finding-note-wrap textarea {
+  min-height: 3.5rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.finding-note-status {
+  margin: 0;
+  font-size: 0.8rem;
 }
 
 .drop-zone {
@@ -541,5 +588,5 @@ kbd {
   #compare-report:not([hidden]), #compare-report:not([hidden]) * { visibility: visible; }
   #report, #compare-report { position: absolute; left: 0; top: 0; width: 100%; }
   #print-report-button, .filter-controls, .checklist-controls, .section-controls,
-  .section-toggle, #recent-runs { display: none !important; }
+  .section-toggle, #recent-runs, .finding-triage-controls, .finding-note-wrap { display: none !important; }
 }

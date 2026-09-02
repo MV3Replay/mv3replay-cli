@@ -124,6 +124,17 @@
       <input type="search" id="analysis-finding-search" placeholder="Search finding text">
       <span id="analysis-filter-status" role="status" aria-live="polite"></span>
     </div>
+    <div id="analysis-triage-controls" class="filter-controls" hidden>
+      <label for="analysis-triage-filter">Show triage</label>
+      <select id="analysis-triage-filter">
+        <option value="all">All</option>
+        <option value="pinned">Pinned</option>
+        <option value="unacknowledged">Unacknowledged</option>
+        <option value="acknowledged">Acknowledged</option>
+      </select>
+      <button type="button" id="reset-analysis-triage" class="secondary-button">Reset triage</button>
+      <span id="analysis-triage-filter-status" role="status" aria-live="polite"></span>
+    </div>
     <div id="analysis-readiness" class="readiness" role="status" aria-live="polite"></div>
     <div class="section-controls">
       <button type="button" id="report-expand-all" class="secondary-button">Expand all sections</button>
@@ -164,7 +175,7 @@
       </button>
     </div>
     <p class="export-help">The share-safe summary excludes extension names, versions, URLs, filenames,
-      manifest values, finding messages, checklist text, and any private checklist notes.</p>
+      manifest values, finding messages, checklist text, and any private checklist or finding notes.</p>
     <p id="export-status" role="status" aria-live="polite"></p>
   </section>
 
@@ -231,6 +242,17 @@
       <input type="search" id="comparison-finding-search" placeholder="Search finding text">
       <span id="comparison-filter-status" role="status" aria-live="polite"></span>
     </div>
+    <div id="comparison-triage-controls" class="filter-controls" hidden>
+      <label for="comparison-triage-filter">Show triage</label>
+      <select id="comparison-triage-filter">
+        <option value="all">All</option>
+        <option value="pinned">Pinned</option>
+        <option value="unacknowledged">Unacknowledged</option>
+        <option value="acknowledged">Acknowledged</option>
+      </select>
+      <button type="button" id="reset-comparison-triage" class="secondary-button">Reset triage</button>
+      <span id="comparison-triage-filter-status" role="status" aria-live="polite"></span>
+    </div>
     <div id="comparison-readiness" class="readiness" role="status" aria-live="polite"></div>
     <div id="comparison-change-filter-controls" class="filter-controls" hidden>
       <label for="comparison-change-filter">Show change sections</label>
@@ -292,7 +314,7 @@
     </div>
     <p class="export-help">The share-safe summary contains structural counts only and excludes release
       names, versions, URLs, filenames, manifest values, finding messages, checklist text, and any
-      private checklist notes.</p>
+      private checklist or finding notes.</p>
     <p id="export-comparison-status" role="status" aria-live="polite"></p>
   </section>
 

@@ -845,3 +845,182 @@ test("the candidate comparison checklist supports the same add, move, and note i
   assert.notEqual(elements.get("candidate-checklist-list").children[addedIndex], customItem);
 });
 
+test("pinning an inspect finding sorts it first, keeps accessible state, and never mutates report order", async () => {
+  const { elements, createdBlobs } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const findingsContent = elements.get("report-details").children[4].children[1];
+  const [broadHost, notification] = findingsContent.children;
+  const notificationPin = notification.children[2].children[0];
+
+  assert.equal(notificationPin.getAttribute("aria-pressed"), "false");
+  notificationPin.listeners.get("click")();
+  assert.equal(notificationPin.getAttribute("aria-pressed"), "true");
+  assert.equal(notificationPin.textContent, "Unpin");
+  assert.equal(findingsContent.children[0], notification);
+  assert.equal(findingsContent.children[1], broadHost);
+
+  elements.get("export-checklist").listeners.get("click")();
+  const [jsonExport] = await Promise.all(createdBlobs.map(blob => blob.text()));
+  const payload = JSON.parse(jsonExport);
+  assert.deepEqual(payload.report.riskFlags.map(flag => flag.id), ["broad-host", "notification"]);
+
+  notificationPin.listeners.get("click")();
+  assert.equal(notificationPin.textContent, "Pin");
+});
+
+test("acknowledging every critical inspect finding distinguishes acknowledged from resolved readiness", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const findingsContent = elements.get("report-details").children[4].children[1];
+  const broadHost = findingsContent.children[0];
+  const ackButton = broadHost.children[2].children[1];
+
+  assert.match(collectText(elements.get("analysis-readiness")), /Review required/);
+  ackButton.listeners.get("click")();
+  assert.equal(ackButton.getAttribute("aria-pressed"), "true");
+  assert.match(collectText(elements.get("analysis-readiness")), /Critical findings acknowledged/);
+  assert.doesNotMatch(collectText(elements.get("analysis-readiness")), /Ready for manual browser testing/);
+
+  ackButton.listeners.get("click")();
+  assert.match(collectText(elements.get("analysis-readiness")), /Review required/);
+});
+
+test("a private finding note appears only in private exports, never in share-safe summaries", async () => {
+  const { elements, createdBlobs } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const findingsContent = elements.get("report-details").children[4].children[1];
+  const broadHost = findingsContent.children[0];
+  const noteToggle = broadHost.children[2].children[2];
+  noteToggle.listeners.get("click")();
+  const noteTextarea = broadHost.children[3].children[1];
+  noteTextarea.value = "PRIVATE_FINDING_TRIAGE_NOTE";
+  noteTextarea.listeners.get("input")();
+
+  elements.get("export-checklist-markdown").listeners.get("click")();
+  elements.get("export-analysis-safe-summary").listeners.get("click")();
+  assert.equal(createdBlobs.length, 2);
+  const [markdownExport, safeSummary] = await Promise.all(createdBlobs.map(blob => blob.text()));
+  assert.match(markdownExport, /PRIVATE\\_FINDING\\_TRIAGE\\_NOTE/);
+  assert.doesNotMatch(safeSummary, /PRIVATE_FINDING_TRIAGE_NOTE/);
+});
+
+test("triage filters show fixed all/pinned/unacknowledged/acknowledged counts without changing report data", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const findingsContent = elements.get("report-details").children[4].children[1];
+  const [broadHost, notification] = findingsContent.children;
+  notification.children[2].children[0].listeners.get("click")(); // pin notification
+  broadHost.children[2].children[1].listeners.get("click")(); // acknowledge broadHost
+
+  const triageFilter = elements.get("analysis-triage-filter");
+  const triageStatus = elements.get("analysis-triage-filter-status");
+
+  triageFilter.value = "pinned";
+  triageFilter.listeners.get("change")();
+  assert.match(triageStatus.textContent, /1 of 2 findings shown \(pinned\)/);
+  assert.equal(broadHost.hidden, true);
+  assert.equal(notification.hidden, false);
+
+  triageFilter.value = "acknowledged";
+  triageFilter.listeners.get("change")();
+  assert.match(triageStatus.textContent, /1 of 2 findings shown \(acknowledged\)/);
+
+  triageFilter.value = "unacknowledged";
+  triageFilter.listeners.get("change")();
+  assert.match(triageStatus.textContent, /1 of 2 findings shown \(unacknowledged\)/);
+
+  triageFilter.value = "all";
+  triageFilter.listeners.get("change")();
+  assert.match(triageStatus.textContent, /2 of 2 findings shown \(all\)/);
+});
+
+test("resetting triage clears pins, acknowledgements, and notes for the current inspect result", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const findingsContent = elements.get("report-details").children[4].children[1];
+  const broadHost = findingsContent.children[0];
+  const pinButton = broadHost.children[2].children[0];
+  const ackButton = broadHost.children[2].children[1];
+  const noteToggle = broadHost.children[2].children[2];
+  pinButton.listeners.get("click")();
+  ackButton.listeners.get("click")();
+  noteToggle.listeners.get("click")();
+  const noteTextarea = broadHost.children[3].children[1];
+  noteTextarea.value = "temporary note";
+  noteTextarea.listeners.get("input")();
+
+  elements.get("reset-analysis-triage").listeners.get("click")();
+
+  assert.equal(pinButton.textContent, "Pin");
+  assert.equal(pinButton.getAttribute("aria-pressed"), "false");
+  assert.equal(ackButton.textContent, "Acknowledge");
+  assert.equal(ackButton.getAttribute("aria-pressed"), "false");
+  assert.equal(noteTextarea.value, "");
+  assert.equal(elements.get("analysis-triage-filter").value, "all");
+  assert.match(collectText(elements.get("analysis-readiness")), /Review required/);
+});
+
+test("running a new analysis and clearing the workspace both clear inspect finding triage state", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  let findingsContent = elements.get("report-details").children[4].children[1];
+  findingsContent.children[0].children[2].children[0].listeners.get("click")(); // pin
+
+  await elements.get("analyze-example-button").listeners.get("click")();
+  findingsContent = elements.get("report-details").children[4].children[1];
+  assert.equal(findingsContent.children[0].children[2].children[0].textContent, "Pin");
+
+  findingsContent.children[0].children[2].children[0].listeners.get("click")(); // pin again
+  elements.get("clear-workspace-button").listeners.get("click")();
+  assert.equal(elements.get("report").hidden, true);
+
+  await elements.get("analyze-example-button").listeners.get("click")();
+  findingsContent = elements.get("report-details").children[4].children[1];
+  assert.equal(findingsContent.children[0].children[2].children[0].textContent, "Pin");
+});
+
+test("compare findings support the same pin, acknowledge, private note, filter, and reset interactions", async () => {
+  const { elements, createdBlobs } = await createClientHarness();
+  await elements.get("compare-example-button").listeners.get("click")();
+
+  const findingsContent = elements.get("compare-report-details").children[2].children[1];
+  const finding = findingsContent.children[0];
+  const pinButton = finding.children[2].children[0];
+  const ackButton = finding.children[2].children[1];
+  const noteToggle = finding.children[2].children[2];
+
+  pinButton.listeners.get("click")();
+  assert.equal(pinButton.textContent, "Unpin");
+  assert.match(collectText(elements.get("comparison-readiness")), /Update-path validation required/);
+
+  ackButton.listeners.get("click")();
+  assert.match(collectText(elements.get("comparison-readiness")), /Critical comparison findings acknowledged/);
+
+  noteToggle.listeners.get("click")();
+  const noteTextarea = finding.children[3].children[1];
+  noteTextarea.value = "PRIVATE_COMPARISON_TRIAGE_NOTE";
+  noteTextarea.listeners.get("input")();
+
+  elements.get("export-comparison").listeners.get("click")();
+  elements.get("export-comparison-safe-summary").listeners.get("click")();
+  const [jsonExport, safeSummary] = await Promise.all(createdBlobs.map(blob => blob.text()));
+  assert.match(jsonExport, /PRIVATE_COMPARISON_TRIAGE_NOTE/);
+  assert.doesNotMatch(safeSummary, /PRIVATE_COMPARISON_TRIAGE_NOTE/);
+
+  const triageFilter = elements.get("comparison-triage-filter");
+  triageFilter.value = "pinned";
+  triageFilter.listeners.get("change")();
+  assert.match(elements.get("comparison-triage-filter-status").textContent, /1 of 1 finding shown \(pinned\)/);
+
+  elements.get("reset-comparison-triage").listeners.get("click")();
+  assert.equal(pinButton.textContent, "Pin");
+  assert.equal(ackButton.textContent, "Acknowledge");
+  assert.equal(noteTextarea.value, "");
+  assert.match(collectText(elements.get("comparison-readiness")), /Update-path validation required/);
+});
+
