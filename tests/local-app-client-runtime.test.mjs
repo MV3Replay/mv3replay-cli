@@ -7,7 +7,7 @@ class FakeElement {
   constructor(id = "") {
     this.id = id;
     this.tagName = "DIV";
-    this.textContent = "";
+    this._textContent = "";
     this.className = "";
     this.hidden = false;
     this.disabled = false;
@@ -18,6 +18,15 @@ class FakeElement {
     this.attributes = new Map();
     this.listeners = new Map();
     this.focused = false;
+  }
+
+  set textContent(value) {
+    this._textContent = String(value);
+    if (value === "") this.children = [];
+  }
+
+  get textContent() {
+    return this._textContent;
   }
 
   addEventListener(type, handler) {
@@ -296,7 +305,8 @@ test("comparison change categories filter rendered sections without changing the
   filter.value = "access";
   filter.listeners.get("change")();
 
-  const sections = elements.get("compare-report-details").children
+  const keyChangesContent = elements.get("compare-report-details").children[3].children[1];
+  const sections = keyChangesContent.children
     .filter(child => child.className.includes("change-section"));
   assert.equal(sections.length, 16);
   assert.equal(sections.filter(section => !section.hidden).length, 5);
@@ -321,7 +331,8 @@ test("changed-only mode shows zero sections for identical manifests", async () =
   const changedOnly = elements.get("comparison-changed-only");
   changedOnly.checked = true;
   changedOnly.listeners.get("change")();
-  const sections = elements.get("compare-report-details").children
+  const keyChangesContent = elements.get("compare-report-details").children[3].children[1];
+  const sections = keyChangesContent.children
     .filter(child => child.className.includes("change-section"));
   assert.equal(sections.filter(section => !section.hidden).length, 0);
   assert.match(elements.get("comparison-change-filter-status").textContent, /0 of 16 change sections shown \(all categories; changed only\)/);
@@ -335,7 +346,8 @@ test("severity filters execute and hide non-matching rendered findings", async (
   filter.value = "critical";
   filter.listeners.get("change")();
 
-  const findings = elements.get("report-details").children.filter(child => child.className === "finding");
+  const findingsSection = elements.get("report-details").children[4];
+  const findings = findingsSection.children[1].children.filter(child => child.className === "finding");
   assert.equal(findings.length, 2);
   assert.equal(findings.filter(node => node.hidden).length, 1);
   assert.match(elements.get("analysis-filter-status").textContent, /1 finding shown \(critical\)/);

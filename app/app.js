@@ -160,6 +160,12 @@ let comparisonFindingNodes = [];
 let comparisonChangeSectionNodes = [];
 let comparisonCollapsibleSections = [];
 
+// Both result panels start hidden until their respective local analysis or
+// comparison has actually run, so shortcuts and other visibility checks never
+// mistake an untouched panel for a rendered one.
+reportEl.hidden = true;
+compareReportEl.hidden = true;
+
 function setStatus(message) {
   statusEl.textContent = message;
 }
