@@ -1668,6 +1668,9 @@ swapCompareButton.addEventListener("click", async () => {
 
   if (currentCompareReport) {
     await performCompare();
+    if (currentCompareReport) {
+      setCompareStatus("Swapped the previous and current manifests. Comparison complete.");
+    }
   }
 });
 
