@@ -15,6 +15,12 @@
     parsed manifest JSON is sent to the local analyzer. Nothing is uploaded, stored,
     tracked, or sent to any other destination.
   </p>
+  <p id="keyboard-shortcuts-help" class="folder-help">
+    Keyboard shortcuts (ignored while a text field, textarea, or select has focus):
+    <kbd>I</kbd> focuses the inspect manifest file input, <kbd>C</kbd> focuses the compare
+    previous-release file input, <kbd>S</kbd> or <kbd>/</kbd> focuses the visible findings
+    search box, and <kbd>Escape</kbd> clears the workspace.
+  </p>
 
   <section class="card tester-guide" aria-labelledby="tester-guide-heading">
     <div>
@@ -40,8 +46,17 @@
     <button type="button" id="clear-workspace-button" class="secondary-button">
       Clear workspace
     </button>
+    <button type="button" id="print-report-button" class="secondary-button">
+      Print report
+    </button>
     <p id="clear-workspace-status" role="status" aria-live="polite"></p>
   </div>
+
+  <section id="recent-runs" class="card" hidden aria-labelledby="recent-runs-heading">
+    <h2 id="recent-runs-heading">Recent local runs (in memory only, up to 5)</h2>
+    <p class="export-help">Structural counts only, no timestamps. Rerun uses the manifest already held in memory; nothing is re-read from disk.</p>
+    <ul id="recent-runs-list"></ul>
+  </section>
 
   <form id="analyze-form" class="card">
     <div class="field drop-zone" id="manifest-file-field">
@@ -105,9 +120,15 @@
         <option value="medium">Medium only</option>
         <option value="low">Low only</option>
       </select>
+      <label for="analysis-finding-search">Search findings</label>
+      <input type="search" id="analysis-finding-search" placeholder="Search finding text">
       <span id="analysis-filter-status" role="status" aria-live="polite"></span>
     </div>
     <div id="analysis-readiness" class="readiness" role="status" aria-live="polite"></div>
+    <div class="section-controls">
+      <button type="button" id="report-expand-all" class="secondary-button">Expand all sections</button>
+      <button type="button" id="report-collapse-all" class="secondary-button">Collapse all sections</button>
+    </div>
     <div id="report-details"></div>
   </section>
 
@@ -200,6 +221,8 @@
         <option value="medium">Medium only</option>
         <option value="low">Low only</option>
       </select>
+      <label for="comparison-finding-search">Search findings</label>
+      <input type="search" id="comparison-finding-search" placeholder="Search finding text">
       <span id="comparison-filter-status" role="status" aria-live="polite"></span>
     </div>
     <div id="comparison-readiness" class="readiness" role="status" aria-live="polite"></div>
@@ -222,6 +245,10 @@
         Changed sections only
       </label>
       <span id="comparison-change-filter-status" role="status" aria-live="polite"></span>
+    </div>
+    <div class="section-controls">
+      <button type="button" id="compare-report-expand-all" class="secondary-button">Expand all sections</button>
+      <button type="button" id="compare-report-collapse-all" class="secondary-button">Collapse all sections</button>
     </div>
     <div id="compare-report-details"></div>
   </section>

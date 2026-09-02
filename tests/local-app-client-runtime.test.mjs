@@ -6,15 +6,18 @@ import test from "node:test";
 class FakeElement {
   constructor(id = "") {
     this.id = id;
+    this.tagName = "DIV";
     this.textContent = "";
     this.className = "";
     this.hidden = false;
     this.disabled = false;
     this.value = "";
+    this.checked = false;
     this.files = [];
     this.children = [];
     this.attributes = new Map();
     this.listeners = new Map();
+    this.focused = false;
   }
 
   addEventListener(type, handler) {
@@ -23,6 +26,10 @@ class FakeElement {
 
   setAttribute(name, value) {
     this.attributes.set(name, String(value));
+  }
+
+  getAttribute(name) {
+    return this.attributes.has(name) ? this.attributes.get(name) : null;
   }
 
   appendChild(child) {
@@ -40,6 +47,12 @@ class FakeElement {
 
   click() {
     this.clicked = true;
+    const handler = this.listeners.get("click");
+    if (handler) return handler();
+  }
+
+  focus() {
+    this.focused = true;
   }
 }
 
@@ -52,8 +65,13 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
   const elements = new Map();
   const createdElements = [];
   const createdBlobs = [];
+  const documentListeners = new Map();
   const document = {
     body: new FakeElement("body"),
+    listeners: documentListeners,
+    addEventListener(type, handler) {
+      documentListeners.set(type, handler);
+    },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, new FakeElement(id));
       return elements.get(id);
@@ -64,6 +82,7 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
       return element;
     }
   };
+  const printCalls = [];
 
   const requests = [];
   const analysisReport = {
@@ -179,6 +198,7 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
 
   const context = vm.createContext({
     document,
+    window: { print: () => { printCalls.push(true); } },
     Blob,
     console,
     URL: {
@@ -200,7 +220,7 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
     }
   });
   vm.runInContext(source, context, { filename: "app/app.js" });
-  return { elements, requests, createdElements, createdBlobs };
+  return { elements, requests, createdElements, createdBlobs, documentListeners, printCalls };
 }
 
 test("built-in analysis example executes the real client request and rendering path", async () => {
@@ -499,6 +519,124 @@ test("clear workspace removes selections, results, checklists, and transient sta
   assert.equal(elements.get("manifest-file-status").textContent, "No file selected.");
   assert.equal(elements.get("manifest-file-status").attributes.get("data-status"), "empty");
   assert.match(elements.get("clear-workspace-status").textContent, /cleared/i);
+});
+
+test("finding search filters inspect and comparison findings by rendered text without mutating the report", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const findingsSection = elements.get("report-details").children[4];
+  const search = elements.get("analysis-finding-search");
+  search.value = "notification";
+  search.listeners.get("input")();
+
+  const findingNodes = findingsSection.children[1].children.filter(child => child.className === "finding");
+  assert.equal(findingNodes.length, 2);
+  assert.equal(findingNodes.filter(node => node.hidden).length, 1);
+  assert.match(elements.get("analysis-filter-status").textContent, /1 finding shown \(all severities\)/);
+
+  search.value = "";
+  search.listeners.get("input")();
+  assert.equal(findingNodes.filter(node => node.hidden).length, 0);
+  assert.match(elements.get("analysis-filter-status").textContent, /2 findings shown \(all severities\)/);
+
+  await elements.get("compare-example-button").listeners.get("click")();
+  const compareSearch = elements.get("comparison-finding-search");
+  compareSearch.value = "powerful";
+  compareSearch.listeners.get("input")();
+  assert.match(elements.get("comparison-filter-status").textContent, /1 finding shown \(all severities\)/);
+});
+
+test("collapsible result sections toggle individually and via expand/collapse-all with correct aria-expanded state", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const sections = elements.get("report-details").children;
+  const [toggle, content] = sections[4].children;
+  assert.equal(toggle.attributes.get("aria-expanded"), "true");
+  assert.equal(content.hidden, false);
+
+  toggle.listeners.get("click")();
+  assert.equal(toggle.attributes.get("aria-expanded"), "false");
+  assert.equal(content.hidden, true);
+
+  elements.get("report-expand-all").listeners.get("click")();
+  assert.equal(toggle.attributes.get("aria-expanded"), "true");
+  assert.equal(content.hidden, false);
+
+  elements.get("report-collapse-all").listeners.get("click")();
+  for (const section of sections) {
+    assert.equal(section.children[0].attributes.get("aria-expanded"), "false");
+    assert.equal(section.children[1].hidden, true);
+  }
+});
+
+test("comparison collapsible sections expand and collapse together", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("compare-example-button").listeners.get("click")();
+
+  const sections = elements.get("compare-report-details").children;
+  elements.get("compare-report-collapse-all").listeners.get("click")();
+  for (const section of sections) {
+    assert.equal(section.children[0].attributes.get("aria-expanded"), "false");
+    assert.equal(section.children[1].hidden, true);
+  }
+  elements.get("compare-report-expand-all").listeners.get("click")();
+  for (const section of sections) {
+    assert.equal(section.children[0].attributes.get("aria-expanded"), "true");
+    assert.equal(section.children[1].hidden, false);
+  }
+});
+
+test("keyboard shortcuts focus inspect, compare, and search but never override a typing field, and Escape clears the workspace", async () => {
+  const { elements, documentListeners } = await createClientHarness();
+  const keydown = documentListeners.get("keydown");
+
+  elements.get("manifest-file").focused = false;
+  keydown({ key: "i", target: { tagName: "INPUT" } });
+  assert.equal(elements.get("manifest-file").focused, false);
+
+  keydown({ key: "i", target: { tagName: "BODY" } });
+  assert.equal(elements.get("manifest-file").focused, true);
+
+  keydown({ key: "c", target: { tagName: "BODY" } });
+  assert.equal(elements.get("previous-manifest-file").focused, true);
+
+  await elements.get("analyze-example-button").listeners.get("click")();
+  keydown({ key: "/", target: { tagName: "BODY" }, preventDefault() {} });
+  assert.equal(elements.get("analysis-finding-search").focused, true);
+
+  keydown({ key: "Escape", target: { tagName: "BODY" } });
+  assert.equal(elements.get("report").hidden, true);
+  assert.match(elements.get("clear-workspace-status").textContent, /cleared/i);
+});
+
+test("the print action only triggers the browser print flow, never a network request", async () => {
+  const { elements, printCalls, requests } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  elements.get("print-report-button").listeners.get("click")();
+  assert.equal(printCalls.length, 1);
+  assert.equal(requests.length, 1);
+});
+
+test("keeps at most five in-memory recent run summaries, reruns from an already-held manifest, and clears on workspace clear", async () => {
+  const { elements, requests } = await createClientHarness();
+  for (let i = 0; i < 6; i += 1) {
+    await elements.get("analyze-example-button").listeners.get("click")();
+  }
+  assert.equal(requests.length, 6);
+  const items = elements.get("recent-runs-list").children;
+  assert.equal(items.length, 5);
+  assert.match(collectText(items[0]), /Inspect — lanes: 1, findings: 2/);
+  assert.equal(elements.get("recent-runs").hidden, false);
+
+  const rerunButton = items[0].children[1];
+  await rerunButton.listeners.get("click")();
+  assert.equal(requests.length, 7);
+
+  elements.get("clear-workspace-button").listeners.get("click")();
+  assert.equal(elements.get("recent-runs-list").children.length, 0);
+  assert.equal(elements.get("recent-runs").hidden, true);
 });
 
 test("checklist completion filters and reset execute against in-memory state", async () => {

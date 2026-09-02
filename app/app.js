@@ -59,6 +59,12 @@ const reportDetailsEl = document.getElementById("report-details");
 const analysisFilterControlsEl = document.getElementById("analysis-filter-controls");
 const analysisSeverityFilterEl = document.getElementById("analysis-severity-filter");
 const analysisFilterStatusEl = document.getElementById("analysis-filter-status");
+const analysisFindingSearchEl = document.getElementById("analysis-finding-search");
+const reportExpandAllButton = document.getElementById("report-expand-all");
+const reportCollapseAllButton = document.getElementById("report-collapse-all");
+const printReportButton = document.getElementById("print-report-button");
+const recentRunsEl = document.getElementById("recent-runs");
+const recentRunsListEl = document.getElementById("recent-runs-list");
 
 const checklistEl = document.getElementById("checklist");
 const checklistListEl = document.getElementById("checklist-list");
@@ -76,6 +82,13 @@ const exportStatusEl = document.getElementById("export-status");
 let currentReport = null;
 let checklistState = [];
 let analysisFindingNodes = [];
+let analysisCollapsibleSections = [];
+
+// In-memory-only recent run history: at most five structural, timestamp-free
+// summaries. Rerun replays an already-held manifest reference; nothing is
+// re-read from disk or persisted across page reloads.
+const MAX_RECENT_RUNS = 5;
+let recentRuns = [];
 
 const manifestFileFieldEl = document.getElementById("manifest-file-field");
 const manifestFileStatusEl = document.getElementById("manifest-file-status");
@@ -115,6 +128,9 @@ const comparisonChangeFilterControlsEl = document.getElementById("comparison-cha
 const comparisonChangeFilterEl = document.getElementById("comparison-change-filter");
 const comparisonChangedOnlyEl = document.getElementById("comparison-changed-only");
 const comparisonChangeFilterStatusEl = document.getElementById("comparison-change-filter-status");
+const comparisonFindingSearchEl = document.getElementById("comparison-finding-search");
+const compareReportExpandAllButton = document.getElementById("compare-report-expand-all");
+const compareReportCollapseAllButton = document.getElementById("compare-report-collapse-all");
 
 const previousManifestFileFieldEl = document.getElementById("previous-manifest-file-field");
 const candidateManifestFileFieldEl = document.getElementById("candidate-manifest-file-field");
@@ -142,6 +158,7 @@ let currentCandidateAnalysis = null;
 let candidateChecklistState = [];
 let comparisonFindingNodes = [];
 let comparisonChangeSectionNodes = [];
+let comparisonCollapsibleSections = [];
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -476,10 +493,18 @@ function renderFinding(flag) {
   return container;
 }
 
-function applyFindingFilter(entries, filterValue, statusEl) {
+// Filters rendered finding nodes by severity and, optionally, an accessible
+// local text search over each finding's already-rendered text. This only
+// hides/shows DOM nodes and never mutates the underlying report object. The
+// status message always uses fixed, count-based wording — it never echoes
+// the raw search text back into the page.
+function applyFindingFilter(entries, filterValue, statusEl, searchValue = "") {
+  const query = String(searchValue || "").trim().toLowerCase();
   let visible = 0;
   for (const entry of entries) {
-    const matches = filterValue === "all" || entry.level === filterValue;
+    const severityMatches = filterValue === "all" || entry.level === filterValue;
+    const textMatches = query === "" || (entry.searchText || "").includes(query);
+    const matches = severityMatches && textMatches;
     entry.node.hidden = !matches;
     if (matches) visible += 1;
   }
@@ -487,20 +512,128 @@ function applyFindingFilter(entries, filterValue, statusEl) {
   statusEl.textContent = `${visible} finding${visible === 1 ? "" : "s"} shown (${label}).`;
 }
 
-analysisSeverityFilterEl.addEventListener("change", () => {
-  applyFindingFilter(analysisFindingNodes, analysisSeverityFilterEl.value, analysisFilterStatusEl);
+function applyAnalysisFindingFilters() {
+  applyFindingFilter(analysisFindingNodes, analysisSeverityFilterEl.value, analysisFilterStatusEl, analysisFindingSearchEl.value);
+}
+
+function applyComparisonFindingFilters() {
+  applyFindingFilter(comparisonFindingNodes, comparisonSeverityFilterEl.value, comparisonFilterStatusEl, comparisonFindingSearchEl.value);
+}
+
+analysisSeverityFilterEl.addEventListener("change", applyAnalysisFindingFilters);
+analysisFindingSearchEl.addEventListener("input", applyAnalysisFindingFilters);
+
+comparisonSeverityFilterEl.addEventListener("change", applyComparisonFindingFilters);
+comparisonFindingSearchEl.addEventListener("input", applyComparisonFindingFilters);
+
+// Builds one collapsible result section with a fully accessible toggle
+// button (correct aria-expanded state kept in sync with the visually
+// hidden content) and registers it so expand/collapse-all controls can
+// operate on every section in a report.
+function appendCollapsibleSection(container, sectionId, title, buildContent, registry) {
+  const section = el("div", { className: "collapsible-section" });
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "section-toggle";
+  toggle.id = `${sectionId}-toggle`;
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.setAttribute("aria-controls", `${sectionId}-content`);
+  toggle.textContent = title;
+  const content = el("div", { className: "section-content" });
+  content.id = `${sectionId}-content`;
+  buildContent(content);
+  toggle.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    setSectionExpanded(section, !expanded);
+  });
+  section.appendChild(toggle);
+  section.appendChild(content);
+  container.appendChild(section);
+  if (registry) registry.push(section);
+  return section;
+}
+
+function setSectionExpanded(section, expanded) {
+  const [toggle, content] = section.children;
+  toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+  content.hidden = !expanded;
+}
+
+function expandAllSections(sections) {
+  for (const section of sections) setSectionExpanded(section, true);
+}
+
+function collapseAllSections(sections) {
+  for (const section of sections) setSectionExpanded(section, false);
+}
+
+reportExpandAllButton.addEventListener("click", () => expandAllSections(analysisCollapsibleSections));
+reportCollapseAllButton.addEventListener("click", () => collapseAllSections(analysisCollapsibleSections));
+compareReportExpandAllButton.addEventListener("click", () => expandAllSections(comparisonCollapsibleSections));
+compareReportCollapseAllButton.addEventListener("click", () => collapseAllSections(comparisonCollapsibleSections));
+
+// Keeps at most five in-memory, timestamp-free run summaries. Rerun always
+// replays the manifest object already held in memory from the original run;
+// it never re-reads a file or contacts any endpoint other than the same
+// local analyze/compare endpoints used for the original run.
+function addRecentRun(label, rerun) {
+  recentRuns.unshift({ label, rerun });
+  if (recentRuns.length > MAX_RECENT_RUNS) recentRuns.length = MAX_RECENT_RUNS;
+  renderRecentRuns();
+}
+
+function renderRecentRuns() {
+  recentRunsListEl.textContent = "";
+  for (const run of recentRuns) {
+    const item = el("li", { className: "recent-run-item" });
+    item.appendChild(el("span", { text: run.label }));
+    const rerunButton = document.createElement("button");
+    rerunButton.type = "button";
+    rerunButton.className = "secondary-button";
+    rerunButton.textContent = "Rerun";
+    rerunButton.addEventListener("click", () => run.rerun());
+    item.appendChild(rerunButton);
+    recentRunsListEl.appendChild(item);
+  }
+  recentRunsEl.hidden = recentRuns.length === 0;
+}
+
+// Local keyboard shortcuts. These never fire while the user is typing in a
+// text field, textarea, or select so normal typing is never intercepted.
+function isTypingTarget(target) {
+  if (!target) return false;
+  if (target.isContentEditable === true) return true;
+  const tag = String(target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
+}
+
+document.addEventListener("keydown", event => {
+  if (isTypingTarget(event.target)) return;
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+  const key = String(event.key || "").toLowerCase();
+  if (key === "i") {
+    fileInput.focus();
+  } else if (key === "c") {
+    previousFileInput.focus();
+  } else if (key === "s" || key === "/") {
+    if (event.preventDefault) event.preventDefault();
+    if (!compareReportEl.hidden) comparisonFindingSearchEl.focus();
+    else analysisFindingSearchEl.focus();
+  } else if (key === "escape") {
+    clearWorkspaceButton.click();
+  }
 });
 
-comparisonSeverityFilterEl.addEventListener("change", () => {
-  applyFindingFilter(comparisonFindingNodes, comparisonSeverityFilterEl.value, comparisonFilterStatusEl);
+printReportButton.addEventListener("click", () => {
+  if (typeof window !== "undefined" && window.print) window.print();
 });
 
-function appendComparisonChangeSection(category, node, hasChanges) {
+function appendComparisonChangeSection(category, node, hasChanges, container = compareReportDetailsEl) {
   node.className = `${node.className || ""} change-section`.trim();
   node.setAttribute("data-change-category", category);
   node.setAttribute("data-has-changes", String(hasChanges));
   comparisonChangeSectionNodes.push({ category, hasChanges, node });
-  compareReportDetailsEl.appendChild(node);
+  container.appendChild(node);
 }
 
 function applyComparisonChangeFilter(filterValue) {
@@ -528,53 +661,62 @@ comparisonChangedOnlyEl.addEventListener("change", () => {
 function renderReport(report) {
   reportDetailsEl.textContent = "";
   analysisFindingNodes = [];
+  analysisCollapsibleSections = [];
   reportEl.hidden = false;
 
-  reportDetailsEl.appendChild(el("h2", { text: "Identity" }));
-  reportDetailsEl.appendChild(el("p", {
-    text: `${report.identity.name} — version ${report.identity.version} (Manifest V${report.identity.manifestVersion})`
-  }));
+  appendCollapsibleSection(reportDetailsEl, "analysis-identity", "Identity", content => {
+    content.appendChild(el("p", {
+      text: `${report.identity.name} — version ${report.identity.version} (Manifest V${report.identity.manifestVersion})`
+    }));
+  }, analysisCollapsibleSections);
 
-  reportDetailsEl.appendChild(el("h2", { text: "Detected surfaces" }));
-  const surfaceList = el("ul");
-  for (const [key, value] of Object.entries(report.surfaces)) {
-    surfaceList.appendChild(el("li", { text: `${key}: ${String(value)}` }));
-  }
-  reportDetailsEl.appendChild(surfaceList);
-
-  reportDetailsEl.appendChild(el("h2", { text: "Coverage gaps" }));
-  reportDetailsEl.appendChild(el("p", {
-    text: report.coverage.unmodeledTopLevelKeys.length > 0
-      ? `Top-level manifest keys not interpreted by this analyzer: ${report.coverage.unmodeledTopLevelKeys.join(", ")}.`
-      : "Every top-level manifest key in this file is modeled by the current analyzer."
-  }));
-
-  reportDetailsEl.appendChild(el("h2", { text: "Test lanes" }));
-  if (report.lanes.length === 0) {
-    reportDetailsEl.appendChild(el("p", { text: "No test lanes were derived from this manifest." }));
-  } else {
-    for (const lane of report.lanes) reportDetailsEl.appendChild(renderLane(lane));
-  }
-
-  reportDetailsEl.appendChild(el("h2", { text: "Findings" }));
-  if (report.riskFlags.length === 0) {
-    reportDetailsEl.appendChild(el("p", { text: "No risk flags were detected in this static analysis." }));
-  } else {
-    for (const flag of report.riskFlags) {
-      const node = renderFinding(flag);
-      analysisFindingNodes.push({ level: flag.level, node });
-      reportDetailsEl.appendChild(node);
+  appendCollapsibleSection(reportDetailsEl, "analysis-surfaces", "Detected surfaces", content => {
+    const surfaceList = el("ul");
+    for (const [key, value] of Object.entries(report.surfaces)) {
+      surfaceList.appendChild(el("li", { text: `${key}: ${String(value)}` }));
     }
-  }
+    content.appendChild(surfaceList);
+  }, analysisCollapsibleSections);
+
+  appendCollapsibleSection(reportDetailsEl, "analysis-coverage", "Coverage gaps", content => {
+    content.appendChild(el("p", {
+      text: report.coverage.unmodeledTopLevelKeys.length > 0
+        ? `Top-level manifest keys not interpreted by this analyzer: ${report.coverage.unmodeledTopLevelKeys.join(", ")}.`
+        : "Every top-level manifest key in this file is modeled by the current analyzer."
+    }));
+  }, analysisCollapsibleSections);
+
+  appendCollapsibleSection(reportDetailsEl, "analysis-lanes", "Test lanes", content => {
+    if (report.lanes.length === 0) {
+      content.appendChild(el("p", { text: "No test lanes were derived from this manifest." }));
+    } else {
+      for (const lane of report.lanes) content.appendChild(renderLane(lane));
+    }
+  }, analysisCollapsibleSections);
+
+  appendCollapsibleSection(reportDetailsEl, "analysis-findings", "Findings", content => {
+    if (report.riskFlags.length === 0) {
+      content.appendChild(el("p", { text: "No risk flags were detected in this static analysis." }));
+    } else {
+      for (const flag of report.riskFlags) {
+        const node = renderFinding(flag);
+        const searchText = `${flag.id} ${flag.level} ${flag.message}`.toLowerCase();
+        analysisFindingNodes.push({ level: flag.level, node, searchText });
+        content.appendChild(node);
+      }
+    }
+  }, analysisCollapsibleSections);
   analysisFilterControlsEl.hidden = report.riskFlags.length === 0;
   analysisSeverityFilterEl.value = "all";
-  applyFindingFilter(analysisFindingNodes, "all", analysisFilterStatusEl);
+  analysisFindingSearchEl.value = "";
+  applyAnalysisFindingFilters();
 
-  reportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
-  reportDetailsEl.appendChild(el("p", {
-    text: "This is a static manifest analysis only. The extension has not been loaded, executed, or "
-      + "tested in a browser. It does not read extension source files or verify runtime behavior."
-  }));
+  appendCollapsibleSection(reportDetailsEl, "analysis-limitations", "Limitations", content => {
+    content.appendChild(el("p", {
+      text: "This is a static manifest analysis only. The extension has not been loaded, executed, or "
+        + "tested in a browser. It does not read extension source files or verify runtime behavior."
+    }));
+  }, analysisCollapsibleSections);
 }
 
 function updateChecklistProgress() {
@@ -924,6 +1066,10 @@ async function runAnalysis(manifest, isExample) {
       reportSummaryEl.prepend(el("p", { className: "example-label", text: "Built-in example — not your extension" }));
     }
     renderChecklist(data.report);
+    addRecentRun(
+      `Inspect — lanes: ${data.report.lanes.length}, findings: ${data.report.riskFlags.length}`,
+      () => runAnalysis(manifest, isExample)
+    );
   } catch {
     setStatus("The local analyzer could not be reached.");
   }
@@ -936,8 +1082,10 @@ function resetAnalysisResults() {
   analysisReadinessEl.textContent = "";
   analysisFilterControlsEl.hidden = true;
   analysisSeverityFilterEl.value = "all";
+  analysisFindingSearchEl.value = "";
   analysisFilterStatusEl.textContent = "";
   analysisFindingNodes = [];
+  analysisCollapsibleSections = [];
   checklistEl.hidden = true;
   checklistControlsEl.hidden = true;
   checklistFilterStatusEl.textContent = "";
@@ -1185,67 +1333,75 @@ function renderCompareReport(report) {
   compareReportDetailsEl.textContent = "";
   comparisonFindingNodes = [];
   comparisonChangeSectionNodes = [];
+  comparisonCollapsibleSections = [];
   compareReportEl.hidden = false;
 
-  compareReportDetailsEl.appendChild(el("h2", { text: "Release identity" }));
-  compareReportDetailsEl.appendChild(el("p", {
-    text: `From ${report.from.name} v${report.from.version} to ${report.to.name} v${report.to.version}`
-  }));
-  compareReportDetailsEl.appendChild(el("p", {
-    text: `Chrome version ordering: ${report.changes.version.relation}.`
-  }));
+  appendCollapsibleSection(compareReportDetailsEl, "comparison-identity", "Release identity", content => {
+    content.appendChild(el("p", {
+      text: `From ${report.from.name} v${report.from.version} to ${report.to.name} v${report.to.version}`
+    }));
+    content.appendChild(el("p", {
+      text: `Chrome version ordering: ${report.changes.version.relation}.`
+    }));
+  }, comparisonCollapsibleSections);
 
-  compareReportDetailsEl.appendChild(el("h2", { text: "Manual update validation" }));
-  compareReportDetailsEl.appendChild(el("p", {
-    text: report.requiresManualUpdateValidation
-      ? "This release requires manual update-path validation before it ships."
-      : "No critical-level findings were detected, but review the findings below before shipping."
-  }));
+  appendCollapsibleSection(compareReportDetailsEl, "comparison-manual-validation", "Manual update validation", content => {
+    content.appendChild(el("p", {
+      text: report.requiresManualUpdateValidation
+        ? "This release requires manual update-path validation before it ships."
+        : "No critical-level findings were detected, but review the findings below before shipping."
+    }));
+  }, comparisonCollapsibleSections);
 
-  compareReportDetailsEl.appendChild(el("h2", { text: "Findings" }));
-  if (report.findings.length === 0) {
-    compareReportDetailsEl.appendChild(el("p", { text: "No comparison findings were detected in this static analysis." }));
-  } else {
-    for (const finding of report.findings) {
-      const node = renderFinding(finding);
-      comparisonFindingNodes.push({ level: finding.level, node });
-      compareReportDetailsEl.appendChild(node);
+  appendCollapsibleSection(compareReportDetailsEl, "comparison-findings", "Findings", content => {
+    if (report.findings.length === 0) {
+      content.appendChild(el("p", { text: "No comparison findings were detected in this static analysis." }));
+    } else {
+      for (const finding of report.findings) {
+        const node = renderFinding(finding);
+        const searchText = `${finding.id} ${finding.level} ${finding.message}`.toLowerCase();
+        comparisonFindingNodes.push({ level: finding.level, node, searchText });
+        content.appendChild(node);
+      }
     }
-  }
+  }, comparisonCollapsibleSections);
   comparisonFilterControlsEl.hidden = report.findings.length === 0;
   comparisonSeverityFilterEl.value = "all";
-  applyFindingFilter(comparisonFindingNodes, "all", comparisonFilterStatusEl);
+  comparisonFindingSearchEl.value = "";
+  applyComparisonFindingFilters();
 
-  compareReportDetailsEl.appendChild(el("h2", { text: "Key changes" }));
-  appendComparisonChangeSection("access", renderListDiff("Required permissions", report.changes.requiredPermissions), countListDiff(report.changes.requiredPermissions) > 0);
-  appendComparisonChangeSection("access", renderListDiff("Optional permissions", report.changes.optionalPermissions), countListDiff(report.changes.optionalPermissions) > 0);
-  appendComparisonChangeSection("access", renderListDiff("Required host access", report.changes.requiredHosts), countListDiff(report.changes.requiredHosts) > 0);
-  appendComparisonChangeSection("access", renderListDiff("Optional host access", report.changes.optionalHosts), countListDiff(report.changes.optionalHosts) > 0);
-  appendComparisonChangeSection("access", renderListDiff("OAuth scopes", report.changes.oauthScopes), countListDiff(report.changes.oauthScopes) > 0);
-  appendComparisonChangeSection("scripts", renderListDiff("Content-script match scope", report.changes.contentScriptMatches), countListDiff(report.changes.contentScriptMatches) > 0);
-  appendComparisonChangeSection("scripts", renderContentScriptChanges(report.changes.contentScripts), countListDiff(report.changes.contentScripts) > 0);
-  appendComparisonChangeSection("commands", renderListDiff("Keyboard commands", report.changes.commands), countListDiff(report.changes.commands) > 0);
-  appendComparisonChangeSection("surfaces", renderListDiff("Extension surfaces", report.changes.surfaces), countListDiff(report.changes.surfaces) > 0);
-  appendComparisonChangeSection("rules", renderStaticRulesetChanges(report.changes.staticRulesets), (report.changes.staticRulesets.added.length + report.changes.staticRulesets.removed.length + report.changes.staticRulesets.changed.length) > 0);
-  appendComparisonChangeSection("external", renderListDiff("External messaging matches", report.changes.externalMessaging.matches), countListDiff(report.changes.externalMessaging.matches) > 0);
-  appendComparisonChangeSection("external", renderListDiff("External messaging extension IDs", report.changes.externalMessaging.ids), countListDiff(report.changes.externalMessaging.ids) > 0);
-  appendComparisonChangeSection("external", renderWebAccessibleResourceChanges(report.changes.webAccessibleResources), countListDiff(report.changes.webAccessibleResources) > 0);
-  appendComparisonChangeSection("declarations", renderDeclarationChanges(report.changes.declarations), report.changes.declarations.length > 0);
-  appendComparisonChangeSection("identity", renderExtensionKeyChange(report.changes.extensionKey), report.changes.extensionKey.changed);
-  appendComparisonChangeSection("coverage", renderKeyValueChanges(
-    "Unmodeled top-level manifest keys",
-    report.changes.unmodeledTopLevelKeys
-  ), (report.changes.unmodeledTopLevelKeys.added.length + report.changes.unmodeledTopLevelKeys.removed.length + report.changes.unmodeledTopLevelKeys.changed.length) > 0);
+  appendCollapsibleSection(compareReportDetailsEl, "comparison-key-changes", "Key changes", content => {
+    appendComparisonChangeSection("access", renderListDiff("Required permissions", report.changes.requiredPermissions), countListDiff(report.changes.requiredPermissions) > 0, content);
+    appendComparisonChangeSection("access", renderListDiff("Optional permissions", report.changes.optionalPermissions), countListDiff(report.changes.optionalPermissions) > 0, content);
+    appendComparisonChangeSection("access", renderListDiff("Required host access", report.changes.requiredHosts), countListDiff(report.changes.requiredHosts) > 0, content);
+    appendComparisonChangeSection("access", renderListDiff("Optional host access", report.changes.optionalHosts), countListDiff(report.changes.optionalHosts) > 0, content);
+    appendComparisonChangeSection("access", renderListDiff("OAuth scopes", report.changes.oauthScopes), countListDiff(report.changes.oauthScopes) > 0, content);
+    appendComparisonChangeSection("scripts", renderListDiff("Content-script match scope", report.changes.contentScriptMatches), countListDiff(report.changes.contentScriptMatches) > 0, content);
+    appendComparisonChangeSection("scripts", renderContentScriptChanges(report.changes.contentScripts), countListDiff(report.changes.contentScripts) > 0, content);
+    appendComparisonChangeSection("commands", renderListDiff("Keyboard commands", report.changes.commands), countListDiff(report.changes.commands) > 0, content);
+    appendComparisonChangeSection("surfaces", renderListDiff("Extension surfaces", report.changes.surfaces), countListDiff(report.changes.surfaces) > 0, content);
+    appendComparisonChangeSection("rules", renderStaticRulesetChanges(report.changes.staticRulesets), (report.changes.staticRulesets.added.length + report.changes.staticRulesets.removed.length + report.changes.staticRulesets.changed.length) > 0, content);
+    appendComparisonChangeSection("external", renderListDiff("External messaging matches", report.changes.externalMessaging.matches), countListDiff(report.changes.externalMessaging.matches) > 0, content);
+    appendComparisonChangeSection("external", renderListDiff("External messaging extension IDs", report.changes.externalMessaging.ids), countListDiff(report.changes.externalMessaging.ids) > 0, content);
+    appendComparisonChangeSection("external", renderWebAccessibleResourceChanges(report.changes.webAccessibleResources), countListDiff(report.changes.webAccessibleResources) > 0, content);
+    appendComparisonChangeSection("declarations", renderDeclarationChanges(report.changes.declarations), report.changes.declarations.length > 0, content);
+    appendComparisonChangeSection("identity", renderExtensionKeyChange(report.changes.extensionKey), report.changes.extensionKey.changed, content);
+    appendComparisonChangeSection("coverage", renderKeyValueChanges(
+      "Unmodeled top-level manifest keys",
+      report.changes.unmodeledTopLevelKeys
+    ), (report.changes.unmodeledTopLevelKeys.added.length + report.changes.unmodeledTopLevelKeys.removed.length + report.changes.unmodeledTopLevelKeys.changed.length) > 0, content);
+  }, comparisonCollapsibleSections);
   comparisonChangeFilterControlsEl.hidden = false;
   comparisonChangeFilterEl.value = "all";
   comparisonChangedOnlyEl.checked = false;
   applyComparisonChangeFilter("all");
 
-  compareReportDetailsEl.appendChild(el("h2", { text: "Limitations" }));
-  compareReportDetailsEl.appendChild(el("p", {
-    text: "This is a static comparison of two manifest files only. Neither release has been loaded, "
-      + "executed, or tested in a browser. It does not read extension source files or verify runtime behavior."
-  }));
+  appendCollapsibleSection(compareReportDetailsEl, "comparison-limitations", "Limitations", content => {
+    content.appendChild(el("p", {
+      text: "This is a static comparison of two manifest files only. Neither release has been loaded, "
+        + "executed, or tested in a browser. It does not read extension source files or verify runtime behavior."
+    }));
+  }, comparisonCollapsibleSections);
 }
 
 function updateCandidateChecklistProgress() {
@@ -1528,6 +1684,7 @@ function resetComparisonResults() {
   comparisonReadinessEl.textContent = "";
   comparisonFilterControlsEl.hidden = true;
   comparisonSeverityFilterEl.value = "all";
+  comparisonFindingSearchEl.value = "";
   comparisonFilterStatusEl.textContent = "";
   comparisonFindingNodes = [];
   comparisonChangeFilterControlsEl.hidden = true;
@@ -1535,6 +1692,7 @@ function resetComparisonResults() {
   comparisonChangedOnlyEl.checked = false;
   comparisonChangeFilterStatusEl.textContent = "";
   comparisonChangeSectionNodes = [];
+  comparisonCollapsibleSections = [];
   candidateChecklistEl.hidden = true;
   candidateChecklistControlsEl.hidden = true;
   candidateChecklistFilterStatusEl.textContent = "";
@@ -1571,6 +1729,10 @@ async function runComparison(previousManifest, currentManifest, isExample) {
       compareReportSummaryEl.prepend(el("p", { className: "example-label", text: "Built-in example — not your extension" }));
     }
     renderCandidateChecklist(data.candidateAnalysis, data.report);
+    addRecentRun(
+      `Compare — changes: ${countComparisonChanges(data.report.changes)}, findings: ${data.report.findings.length}`,
+      () => runComparison(previousManifest, currentManifest, isExample)
+    );
   } catch {
     setCompareStatus("The local comparison endpoint could not be reached.");
   }
@@ -1723,6 +1885,9 @@ clearWorkspaceButton.addEventListener("click", () => {
   feedbackTemplateStatusEl.textContent = "";
   exportStatusEl.textContent = "";
   exportComparisonStatusEl.textContent = "";
+
+  recentRuns = [];
+  renderRecentRuns();
 
   clearWorkspaceStatusEl.textContent = "Workspace cleared. All local selections and results were removed.";
 });

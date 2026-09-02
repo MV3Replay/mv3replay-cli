@@ -391,6 +391,82 @@ test("app.js does not use clipboard access for exports", async () => {
   assert.doesNotMatch(source, /execCommand\(\s*["'`]copy["'`]/);
 });
 
+test("index.html includes accessible finding search inputs for inspect and comparison", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="analysis-finding-search"/);
+  assert.match(html, /id="comparison-finding-search"/);
+  assert.match(html, /for="analysis-finding-search"/);
+  assert.match(html, /for="comparison-finding-search"/);
+});
+
+test("index.html includes expand/collapse-all controls for both result sections", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="report-expand-all"/);
+  assert.match(html, /id="report-collapse-all"/);
+  assert.match(html, /id="compare-report-expand-all"/);
+  assert.match(html, /id="compare-report-collapse-all"/);
+});
+
+test("index.html documents local keyboard shortcuts", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="keyboard-shortcuts-help"/);
+  assert.match(html, /focuses the inspect manifest file input/);
+  assert.match(html, /clears the workspace/);
+});
+
+test("index.html includes a print-report action and an in-memory recent-runs section", async () => {
+  const html = await readFile(new URL("../app/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="print-report-button"/);
+  assert.match(html, /id="recent-runs"/);
+  assert.match(html, /id="recent-runs-list"/);
+  assert.match(html, /in memory only/);
+});
+
+test("styles.css includes a print rule that shows only the sanitized rendered report", async () => {
+  const css = await readFile(new URL("../app/styles.css", import.meta.url), "utf8");
+  assert.match(css, /@media print/);
+  assert.match(css, /#report/);
+  assert.match(css, /#compare-report/);
+});
+
+test("app.js keeps the finding search local, non-mutating, and never adds a new network endpoint", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /analysisFindingSearchEl\.addEventListener\("input"/);
+  assert.match(source, /comparisonFindingSearchEl\.addEventListener\("input"/);
+  const fetchCalls = [...source.matchAll(/fetch\(\s*["'`]([^"'`]+)["'`]/g)].map(match => match[1]);
+  assert.deepEqual(fetchCalls.sort(), ["/api/analyze", "/api/compare"]);
+});
+
+test("app.js implements collapsible sections with accessible aria-expanded state", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /setAttribute\("aria-expanded", "true"\)/);
+  assert.match(source, /function setSectionExpanded/);
+  assert.match(source, /function expandAllSections/);
+  assert.match(source, /function collapseAllSections/);
+});
+
+test("app.js ignores keyboard shortcuts while a typing field has focus", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /function isTypingTarget/);
+  assert.match(source, /tag === "input" \|\| tag === "textarea" \|\| tag === "select"/);
+  assert.match(source, /if \(isTypingTarget\(event\.target\)\) return;/);
+});
+
+test("app.js triggers printing only via the local browser print API, never a network export", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /printReportButton\.addEventListener\("click"/);
+  assert.match(source, /window\.print\(\)/);
+  assert.doesNotMatch(source, /fetch\(\s*["'`]\/api\/print/);
+});
+
+test("app.js keeps at most five in-memory recent runs and clears them on workspace clear", async () => {
+  const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
+  assert.match(source, /const MAX_RECENT_RUNS = 5;/);
+  assert.match(source, /if \(recentRuns\.length > MAX_RECENT_RUNS\) recentRuns\.length = MAX_RECENT_RUNS;/);
+  assert.match(source, /recentRuns = \[\];[\s\S]*renderRecentRuns\(\);[\s\S]*clearWorkspaceStatusEl\.textContent/);
+  assert.doesNotMatch(source, /localStorage/);
+});
+
 test("applies a restrictive local Content-Security-Policy", async () => {
   await withServer(async baseUrl => {
     const response = await fetch(`${baseUrl}/`);
