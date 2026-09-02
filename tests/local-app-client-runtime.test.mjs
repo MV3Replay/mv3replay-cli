@@ -356,6 +356,151 @@ test("share-safe summaries exclude every manifest-controlled value", async () =>
   assert.ok(createdElements.some(element => element.download === "mv3-replay-share-safe-comparison-summary.md"));
 });
 
+test("dropping multiple files on the inspect drop zone fails locally with fixed accessible text", async () => {
+  const { elements } = await createClientHarness();
+  const zone = elements.get("manifest-file-field");
+  const statusEl = elements.get("manifest-file-status");
+  const event = {
+    preventDefault() {},
+    dataTransfer: { files: [{ name: "a.json", type: "application/json" }, { name: "b.json", type: "application/json" }] }
+  };
+  zone.listeners.get("drop")(event);
+  assert.equal(statusEl.textContent, "Drop exactly one manifest.json file.");
+  assert.equal(statusEl.attributes.get("data-status"), "invalid");
+});
+
+test("dropping a non-JSON file on a compare drop target fails locally with fixed accessible text", async () => {
+  const { elements } = await createClientHarness();
+  const zone = elements.get("previous-manifest-file-field");
+  const statusEl = elements.get("previous-manifest-file-status");
+  const event = {
+    preventDefault() {},
+    dataTransfer: { files: [{ name: "notes.txt", type: "text/plain" }] }
+  };
+  zone.listeners.get("drop")(event);
+  assert.equal(statusEl.textContent, "Only a .json file can be dropped here.");
+  assert.equal(statusEl.attributes.get("data-status"), "invalid");
+});
+
+test("dropping one manifest.json onto inspect or a compare target marks that input ready", async () => {
+  const { elements } = await createClientHarness();
+  const inspectZone = elements.get("manifest-file-field");
+  const inspectStatus = elements.get("manifest-file-status");
+  const inspectFile = { name: "manifest.json", type: "application/json" };
+  inspectZone.listeners.get("drop")({ preventDefault() {}, dataTransfer: { files: [inspectFile] } });
+  assert.equal(elements.get("manifest-file").files[0], inspectFile);
+  assert.equal(inspectStatus.attributes.get("data-status"), "ready");
+
+  const candidateZone = elements.get("candidate-manifest-file-field");
+  const candidateStatus = elements.get("candidate-manifest-file-status");
+  const candidateFile = { name: "manifest.json", type: "application/json" };
+  candidateZone.listeners.get("drop")({ preventDefault() {}, dataTransfer: { files: [candidateFile] } });
+  assert.equal(elements.get("candidate-manifest-file").files[0], candidateFile);
+  assert.equal(candidateStatus.attributes.get("data-status"), "ready");
+});
+
+test("per-input status reflects empty, invalid, and ready selection states without any filename", async () => {
+  const { elements } = await createClientHarness();
+  const input = elements.get("manifest-file");
+  const statusEl = elements.get("manifest-file-status");
+
+  input.files = [];
+  input.listeners.get("change")();
+  assert.equal(statusEl.textContent, "No file selected.");
+  assert.equal(statusEl.attributes.get("data-status"), "empty");
+
+  input.files = [{ name: "secret-extension.txt", type: "text/plain" }];
+  input.listeners.get("change")();
+  assert.doesNotMatch(statusEl.textContent, /secret-extension/);
+  assert.equal(statusEl.attributes.get("data-status"), "invalid");
+
+  input.files = [{ name: "manifest.json", type: "application/json" }];
+  input.listeners.get("change")();
+  assert.doesNotMatch(statusEl.textContent, /manifest\.json/);
+  assert.equal(statusEl.attributes.get("data-status"), "ready");
+});
+
+test("pasting JSON imports a manifest into inspect, clears the textarea, and never redisplays raw JSON", async () => {
+  const { elements, requests } = await createClientHarness();
+  elements.get("analyze-paste-button").listeners.get("click")();
+  assert.equal(elements.get("paste-json-panel").hidden, false);
+
+  const pasted = { manifest_version: 3, name: "n", version: "1", permissions: [] };
+  elements.get("paste-json-textarea").value = JSON.stringify(pasted);
+  await elements.get("paste-json-confirm").listeners.get("click")();
+
+  assert.equal(requests.length, 1);
+  assert.deepEqual(JSON.parse(requests[0].options.body), pasted);
+  assert.equal(elements.get("paste-json-textarea").value, "");
+  assert.equal(elements.get("paste-json-panel").hidden, true);
+  assert.equal(elements.get("report").hidden, false);
+});
+
+test("pasting invalid JSON fails locally with fixed accessible text and issues no request", async () => {
+  const { elements, requests } = await createClientHarness();
+  elements.get("analyze-paste-button").listeners.get("click")();
+  elements.get("paste-json-textarea").value = "{not json";
+  await elements.get("paste-json-confirm").listeners.get("click")();
+
+  assert.equal(elements.get("paste-json-status").textContent, "The pasted text is not valid JSON.");
+  assert.equal(requests.length, 0);
+  assert.equal(elements.get("paste-json-panel").hidden, false);
+});
+
+test("pasting JSON into compare sides and swapping recomputes the comparison with sides reversed", async () => {
+  const { elements, requests } = await createClientHarness();
+
+  const previousManifest = { manifest_version: 3, name: "p", version: "1", permissions: [] };
+  const candidateManifest = { manifest_version: 3, name: "c", version: "2", permissions: ["tabCapture"] };
+
+  elements.get("analyze-paste-button").listeners.get("click")();
+  elements.get("paste-json-target").value = "previous";
+  elements.get("paste-json-textarea").value = JSON.stringify(previousManifest);
+  await elements.get("paste-json-confirm").listeners.get("click")();
+  assert.equal(elements.get("previous-manifest-file-status").attributes.get("data-status"), "ready");
+
+  elements.get("analyze-paste-button").listeners.get("click")();
+  elements.get("paste-json-target").value = "current";
+  elements.get("paste-json-textarea").value = JSON.stringify(candidateManifest);
+  await elements.get("paste-json-confirm").listeners.get("click")();
+  assert.equal(elements.get("candidate-manifest-file-status").attributes.get("data-status"), "ready");
+
+  await elements.get("compare-form").listeners.get("submit")({ preventDefault() {} });
+  assert.equal(requests.length, 1);
+  const firstPayload = JSON.parse(requests[0].options.body);
+  assert.deepEqual(firstPayload.previous, previousManifest);
+  assert.deepEqual(firstPayload.current, candidateManifest);
+  assert.equal(elements.get("compare-report").hidden, false);
+
+  await elements.get("swap-compare-button").listeners.get("click")();
+  assert.equal(requests.length, 2);
+  const secondPayload = JSON.parse(requests[1].options.body);
+  assert.deepEqual(secondPayload.previous, candidateManifest);
+  assert.deepEqual(secondPayload.current, previousManifest);
+  assert.match(elements.get("compare-status").textContent, /Swapped/);
+});
+
+test("clear workspace removes selections, results, checklists, and transient status without reload", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  assert.equal(elements.get("report").hidden, false);
+  assert.match(elements.get("checklist-progress").textContent, /completed/);
+
+  elements.get("manifest-file").files = [{ name: "manifest.json", type: "application/json" }];
+  elements.get("manifest-file").listeners.get("change")();
+
+  elements.get("clear-workspace-button").listeners.get("click")();
+
+  assert.equal(elements.get("report").hidden, true);
+  assert.equal(elements.get("checklist-list").textContent, "");
+  assert.equal(elements.get("checklist-progress").textContent, "");
+  assert.equal(elements.get("checklist").hidden, true);
+  assert.equal(elements.get("status").textContent, "");
+  assert.equal(elements.get("manifest-file-status").textContent, "No file selected.");
+  assert.equal(elements.get("manifest-file-status").attributes.get("data-status"), "empty");
+  assert.match(elements.get("clear-workspace-status").textContent, /cleared/i);
+});
+
 test("checklist completion filters and reset execute against in-memory state", async () => {
   const { elements } = await createClientHarness();
   await elements.get("analyze-example-button").listeners.get("click")();

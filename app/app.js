@@ -77,6 +77,25 @@ let currentReport = null;
 let checklistState = [];
 let analysisFindingNodes = [];
 
+const manifestFileFieldEl = document.getElementById("manifest-file-field");
+const manifestFileStatusEl = document.getElementById("manifest-file-status");
+const manifestFolderStatusEl = document.getElementById("manifest-folder-status");
+const pasteJsonButton = document.getElementById("analyze-paste-button");
+const pasteJsonPanelEl = document.getElementById("paste-json-panel");
+const pasteJsonTargetEl = document.getElementById("paste-json-target");
+const pasteJsonTextareaEl = document.getElementById("paste-json-textarea");
+const pasteJsonConfirmButton = document.getElementById("paste-json-confirm");
+const pasteJsonCancelButton = document.getElementById("paste-json-cancel");
+const pasteJsonStatusEl = document.getElementById("paste-json-status");
+const clearWorkspaceButton = document.getElementById("clear-workspace-button");
+const clearWorkspaceStatusEl = document.getElementById("clear-workspace-status");
+
+// Manifests imported via the paste-JSON panel for the compare sides. These
+// live only in memory for the lifetime of this page and are never rendered
+// back as raw text once imported.
+let pastedPreviousManifest = null;
+let pastedCurrentManifest = null;
+
 const compareForm = document.getElementById("compare-form");
 const compareSubmitButton = document.getElementById("compare-submit");
 const compareExampleButton = document.getElementById("compare-example-button");
@@ -96,6 +115,14 @@ const comparisonChangeFilterControlsEl = document.getElementById("comparison-cha
 const comparisonChangeFilterEl = document.getElementById("comparison-change-filter");
 const comparisonChangedOnlyEl = document.getElementById("comparison-changed-only");
 const comparisonChangeFilterStatusEl = document.getElementById("comparison-change-filter-status");
+
+const previousManifestFileFieldEl = document.getElementById("previous-manifest-file-field");
+const candidateManifestFileFieldEl = document.getElementById("candidate-manifest-file-field");
+const previousManifestFileStatusEl = document.getElementById("previous-manifest-file-status");
+const previousManifestFolderStatusEl = document.getElementById("previous-manifest-folder-status");
+const candidateManifestFileStatusEl = document.getElementById("candidate-manifest-file-status");
+const candidateManifestFolderStatusEl = document.getElementById("candidate-manifest-folder-status");
+const swapCompareButton = document.getElementById("swap-compare-button");
 
 const candidateChecklistEl = document.getElementById("candidate-checklist");
 const candidateChecklistListEl = document.getElementById("candidate-checklist-list");
@@ -134,6 +161,81 @@ linkMutuallyExclusiveInputs(previousFileInput, previousFolderInput);
 linkMutuallyExclusiveInputs(previousFolderInput, previousFileInput);
 linkMutuallyExclusiveInputs(candidateFileInput, candidateFolderInput);
 linkMutuallyExclusiveInputs(candidateFolderInput, candidateFileInput);
+
+// Sets an accessible, fixed-wording status for a single input without ever
+// revealing the selected filename or any manifest-controlled value.
+function setInputStatus(statusEl, state, message) {
+  statusEl.setAttribute("data-status", state);
+  statusEl.textContent = message;
+}
+
+function looksLikeJsonFile(file) {
+  if (!file) return false;
+  if (file.type === "application/json") return true;
+  const name = String(file.name || "").toLowerCase();
+  return name.endsWith(".json");
+}
+
+// Keeps a file input's status text in sync with selection state, using only
+// fixed, non-identifying wording (empty/ready/invalid).
+function wireFileInputStatus(input, statusEl, emptyText, kind, onSelected) {
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+    if (!file) {
+      setInputStatus(statusEl, "empty", emptyText);
+      return;
+    }
+    if (!looksLikeJsonFile(file)) {
+      setInputStatus(statusEl, "invalid", `Selected ${kind} does not look like a .json file.`);
+      return;
+    }
+    if (onSelected) onSelected();
+    setInputStatus(statusEl, "ready", `${kind} selected — ready to process.`);
+  });
+}
+
+wireFileInputStatus(fileInput, manifestFileStatusEl, "No file selected.", "manifest file");
+wireFileInputStatus(folderInput, manifestFolderStatusEl, "No folder selected.", "folder");
+wireFileInputStatus(previousFileInput, previousManifestFileStatusEl, "No file selected.", "previous manifest file", () => { pastedPreviousManifest = null; });
+wireFileInputStatus(previousFolderInput, previousManifestFolderStatusEl, "No folder selected.", "previous folder", () => { pastedPreviousManifest = null; });
+wireFileInputStatus(candidateFileInput, candidateManifestFileStatusEl, "No file selected.", "candidate manifest file", () => { pastedCurrentManifest = null; });
+wireFileInputStatus(candidateFolderInput, candidateManifestFolderStatusEl, "No folder selected.", "candidate folder", () => { pastedCurrentManifest = null; });
+
+// Wires a drop target so a single dropped .json file is accepted into the
+// given file input and any mutually exclusive folder input is cleared.
+// Multiple files or non-JSON files fail locally with fixed, accessible text.
+function setupDropZone(zoneEl, fileInput, otherInput, statusEl, kind, onAccepted) {
+  zoneEl.addEventListener("dragover", event => {
+    if (event.preventDefault) event.preventDefault();
+  });
+  zoneEl.addEventListener("drop", event => {
+    if (event.preventDefault) event.preventDefault();
+    const dataTransfer = event.dataTransfer;
+    const files = dataTransfer && dataTransfer.files ? Array.from(dataTransfer.files) : [];
+    if (files.length !== 1) {
+      setInputStatus(statusEl, "invalid", "Drop exactly one manifest.json file.");
+      return;
+    }
+    const file = files[0];
+    if (!looksLikeJsonFile(file)) {
+      setInputStatus(statusEl, "invalid", "Only a .json file can be dropped here.");
+      return;
+    }
+    try {
+      fileInput.files = dataTransfer.files;
+    } catch {
+      // Some environments do not allow programmatic assignment of dropped
+      // files; the status below still reflects the drop outcome.
+    }
+    if (otherInput) otherInput.value = "";
+    if (onAccepted) onAccepted();
+    setInputStatus(statusEl, "ready", `${kind} dropped — ready to process.`);
+  });
+}
+
+setupDropZone(manifestFileFieldEl, fileInput, folderInput, manifestFileStatusEl, "Manifest file");
+setupDropZone(previousManifestFileFieldEl, previousFileInput, previousFolderInput, previousManifestFileStatusEl, "Previous manifest file", () => { pastedPreviousManifest = null; });
+setupDropZone(candidateManifestFileFieldEl, candidateFileInput, candidateFolderInput, candidateManifestFileStatusEl, "Candidate manifest file", () => { pastedCurrentManifest = null; });
 
 // Disables a submit control, marks it and its form as busy, and shows a
 // plain-language loading label. Callers must always pass isLoading=false in
@@ -906,6 +1008,67 @@ function setCompareStatus(message) {
   compareStatusEl.textContent = message;
 }
 
+// Opens the paste-JSON panel with a blank textarea and no leftover status.
+pasteJsonButton.addEventListener("click", () => {
+  pasteJsonPanelEl.hidden = false;
+  pasteJsonTargetEl.value = "inspect";
+  pasteJsonTextareaEl.value = "";
+  pasteJsonStatusEl.textContent = "";
+});
+
+// Cancels the paste-JSON flow without importing anything and clears the
+// textarea so no pasted text lingers in the DOM.
+pasteJsonCancelButton.addEventListener("click", () => {
+  pasteJsonPanelEl.hidden = true;
+  pasteJsonTextareaEl.value = "";
+  pasteJsonStatusEl.textContent = "";
+});
+
+// Parses pasted JSON only in memory and imports it into the selected target.
+// The raw pasted text is discarded (textarea cleared) immediately once a
+// valid manifest object has been parsed, so it is never displayed again.
+pasteJsonConfirmButton.addEventListener("click", async () => {
+  let manifest;
+  try {
+    manifest = JSON.parse(pasteJsonTextareaEl.value);
+  } catch {
+    pasteJsonStatusEl.textContent = "The pasted text is not valid JSON.";
+    return;
+  }
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    pasteJsonStatusEl.textContent = "The pasted JSON must be an object.";
+    return;
+  }
+
+  const target = pasteJsonTargetEl.value;
+  pasteJsonTextareaEl.value = "";
+
+  if (target === "inspect") {
+    fileInput.value = "";
+    folderInput.value = "";
+    setInputStatus(manifestFileStatusEl, "ready", "Manifest imported via paste — ready to analyze.");
+    pasteJsonPanelEl.hidden = true;
+    pasteJsonStatusEl.textContent = "";
+    resetAnalysisResults();
+    await runAnalysis(manifest, false);
+    return;
+  }
+
+  if (target === "previous") {
+    pastedPreviousManifest = manifest;
+    previousFileInput.value = "";
+    previousFolderInput.value = "";
+    setInputStatus(previousManifestFileStatusEl, "ready", "Previous manifest imported via paste — ready to compare.");
+  } else {
+    pastedCurrentManifest = manifest;
+    candidateFileInput.value = "";
+    candidateFolderInput.value = "";
+    setInputStatus(candidateManifestFileStatusEl, "ready", "Candidate manifest imported via paste — ready to compare.");
+  }
+  pasteJsonPanelEl.hidden = true;
+  pasteJsonStatusEl.textContent = "";
+});
+
 function renderListDiff(title, diff) {
   const container = el("div", { className: "finding" });
   container.appendChild(el("strong", { text: title }));
@@ -1413,63 +1576,98 @@ async function runComparison(previousManifest, currentManifest, isExample) {
   }
 }
 
-compareForm.addEventListener("submit", async event => {
-  event.preventDefault();
-  resetComparisonResults();
+// Resolves one compare side's manifest, preferring an in-memory pasted
+// manifest over a selected file or folder. Reading only occurs here so both
+// drag-and-drop and paste imports share this same local-only path.
+async function resolveCompareSideManifest(fileInput, folderInput, pastedManifest, label) {
+  if (pastedManifest) return { manifest: pastedManifest, error: null };
 
+  let file = fileInput.files[0];
+  if (!file && folderInput.files.length > 0) {
+    const { file: folderManifest, error } = findRootManifestInFolder(folderInput.files);
+    if (error) return { manifest: null, error: `${label}: ${error}` };
+    file = folderManifest;
+  }
+  if (!file) return { manifest: null, error: null };
+
+  try {
+    const text = await readFileAsText(file);
+    const manifest = JSON.parse(text);
+    if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+      return { manifest: null, error: `${label}: the selected file must contain a JSON object.` };
+    }
+    return { manifest, error: null };
+  } catch {
+    return { manifest: null, error: `${label}: the selected file must be valid JSON.` };
+  }
+}
+
+async function performCompare() {
+  resetComparisonResults();
   setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, true, "Comparing...", "Compare locally");
   try {
-  let previousFile = previousFileInput.files[0];
-  if (!previousFile && previousFolderInput.files.length > 0) {
-    const { file: folderManifest, error } = findRootManifestInFolder(previousFolderInput.files);
-    if (error) {
-      setCompareStatus(`Previous release: ${error}`);
+    setCompareStatus("Reading local manifests...");
+    const previousResult = await resolveCompareSideManifest(previousFileInput, previousFolderInput, pastedPreviousManifest, "Previous release");
+    if (previousResult.error) {
+      setCompareStatus(previousResult.error);
       return;
     }
-    previousFile = folderManifest;
-  }
-
-  let candidateFile = candidateFileInput.files[0];
-  if (!candidateFile && candidateFolderInput.files.length > 0) {
-    const { file: folderManifest, error } = findRootManifestInFolder(candidateFolderInput.files);
-    if (error) {
-      setCompareStatus(`Candidate release: ${error}`);
+    const candidateResult = await resolveCompareSideManifest(candidateFileInput, candidateFolderInput, pastedCurrentManifest, "Candidate release");
+    if (candidateResult.error) {
+      setCompareStatus(candidateResult.error);
       return;
     }
-    candidateFile = folderManifest;
-  }
-
-  if (!previousFile || !candidateFile) {
-    setCompareStatus("Select both a previous and a candidate manifest.json file or folder.");
-    return;
-  }
-
-  setCompareStatus("Reading local files...");
-  let previousManifest;
-  let currentManifest;
-  try {
-    const [previousText, candidateText] = await Promise.all([
-      readFileAsText(previousFile),
-      readFileAsText(candidateFile)
-    ]);
-    previousManifest = JSON.parse(previousText);
-    currentManifest = JSON.parse(candidateText);
-  } catch {
-    setCompareStatus("Both selected files must be valid JSON.");
-    return;
-  }
-
-  if (
-    !previousManifest || typeof previousManifest !== "object" || Array.isArray(previousManifest)
-    || !currentManifest || typeof currentManifest !== "object" || Array.isArray(currentManifest)
-  ) {
-    setCompareStatus("Both selected files must contain a JSON object.");
-    return;
-  }
-
-  await runComparison(previousManifest, currentManifest, false);
+    if (!previousResult.manifest || !candidateResult.manifest) {
+      setCompareStatus("Select both a previous and a candidate manifest.json file, folder, or pasted JSON.");
+      return;
+    }
+    await runComparison(previousResult.manifest, candidateResult.manifest, false);
   } finally {
     setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, false, "Comparing...", "Compare locally");
+  }
+}
+
+compareForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  await performCompare();
+});
+
+// Swaps the previous and current compare sides (files, folders, pasted
+// manifests, and their local status text) and, if a comparison is already
+// shown, recomputes it locally against the swapped sides. No new data leaves
+// the browser: this only reorders manifests already held in memory.
+swapCompareButton.addEventListener("click", async () => {
+  const previousFiles = previousFileInput.files;
+  const candidateFiles = candidateFileInput.files;
+  try {
+    previousFileInput.files = candidateFiles;
+    candidateFileInput.files = previousFiles;
+  } catch {
+    // If direct FileList assignment is unavailable, pasted manifests and
+    // folders can still be swapped below.
+  }
+
+  const previousFolders = previousFolderInput.files;
+  const candidateFolders = candidateFolderInput.files;
+  try {
+    previousFolderInput.files = candidateFolders;
+    candidateFolderInput.files = previousFolders;
+  } catch {
+    // See note above.
+  }
+
+  const swappedPasted = pastedPreviousManifest;
+  pastedPreviousManifest = pastedCurrentManifest;
+  pastedCurrentManifest = swappedPasted;
+
+  const previousStatusText = previousManifestFileStatusEl.textContent;
+  previousManifestFileStatusEl.textContent = candidateManifestFileStatusEl.textContent;
+  candidateManifestFileStatusEl.textContent = previousStatusText;
+
+  setCompareStatus("Swapped the previous and current manifest selections.");
+
+  if (currentCompareReport) {
+    await performCompare();
   }
 });
 
@@ -1479,10 +1677,49 @@ compareExampleButton.addEventListener("click", async () => {
   previousFolderInput.value = "";
   candidateFileInput.value = "";
   candidateFolderInput.value = "";
+  pastedPreviousManifest = null;
+  pastedCurrentManifest = null;
   setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, true, "Comparing...", "Compare locally");
   try {
     await runComparison(EXAMPLE_PREVIOUS_MANIFEST, EXAMPLE_CANDIDATE_MANIFEST, true);
   } finally {
     setActionGroupLoading(compareSubmitButton, compareExampleButton, compareForm, false, "Comparing...", "Compare locally");
   }
+});
+
+// Removes every selected manifest reference, rendered result, filter,
+// checklist, transient error, and in-memory feedback status without a page
+// reload and without touching any persistence layer (there is none).
+clearWorkspaceButton.addEventListener("click", () => {
+  resetAnalysisResults();
+  resetComparisonResults();
+
+  fileInput.value = "";
+  folderInput.value = "";
+  previousFileInput.value = "";
+  previousFolderInput.value = "";
+  candidateFileInput.value = "";
+  candidateFolderInput.value = "";
+
+  pastedPreviousManifest = null;
+  pastedCurrentManifest = null;
+
+  setInputStatus(manifestFileStatusEl, "empty", "No file selected.");
+  setInputStatus(manifestFolderStatusEl, "empty", "No folder selected.");
+  setInputStatus(previousManifestFileStatusEl, "empty", "No file selected.");
+  setInputStatus(previousManifestFolderStatusEl, "empty", "No folder selected.");
+  setInputStatus(candidateManifestFileStatusEl, "empty", "No file selected.");
+  setInputStatus(candidateManifestFolderStatusEl, "empty", "No folder selected.");
+
+  pasteJsonPanelEl.hidden = true;
+  pasteJsonTextareaEl.value = "";
+  pasteJsonStatusEl.textContent = "";
+
+  setStatus("");
+  setCompareStatus("");
+  feedbackTemplateStatusEl.textContent = "";
+  exportStatusEl.textContent = "";
+  exportComparisonStatusEl.textContent = "";
+
+  clearWorkspaceStatusEl.textContent = "Workspace cleared. All local selections and results were removed.";
 });

@@ -149,28 +149,35 @@
     objects are sent to the local comparison endpoint.
   </p>
   <form id="compare-form" class="card">
-    <div class="field">
-      <label for="previous-manifest-file">Previous manifest.json</label>
+    <div class="field drop-zone" id="previous-manifest-file-field">
+      <label for="previous-manifest-file">Previous manifest.json (drop target: previous release)</label>
       <input type="file" id="previous-manifest-file" accept="application/json,.json">
+      <p id="previous-manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
     </div>
     <div class="field">
       <label for="previous-manifest-folder">Or previous unpacked extension folder</label>
       <input type="file" id="previous-manifest-folder" webkitdirectory directory multiple
         aria-describedby="compare-folder-help">
+      <p id="previous-manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
     </div>
-    <div class="field">
-      <label for="candidate-manifest-file">Candidate manifest.json</label>
+    <div class="field drop-zone" id="candidate-manifest-file-field">
+      <label for="candidate-manifest-file">Candidate manifest.json (drop target: current release)</label>
       <input type="file" id="candidate-manifest-file" accept="application/json,.json">
+      <p id="candidate-manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
     </div>
     <div class="field">
       <label for="candidate-manifest-folder">Or candidate unpacked extension folder</label>
       <input type="file" id="candidate-manifest-folder" webkitdirectory directory multiple
         aria-describedby="compare-folder-help">
+      <p id="candidate-manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
     </div>
     <div class="form-actions">
       <button type="submit" id="compare-submit" aria-busy="false">Compare locally</button>
       <button type="button" id="compare-example-button" class="secondary-button" aria-busy="false">
         Try built-in release comparison
+      </button>
+      <button type="button" id="swap-compare-button" class="secondary-button">
+        Swap previous/current
       </button>
     </div>
   </form>

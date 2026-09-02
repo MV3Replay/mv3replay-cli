@@ -339,7 +339,8 @@ test("app.js renders the candidate-release checklist as accessible checkboxes wi
 test("app.js resets candidate checklist state on each new comparison", async () => {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   assert.match(source, /let candidateChecklistState = \[\];/);
-  assert.match(source, /candidateChecklistState = \[\];[\s\S]*let previousFile = previousFileInput\.files\[0\]/);
+  assert.match(source, /candidateChecklistState = \[\];[\s\S]*async function performCompare\(\)/);
+  assert.match(source, /async function performCompare\(\)[\s\S]*resetComparisonResults\(\)/);
 });
 
 test("app.js exports the comparison and candidate checklist only via a user-triggered local download", async () => {
