@@ -95,6 +95,14 @@ const resetChecklistButton = document.getElementById("reset-checklist");
 const checklistAddInputEl = document.getElementById("checklist-add-input");
 const checklistAddButtonEl = document.getElementById("checklist-add-button");
 const checklistAddStatusEl = document.getElementById("checklist-add-status");
+const exportChecklistTemplateButton = document.getElementById("export-checklist-template");
+const importChecklistTemplateInputEl = document.getElementById("import-checklist-template-input");
+const importChecklistTemplateModeEl = document.getElementById("import-checklist-template-mode");
+const importChecklistTemplateStatusEl = document.getElementById("import-checklist-template-status");
+const importChecklistTemplatePreviewEl = document.getElementById("import-checklist-template-preview");
+const importChecklistTemplatePreviewTextEl = document.getElementById("import-checklist-template-preview-text");
+const importChecklistTemplateApplyButton = document.getElementById("import-checklist-template-apply");
+const importChecklistTemplateCancelButton = document.getElementById("import-checklist-template-cancel");
 const exportButton = document.getElementById("export-checklist");
 const exportMarkdownButton = document.getElementById("export-checklist-markdown");
 const exportAnalysisSafeSummaryButton = document.getElementById("export-analysis-safe-summary");
@@ -227,6 +235,14 @@ const resetCandidateChecklistButton = document.getElementById("reset-candidate-c
 const candidateChecklistAddInputEl = document.getElementById("candidate-checklist-add-input");
 const candidateChecklistAddButtonEl = document.getElementById("candidate-checklist-add-button");
 const candidateChecklistAddStatusEl = document.getElementById("candidate-checklist-add-status");
+const exportCandidateChecklistTemplateButton = document.getElementById("export-candidate-checklist-template");
+const importCandidateChecklistTemplateInputEl = document.getElementById("import-candidate-checklist-template-input");
+const importCandidateChecklistTemplateModeEl = document.getElementById("import-candidate-checklist-template-mode");
+const importCandidateChecklistTemplateStatusEl = document.getElementById("import-candidate-checklist-template-status");
+const importCandidateChecklistTemplatePreviewEl = document.getElementById("import-candidate-checklist-template-preview");
+const importCandidateChecklistTemplatePreviewTextEl = document.getElementById("import-candidate-checklist-template-preview-text");
+const importCandidateChecklistTemplateApplyButton = document.getElementById("import-candidate-checklist-template-apply");
+const importCandidateChecklistTemplateCancelButton = document.getElementById("import-candidate-checklist-template-cancel");
 const exportComparisonButton = document.getElementById("export-comparison");
 const exportComparisonMarkdownButton = document.getElementById("export-comparison-markdown");
 const exportComparisonSafeSummaryButton = document.getElementById("export-comparison-safe-summary");
@@ -1454,6 +1470,225 @@ const candidateChecklistConfig = {
 wireCustomChecklistAdd(checklistConfig, checklistAddInputEl, checklistAddButtonEl, checklistAddStatusEl);
 wireCustomChecklistAdd(candidateChecklistConfig, candidateChecklistAddInputEl, candidateChecklistAddButtonEl, candidateChecklistAddStatusEl);
 
+// --- Local checklist template export/import (custom items only) -------
+//
+// A checklist template is a small, fixed-schema local JSON document
+// containing only custom check text and order — never completion state,
+// private notes, finding data, manifest data, or any identity. Import
+// parses entirely in memory (FileReader + JSON.parse) under a fixed 64 KiB
+// size limit, with generic fixed-wording errors that never echo file
+// content or filename. A validated import is only ever staged as a preview
+// (fixed counts only) until the user explicitly clicks Apply; Cancel
+// discards the staged template without changing the checklist.
+const CHECKLIST_TEMPLATE_VERSION = 1;
+const CHECKLIST_TEMPLATE_MAX_BYTES = 65536;
+const MAX_CHECKLIST_TEMPLATE_ITEMS = 200;
+const CHECKLIST_TEMPLATE_ALLOWED_KEYS = ["version", "items"];
+const CHECKLIST_TEMPLATE_ITEM_ALLOWED_KEYS = ["text", "order"];
+const CHECKLIST_TEMPLATE_GENERIC_ERROR = "The selected checklist template could not be imported.";
+
+function hasExactKeys(value, allowedKeys) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length !== allowedKeys.length) return false;
+  return allowedKeys.every(key => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function buildChecklistTemplate(state) {
+  const items = state
+    .filter(entry => entry.custom)
+    .map((entry, index) => ({ text: entry.check, order: index }));
+  return { version: CHECKLIST_TEMPLATE_VERSION, items };
+}
+
+// Strictly validates a parsed checklist template: exact allowed top-level
+// and item keys, an exact fixed version, a bounded array length, integer
+// order values matching array position, and unique trimmed item text
+// within the documented custom-check length limits. Any single violation
+// rejects the whole template atomically — never a partial import.
+function validateChecklistTemplate(parsed) {
+  if (!hasExactKeys(parsed, CHECKLIST_TEMPLATE_ALLOWED_KEYS)) return { valid: false };
+  if (parsed.version !== CHECKLIST_TEMPLATE_VERSION) return { valid: false };
+  if (!Array.isArray(parsed.items) || parsed.items.length > MAX_CHECKLIST_TEMPLATE_ITEMS) return { valid: false };
+
+  const seen = new Set();
+  const items = [];
+  for (let index = 0; index < parsed.items.length; index += 1) {
+    const rawItem = parsed.items[index];
+    if (!hasExactKeys(rawItem, CHECKLIST_TEMPLATE_ITEM_ALLOWED_KEYS)) return { valid: false };
+    if (typeof rawItem.text !== "string") return { valid: false };
+    if (!Number.isInteger(rawItem.order) || rawItem.order !== index) return { valid: false };
+    const text = rawItem.text.trim();
+    if (text.length < MIN_CUSTOM_CHECK_LENGTH || text.length > MAX_CUSTOM_CHECK_LENGTH) return { valid: false };
+    const key = text.toLowerCase();
+    if (seen.has(key)) return { valid: false };
+    seen.add(key);
+    items.push(text);
+  }
+  return { valid: true, items };
+}
+
+// Computes fixed, count-only preview figures for a staged import against
+// one checklist's current custom items. Built-in checks are never counted
+// as removable and never included in either mode's replacement count.
+function computeChecklistImportPreview(config, items, mode) {
+  const customItems = config.getState().filter(entry => entry.custom);
+  const existing = new Set(customItems.map(entry => entry.check.trim().toLowerCase()));
+  let additions = 0;
+  let duplicates = 0;
+  for (const text of items) {
+    const key = text.toLowerCase();
+    if (mode === "merge" && existing.has(key)) {
+      duplicates += 1;
+    } else {
+      additions += 1;
+      existing.add(key);
+    }
+  }
+  const replacements = mode === "replace" ? customItems.length : 0;
+  return { additions, duplicates, replacements };
+}
+
+function checklistImportPreviewText(preview, mode) {
+  return mode === "replace"
+    ? `Preview: ${preview.additions} custom check${preview.additions === 1 ? "" : "s"} to add, ${preview.replacements} existing custom check${preview.replacements === 1 ? "" : "s"} will be replaced. Built-in checks are never removed.`
+    : `Preview: ${preview.additions} custom check${preview.additions === 1 ? "" : "s"} to add, ${preview.duplicates} duplicate${preview.duplicates === 1 ? "" : "s"} will be skipped. Built-in checks are never removed.`;
+}
+
+// Applies a validated, staged template to one checklist. Replace mode only
+// ever removes that checklist's existing custom items (built-in checks are
+// untouched); merge mode skips any item whose trimmed text already matches
+// an existing custom item, case-insensitively.
+function applyChecklistImport(config, items, mode) {
+  if (mode === "replace") {
+    const customEntries = config.getState().filter(entry => entry.custom);
+    for (const entry of customEntries) deleteCustomChecklistItem(config, entry);
+  }
+  const existing = new Set(config.getState().filter(entry => entry.custom).map(entry => entry.check.trim().toLowerCase()));
+  for (const text of items) {
+    const key = text.toLowerCase();
+    if (mode === "merge" && existing.has(key)) continue;
+    existing.add(key);
+    const id = `${config.idPrefix}-custom-${config.nextCustomId()}`;
+    createChecklistEntry(config, id, "Custom check", text, true);
+  }
+  syncChecklistOrder(config);
+  config.updateProgress();
+}
+
+// Wires export, import, preview, apply, and cancel controls for one
+// checklist (inspect or candidate). Returns a reset function callers use to
+// discard any staged preview and clear transient status/file selection
+// (e.g. on result reset or workspace clear).
+function wireChecklistTemplateWorkflow(config, elements) {
+  let pending = null;
+
+  function resetPreview() {
+    pending = null;
+    elements.previewEl.hidden = true;
+    elements.previewTextEl.textContent = "";
+  }
+
+  elements.exportButton.addEventListener("click", () => {
+    const template = buildChecklistTemplate(config.getState());
+    downloadLocalFile(
+      "mv3-replay-checklist-template.json",
+      JSON.stringify(template, null, 2),
+      "application/json"
+    );
+    elements.statusEl.textContent = "Checklist template exported to a local JSON file.";
+  });
+
+  elements.fileInput.addEventListener("change", async () => {
+    resetPreview();
+    const file = elements.fileInput.files[0];
+    elements.fileInput.value = "";
+    if (!file) return;
+    if (file.size > CHECKLIST_TEMPLATE_MAX_BYTES) {
+      elements.statusEl.textContent = CHECKLIST_TEMPLATE_GENERIC_ERROR;
+      return;
+    }
+    let text;
+    try {
+      text = await readFileAsText(file);
+    } catch {
+      elements.statusEl.textContent = CHECKLIST_TEMPLATE_GENERIC_ERROR;
+      return;
+    }
+    if (text.length > CHECKLIST_TEMPLATE_MAX_BYTES) {
+      elements.statusEl.textContent = CHECKLIST_TEMPLATE_GENERIC_ERROR;
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      elements.statusEl.textContent = CHECKLIST_TEMPLATE_GENERIC_ERROR;
+      return;
+    }
+    const result = validateChecklistTemplate(parsed);
+    if (!result.valid) {
+      elements.statusEl.textContent = CHECKLIST_TEMPLATE_GENERIC_ERROR;
+      return;
+    }
+    const mode = elements.modeSelect.value === "replace" ? "replace" : "merge";
+    pending = { items: result.items, mode };
+    const preview = computeChecklistImportPreview(config, pending.items, mode);
+    elements.previewTextEl.textContent = checklistImportPreviewText(preview, mode);
+    elements.previewEl.hidden = false;
+    elements.statusEl.textContent = "Checklist template validated locally. Review the preview, then apply or cancel.";
+  });
+
+  elements.modeSelect.addEventListener("change", () => {
+    if (!pending) return;
+    pending.mode = elements.modeSelect.value === "replace" ? "replace" : "merge";
+    const preview = computeChecklistImportPreview(config, pending.items, pending.mode);
+    elements.previewTextEl.textContent = checklistImportPreviewText(preview, pending.mode);
+  });
+
+  elements.applyButton.addEventListener("click", () => {
+    if (!pending) return;
+    applyChecklistImport(config, pending.items, pending.mode);
+    resetPreview();
+    elements.statusEl.textContent = "Checklist template applied.";
+  });
+
+  elements.cancelButton.addEventListener("click", () => {
+    if (!pending) return;
+    resetPreview();
+    elements.statusEl.textContent = "Checklist template import canceled.";
+  });
+
+  return function resetChecklistTemplateWorkflow() {
+    resetPreview();
+    elements.fileInput.value = "";
+    elements.modeSelect.value = "merge";
+    elements.statusEl.textContent = "";
+  };
+}
+
+const resetInspectChecklistTemplate = wireChecklistTemplateWorkflow(checklistConfig, {
+  exportButton: exportChecklistTemplateButton,
+  fileInput: importChecklistTemplateInputEl,
+  modeSelect: importChecklistTemplateModeEl,
+  statusEl: importChecklistTemplateStatusEl,
+  previewEl: importChecklistTemplatePreviewEl,
+  previewTextEl: importChecklistTemplatePreviewTextEl,
+  applyButton: importChecklistTemplateApplyButton,
+  cancelButton: importChecklistTemplateCancelButton
+});
+
+const resetCandidateChecklistTemplate = wireChecklistTemplateWorkflow(candidateChecklistConfig, {
+  exportButton: exportCandidateChecklistTemplateButton,
+  fileInput: importCandidateChecklistTemplateInputEl,
+  modeSelect: importCandidateChecklistTemplateModeEl,
+  statusEl: importCandidateChecklistTemplateStatusEl,
+  previewEl: importCandidateChecklistTemplatePreviewEl,
+  previewTextEl: importCandidateChecklistTemplatePreviewTextEl,
+  applyButton: importCandidateChecklistTemplateApplyButton,
+  cancelButton: importCandidateChecklistTemplateCancelButton
+});
+
 checklistFilterEl.addEventListener("change", () => {
   applyChecklistFilter(checklistState, checklistFilterEl.value, checklistFilterStatusEl);
 });
@@ -1816,6 +2051,7 @@ function resetAnalysisResults() {
   exportButton.disabled = true;
   exportMarkdownButton.disabled = true;
   exportAnalysisSafeSummaryButton.disabled = true;
+  resetInspectChecklistTemplate();
   currentReport = null;
   checklistState = [];
   checklistCustomCounter = 0;
@@ -2446,6 +2682,7 @@ function resetComparisonResults() {
   exportComparisonButton.disabled = true;
   exportComparisonMarkdownButton.disabled = true;
   exportComparisonSafeSummaryButton.disabled = true;
+  resetCandidateChecklistTemplate();
   currentCompareReport = null;
   currentCandidateAnalysis = null;
   candidateChecklistState = [];

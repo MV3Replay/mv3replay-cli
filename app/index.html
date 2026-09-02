@@ -233,6 +233,26 @@
       <button type="button" id="checklist-add-button">Add check</button>
       <p id="checklist-add-status" role="status" aria-live="polite"></p>
     </div>
+    <div class="checklist-template" id="checklist-template">
+      <h3 id="checklist-template-heading">Checklist template (custom checks only, local JSON)</h3>
+      <p>Templates contain only custom check text and order — never completion, notes, findings, or manifest data.</p>
+      <button type="button" id="export-checklist-template" class="secondary-button">
+        Export checklist template
+      </button>
+      <label for="import-checklist-template-input">Import checklist template</label>
+      <input type="file" id="import-checklist-template-input" accept="application/json,.json">
+      <label for="import-checklist-template-mode">Import mode</label>
+      <select id="import-checklist-template-mode">
+        <option value="merge">Merge with existing custom checks</option>
+        <option value="replace">Replace existing custom checks</option>
+      </select>
+      <p id="import-checklist-template-status" role="status" aria-live="polite"></p>
+      <div id="import-checklist-template-preview" class="import-preview" hidden>
+        <p id="import-checklist-template-preview-text"></p>
+        <button type="button" id="import-checklist-template-apply">Apply import</button>
+        <button type="button" id="import-checklist-template-cancel" class="secondary-button">Cancel</button>
+      </div>
+    </div>
     <ul id="checklist-list"></ul>
     <div class="export-actions">
       <button type="button" id="export-checklist" disabled>
@@ -379,6 +399,26 @@
       <input type="text" id="candidate-checklist-add-input" maxlength="200" aria-describedby="candidate-checklist-add-status">
       <button type="button" id="candidate-checklist-add-button">Add check</button>
       <p id="candidate-checklist-add-status" role="status" aria-live="polite"></p>
+    </div>
+    <div class="checklist-template" id="candidate-checklist-template">
+      <h3 id="candidate-checklist-template-heading">Checklist template (custom checks only, local JSON)</h3>
+      <p>Templates contain only custom check text and order — never completion, notes, findings, or manifest data.</p>
+      <button type="button" id="export-candidate-checklist-template" class="secondary-button">
+        Export checklist template
+      </button>
+      <label for="import-candidate-checklist-template-input">Import checklist template</label>
+      <input type="file" id="import-candidate-checklist-template-input" accept="application/json,.json">
+      <label for="import-candidate-checklist-template-mode">Import mode</label>
+      <select id="import-candidate-checklist-template-mode">
+        <option value="merge">Merge with existing custom checks</option>
+        <option value="replace">Replace existing custom checks</option>
+      </select>
+      <p id="import-candidate-checklist-template-status" role="status" aria-live="polite"></p>
+      <div id="import-candidate-checklist-template-preview" class="import-preview" hidden>
+        <p id="import-candidate-checklist-template-preview-text"></p>
+        <button type="button" id="import-candidate-checklist-template-apply">Apply import</button>
+        <button type="button" id="import-candidate-checklist-template-cancel" class="secondary-button">Cancel</button>
+      </div>
     </div>
     <ul id="candidate-checklist-list"></ul>
     <div class="export-actions">
