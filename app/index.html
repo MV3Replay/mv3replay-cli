@@ -227,6 +227,16 @@
       <button type="button" id="reset-checklist" class="secondary-button">Reset checks</button>
       <span id="checklist-filter-status" role="status" aria-live="polite"></span>
     </div>
+    <div id="analysis-history-controls" class="checklist-controls">
+      <button type="button" id="analysis-undo-button" class="secondary-button" disabled>Undo</button>
+      <button type="button" id="analysis-redo-button" class="secondary-button" disabled>Redo</button>
+      <button type="button" id="analysis-clear-history-button" class="secondary-button">Clear history</button>
+      <span id="analysis-history-status" role="status" aria-live="polite"></span>
+    </div>
+    <div id="analysis-history-panel" class="history-panel" aria-labelledby="analysis-history-heading">
+      <h3 id="analysis-history-heading">Action history (memory only, up to 10)</h3>
+      <ul id="analysis-history-list"></ul>
+    </div>
     <div class="checklist-add" id="checklist-add">
       <label for="checklist-add-input">Add custom check (3–200 characters)</label>
       <input type="text" id="checklist-add-input" maxlength="200" aria-describedby="checklist-add-status">

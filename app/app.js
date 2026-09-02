@@ -1689,6 +1689,150 @@ const resetCandidateChecklistTemplate = wireChecklistTemplateWorkflow(candidateC
   cancelButton: importCandidateChecklistTemplateCancelButton
 });
 
+// Memory-only undo/redo for checklist and finding-triage actions. Snapshots
+// never leave the page and fixed labels never include manifest-controlled data.
+const MAX_ACTION_HISTORY = 10;
+
+function snapshotChecklistState(state) {
+  return state.map(({ id, laneId, check, done, custom, note }) => ({ id, laneId, check, done, custom, note: note || "" }));
+}
+
+function snapshotFindingState(entries) {
+  return entries.map(({ findingId, pinned, acknowledged, note }) => ({ findingId, pinned, acknowledged, note: note || "" }));
+}
+
+function restoreChecklistSnapshot(config, snapshot) {
+  const state = config.getState();
+  const byId = new Map(state.map(entry => [entry.id, entry]));
+  const nextState = [];
+  for (const item of snapshot) {
+    let entry = byId.get(item.id);
+    if (entry) byId.delete(item.id);
+    else entry = createChecklistEntry(config, item.id, item.laneId, item.check, item.custom);
+    entry.done = item.done;
+    entry.checkbox.checked = item.done;
+    entry.check = item.check;
+    entry.label.textContent = `${item.laneId}: ${item.check}`;
+    entry.note = item.note || "";
+    entry.noteTextarea.value = entry.note;
+    entry.noteToggle.textContent = entry.note.trim() ? "Edit private note" : "Add private note";
+    nextState.push(entry);
+  }
+  state.length = 0;
+  for (const entry of nextState) state.push(entry);
+  syncChecklistOrder(config);
+  config.updateProgress();
+}
+
+function restoreFindingSnapshot(entries, getContainerEl, snapshot) {
+  const byId = new Map(entries.map(entry => [entry.findingId, entry]));
+  for (const item of snapshot) {
+    const entry = byId.get(item.findingId);
+    if (!entry) continue;
+    entry.pinned = item.pinned;
+    entry.acknowledged = item.acknowledged;
+    entry.note = item.note || "";
+    entry.pinButton.setAttribute("aria-pressed", entry.pinned ? "true" : "false");
+    entry.pinButton.textContent = entry.pinned ? "Unpin" : "Pin";
+    entry.ackButton.setAttribute("aria-pressed", entry.acknowledged ? "true" : "false");
+    entry.ackButton.textContent = entry.acknowledged ? "Unacknowledge" : "Acknowledge";
+    entry.noteTextarea.value = entry.note;
+    entry.noteToggle.textContent = entry.note.trim() ? "Edit private note" : "Add private note";
+    updateFindingNodeClass(entry);
+  }
+  sortFindingsContainer(getContainerEl(), entries);
+}
+
+function createActionHistory(options) {
+  const history = {
+    undoStack: [],
+    redoStack: [],
+    snapshot(label) {
+      return {
+        label,
+        checklist: snapshotChecklistState(options.getChecklistState()),
+        findings: snapshotFindingState(options.getFindingEntries())
+      };
+    },
+    record(label) {
+      history.undoStack.push(history.snapshot(label));
+      if (history.undoStack.length > MAX_ACTION_HISTORY) history.undoStack.shift();
+      history.redoStack = [];
+      options.onChange();
+    },
+    undo() {
+      if (history.undoStack.length === 0) return;
+      const target = history.undoStack.pop();
+      history.redoStack.push(history.snapshot(target.label));
+      if (history.redoStack.length > MAX_ACTION_HISTORY) history.redoStack.shift();
+      options.restore(target.checklist, target.findings);
+      options.onChange();
+    },
+    redo() {
+      if (history.redoStack.length === 0) return;
+      const target = history.redoStack.pop();
+      history.undoStack.push(history.snapshot(target.label));
+      if (history.undoStack.length > MAX_ACTION_HISTORY) history.undoStack.shift();
+      options.restore(target.checklist, target.findings);
+      options.onChange();
+    },
+    clear() {
+      history.undoStack = [];
+      history.redoStack = [];
+      options.onChange();
+    }
+  };
+  return history;
+}
+
+function renderActionHistoryPanel(history, listEl, undoButton, redoButton, statusEl) {
+  listEl.textContent = "";
+  for (const entry of history.undoStack) listEl.appendChild(el("li", { text: entry.label }));
+  undoButton.disabled = history.undoStack.length === 0;
+  redoButton.disabled = history.redoStack.length === 0;
+  statusEl.textContent = `${history.undoStack.length} action${history.undoStack.length === 1 ? "" : "s"} available to undo.`;
+}
+
+const analysisHistory = createActionHistory({
+  getChecklistState: () => checklistState,
+  getFindingEntries: () => analysisFindingNodes,
+  restore: (checklistSnapshot, findingsSnapshot) => {
+    restoreChecklistSnapshot(checklistConfig, checklistSnapshot);
+    restoreFindingSnapshot(analysisFindingNodes, () => analysisFindingsContentEl, findingsSnapshot);
+    analysisTriageOnChange();
+  },
+  onChange: () => renderActionHistoryPanel(analysisHistory, analysisHistoryListEl, analysisUndoButton, analysisRedoButton, analysisHistoryStatusEl)
+});
+checklistConfig.history = analysisHistory;
+
+const comparisonHistory = createActionHistory({
+  getChecklistState: () => candidateChecklistState,
+  getFindingEntries: () => comparisonFindingNodes,
+  restore: (checklistSnapshot, findingsSnapshot) => {
+    restoreChecklistSnapshot(candidateChecklistConfig, checklistSnapshot);
+    restoreFindingSnapshot(comparisonFindingNodes, () => comparisonFindingsContentEl, findingsSnapshot);
+    comparisonTriageOnChange();
+  },
+  onChange: () => renderActionHistoryPanel(comparisonHistory, comparisonHistoryListEl, comparisonUndoButton, comparisonRedoButton, comparisonHistoryStatusEl)
+});
+candidateChecklistConfig.history = comparisonHistory;
+
+analysisUndoButton.addEventListener("click", () => analysisHistory.undo());
+analysisRedoButton.addEventListener("click", () => analysisHistory.redo());
+analysisClearHistoryButton.addEventListener("click", () => {
+  analysisHistory.clear();
+  analysisHistoryStatusEl.textContent = "Action history cleared. Current checklist and triage state is unchanged.";
+});
+comparisonUndoButton.addEventListener("click", () => comparisonHistory.undo());
+comparisonRedoButton.addEventListener("click", () => comparisonHistory.redo());
+comparisonClearHistoryButton.addEventListener("click", () => {
+  comparisonHistory.clear();
+  comparisonHistoryStatusEl.textContent = "Action history cleared. Current checklist and triage state is unchanged.";
+});
+
+renderActionHistoryPanel(analysisHistory, analysisHistoryListEl, analysisUndoButton, analysisRedoButton, analysisHistoryStatusEl);
+renderActionHistoryPanel(comparisonHistory, comparisonHistoryListEl, comparisonUndoButton, comparisonRedoButton, comparisonHistoryStatusEl);
+
 checklistFilterEl.addEventListener("change", () => {
   applyChecklistFilter(checklistState, checklistFilterEl.value, checklistFilterStatusEl);
 });
