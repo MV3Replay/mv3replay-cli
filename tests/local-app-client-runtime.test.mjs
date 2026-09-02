@@ -69,6 +69,39 @@ function collectText(node) {
   return [node.textContent, ...node.children.flatMap(collectText)].filter(Boolean).join(" ");
 }
 
+// A minimal FileReader stand-in so the real client-side
+// readFileAsText()/FileReader.readAsText() code path used by checklist
+// template import can run under this harness. Only reads the fixed
+// `content` string property test fixtures set on their fake File objects.
+class FakeFileReader {
+  readAsText(file) {
+    Promise.resolve().then(() => {
+      if (!file || typeof file.content !== "string") {
+        if (this.onerror) this.onerror();
+        return;
+      }
+      this.result = file.content;
+      if (this.onload) this.onload();
+    });
+  }
+}
+
+function makeChecklistTemplateFile(content, sizeOverride) {
+  return {
+    name: "template.json",
+    type: "application/json",
+    content,
+    size: sizeOverride !== undefined ? sizeOverride : content.length
+  };
+}
+
+async function importChecklistTemplate(elements, idPrefix, content, { sizeOverride, mode } = {}) {
+  const fileInput = elements.get(`${idPrefix}-input`);
+  if (mode) elements.get(`${idPrefix}-mode`).value = mode;
+  fileInput.files = [makeChecklistTemplateFile(content, sizeOverride)];
+  await fileInput.listeners.get("change")();
+}
+
 async function createClientHarness({ identicalComparison = false, unmodeledCoverage = false, sensitiveValues = false } = {}) {
   const source = await readFile(new URL("../app/app.js", import.meta.url), "utf8");
   const elements = new Map();
@@ -215,6 +248,7 @@ async function createClientHarness({ identicalComparison = false, unmodeledCover
     },
     Blob,
     console,
+    FileReader: FakeFileReader,
     URL: {
       createObjectURL: blob => {
         createdBlobs.push(blob);
@@ -1217,5 +1251,181 @@ test("typing in a search field never steals focus to a result heading", async ()
   search.listeners.get("input")();
 
   assert.equal(elements.get("report-heading").focused, false);
+});
+
+test("checklist template export contains only a fixed version and ordered custom item text, never completion or notes", async () => {
+  const { elements, createdBlobs, createdElements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const input = elements.get("checklist-add-input");
+  input.value = "Verify custom permission dialog";
+  elements.get("checklist-add-button").listeners.get("click")();
+  input.value = "Second custom check";
+  elements.get("checklist-add-button").listeners.get("click")();
+
+  const firstCustomItem = elements.get("checklist-list").children[1];
+  firstCustomItem.children[0].checked = true;
+  firstCustomItem.children[0].listeners.get("change")();
+
+  elements.get("export-checklist-template").listeners.get("click")();
+
+  const link = createdElements.find(element => element.download === "mv3-replay-checklist-template.json");
+  assert.ok(link);
+  assert.equal(createdBlobs.length, 1);
+  const parsed = JSON.parse(await createdBlobs[0].text());
+  assert.deepEqual(Object.keys(parsed).sort(), ["items", "version"]);
+  assert.equal(parsed.version, 1);
+  assert.deepEqual(parsed.items, [
+    { text: "Verify custom permission dialog", order: 0 },
+    { text: "Second custom check", order: 1 }
+  ]);
+  assert.match(elements.get("import-checklist-template-status").textContent, /exported to a local JSON file/);
+});
+
+test("a checklist template file over the fixed 64 KiB limit is rejected atomically before parsing", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const before = elements.get("checklist-list").children.length;
+
+  await importChecklistTemplate(elements, "import-checklist-template", "{}", { sizeOverride: 65537 });
+
+  assert.equal(elements.get("import-checklist-template-status").textContent, "The selected checklist template could not be imported.");
+  assert.equal(elements.get("import-checklist-template-preview").hidden, true);
+  assert.equal(elements.get("checklist-list").children.length, before);
+});
+
+test("malformed JSON and unknown-key checklist templates are rejected atomically with the same fixed generic error", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const before = elements.get("checklist-list").children.length;
+
+  await importChecklistTemplate(elements, "import-checklist-template", "{not json");
+  assert.equal(elements.get("import-checklist-template-status").textContent, "The selected checklist template could not be imported.");
+
+  await importChecklistTemplate(elements, "import-checklist-template", JSON.stringify({
+    version: 1, items: [{ text: "Valid check text", order: 0 }], extra: true
+  }));
+  assert.equal(elements.get("import-checklist-template-status").textContent, "The selected checklist template could not be imported.");
+
+  await importChecklistTemplate(elements, "import-checklist-template", JSON.stringify({
+    version: 1, items: [{ text: "Valid check text", order: 0, unexpected: "x" }]
+  }));
+  assert.equal(elements.get("import-checklist-template-status").textContent, "The selected checklist template could not be imported.");
+  assert.equal(elements.get("import-checklist-template-preview").hidden, true);
+  assert.equal(elements.get("checklist-list").children.length, before);
+});
+
+test("merge mode previews and applies additions while skipping case-insensitive duplicates of existing custom items", async () => {
+  const { elements, requests } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const addInput = elements.get("checklist-add-input");
+  addInput.value = "Existing custom check";
+  elements.get("checklist-add-button").listeners.get("click")();
+
+  const template = JSON.stringify({
+    version: 1,
+    items: [
+      { text: "existing custom check", order: 0 },
+      { text: "Brand new custom check", order: 1 }
+    ]
+  });
+  await importChecklistTemplate(elements, "import-checklist-template", template, { mode: "merge" });
+
+  assert.match(elements.get("import-checklist-template-preview-text").textContent, /1 custom check to add, 1 duplicate will be skipped/);
+  assert.equal(elements.get("import-checklist-template-preview").hidden, false);
+
+  elements.get("import-checklist-template-apply").listeners.get("click")();
+  const customTexts = elements.get("checklist-list").children
+    .filter(item => item.className.includes("custom"))
+    .map(collectText);
+  assert.equal(customTexts.length, 2);
+  assert.ok(customTexts.some(text => text.includes("Existing custom check")));
+  assert.ok(customTexts.some(text => text.includes("Brand new custom check")));
+  assert.equal(elements.get("import-checklist-template-status").textContent, "Checklist template applied.");
+  assert.equal(elements.get("import-checklist-template-preview").hidden, true);
+  assert.equal(requests.length, 1);
+});
+
+test("replace mode replaces only existing custom items and leaves built-in checks untouched", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const builtInCount = elements.get("checklist-list").children.length;
+
+  const addInput = elements.get("checklist-add-input");
+  addInput.value = "Old custom check to be replaced";
+  elements.get("checklist-add-button").listeners.get("click")();
+
+  const template = JSON.stringify({ version: 1, items: [{ text: "Replacement custom check", order: 0 }] });
+  await importChecklistTemplate(elements, "import-checklist-template", template, { mode: "replace" });
+  assert.match(elements.get("import-checklist-template-preview-text").textContent, /1 custom check to add, 1 existing custom check will be replaced/);
+
+  elements.get("import-checklist-template-apply").listeners.get("click")();
+  const items = elements.get("checklist-list").children;
+  assert.equal(items.length, builtInCount + 1);
+  const customTexts = items.filter(item => item.className.includes("custom")).map(collectText);
+  assert.equal(customTexts.length, 1);
+  assert.ok(customTexts[0].includes("Replacement custom check"));
+  assert.doesNotMatch(collectText(elements.get("checklist-list")), /Old custom check to be replaced/);
+});
+
+test("canceling a staged checklist template import discards it without changing the checklist", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+  const before = elements.get("checklist-list").children.length;
+
+  await importChecklistTemplate(elements, "import-checklist-template", JSON.stringify({
+    version: 1, items: [{ text: "Should never be applied", order: 0 }]
+  }));
+  assert.equal(elements.get("import-checklist-template-preview").hidden, false);
+
+  elements.get("import-checklist-template-cancel").listeners.get("click")();
+  assert.equal(elements.get("import-checklist-template-preview").hidden, true);
+  assert.equal(elements.get("checklist-list").children.length, before);
+  assert.equal(elements.get("import-checklist-template-status").textContent, "Checklist template import canceled.");
+  assert.doesNotMatch(collectText(elements.get("checklist-list")), /Should never be applied/);
+});
+
+test("inspect and candidate checklist template import/export state stay fully isolated", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("compare-example-button").listeners.get("click")();
+
+  await importChecklistTemplate(elements, "import-checklist-template", JSON.stringify({
+    version: 1, items: [{ text: "Inspect staged check", order: 0 }]
+  }));
+  const inspectPreviewText = elements.get("import-checklist-template-preview-text").textContent;
+  const inspectStatus = elements.get("import-checklist-template-status").textContent;
+  assert.equal(elements.get("import-checklist-template-preview").hidden, false);
+
+  const candidateAdd = elements.get("candidate-checklist-add-input");
+  candidateAdd.value = "Candidate-only custom check";
+  elements.get("candidate-checklist-add-button").listeners.get("click")();
+
+  await importChecklistTemplate(elements, "import-candidate-checklist-template", JSON.stringify({
+    version: 1, items: [{ text: "Candidate imported check", order: 0 }]
+  }), { mode: "merge" });
+  elements.get("import-candidate-checklist-template-apply").listeners.get("click")();
+
+  assert.match(collectText(elements.get("candidate-checklist-list")), /Candidate imported check/);
+  assert.equal(elements.get("import-checklist-template-status").textContent, inspectStatus);
+  assert.equal(elements.get("import-checklist-template-preview-text").textContent, inspectPreviewText);
+  assert.equal(elements.get("import-checklist-template-preview").hidden, false);
+  assert.doesNotMatch(collectText(elements.get("checklist-list")), /Candidate imported check/);
+});
+
+test("checklist template import status and preview never echo the selected filename or raw item text", async () => {
+  const { elements } = await createClientHarness();
+  await elements.get("analyze-example-button").listeners.get("click")();
+
+  const secretContent = JSON.stringify({ version: 1, items: [{ text: "SECRET_CHECK_TEXT_XYZ", order: 0 }] });
+  const fileInput = elements.get("import-checklist-template-input");
+  fileInput.files = [{
+    name: "SECRET_FILENAME.json", type: "application/json", content: secretContent, size: secretContent.length
+  }];
+  await fileInput.listeners.get("change")();
+
+  assert.doesNotMatch(elements.get("import-checklist-template-status").textContent, /SECRET_FILENAME/);
+  assert.doesNotMatch(elements.get("import-checklist-template-preview-text").textContent, /SECRET_CHECK_TEXT_XYZ/);
+  assert.equal(fileInput.value, "");
 });
 
