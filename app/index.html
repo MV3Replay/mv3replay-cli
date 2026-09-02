@@ -36,23 +36,56 @@
     <p id="feedback-template-status" role="status" aria-live="polite"></p>
   </section>
 
+  <div class="workspace-actions">
+    <button type="button" id="clear-workspace-button" class="secondary-button">
+      Clear workspace
+    </button>
+    <p id="clear-workspace-status" role="status" aria-live="polite"></p>
+  </div>
+
   <form id="analyze-form" class="card">
-    <div class="field">
+    <div class="field drop-zone" id="manifest-file-field">
       <label for="manifest-file">Local manifest.json</label>
       <input type="file" id="manifest-file" accept="application/json,.json">
+      <p id="manifest-file-status" class="input-status" role="status" aria-live="polite">No file selected.</p>
     </div>
     <div class="field">
       <label for="manifest-folder">Or unpacked extension folder</label>
       <input type="file" id="manifest-folder" webkitdirectory directory multiple
         aria-describedby="manifest-folder-help">
+      <p id="manifest-folder-status" class="input-status" role="status" aria-live="polite">No folder selected.</p>
     </div>
     <div class="form-actions">
       <button type="submit" id="analyze-submit" aria-busy="false">Analyze locally</button>
       <button type="button" id="analyze-example-button" class="secondary-button" aria-busy="false">
         Try built-in example
       </button>
+      <button type="button" id="analyze-paste-button" class="secondary-button">
+        Paste manifest JSON
+      </button>
     </div>
   </form>
+
+  <div id="paste-json-panel" class="card paste-panel" hidden aria-labelledby="paste-json-heading">
+    <h2 id="paste-json-heading">Paste manifest JSON</h2>
+    <div class="field">
+      <label for="paste-json-target">Load into</label>
+      <select id="paste-json-target">
+        <option value="inspect">Inspect (single manifest)</option>
+        <option value="previous">Compare: previous manifest</option>
+        <option value="current">Compare: current manifest</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="paste-json-textarea">Manifest JSON</label>
+      <textarea id="paste-json-textarea" rows="8"></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="button" id="paste-json-confirm">Import</button>
+      <button type="button" id="paste-json-cancel" class="secondary-button">Cancel</button>
+    </div>
+    <p id="paste-json-status" role="status" aria-live="polite"></p>
+  </div>
   <p id="manifest-folder-help" class="folder-help">
     Choose one of the two inputs above. Selecting one clears the other so the selection stays
     unambiguous. If you select a folder, only its root <code>manifest.json</code> content is
