@@ -21,6 +21,13 @@
     { "command": "npm pack --dry-run", "status": "pass" },
     { "command": "install exact local tarball offline and run inspect", "status": "pass" }
   ],
+  "testSummary": {
+    "total": 360,
+    "passed": 359,
+    "failed": 0,
+    "skipped": 1,
+    "skipReason": "Platform does not allow making the test manifest unreadable."
+  },
   "inventory": {
     "packageContents": [
       "LICENSE",
@@ -125,7 +132,13 @@
       "JSON export",
       "Markdown export",
       "share-safe structural Markdown summaries",
-      "private tester-notes template"
+      "private tester-notes template",
+      "custom checklist items, ordering, and private notes",
+      "memory-only finding triage",
+      "memory-only display preferences",
+      "accessible Inspect and Compare navigation",
+      "strict local checklist template import and export",
+      "bounded memory-only undo and redo history"
     ],
     "testCommand": "npm run test:app",
     "integratedIntoNormalTestGate": true,

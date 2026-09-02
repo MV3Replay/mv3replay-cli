@@ -81,6 +81,13 @@ The interface also provides:
 - in-memory regression checklists, including comparison-specific findings,
   that update readiness for manual browser testing without claiming runtime
   success;
+- local checklist customization with reordering and private notes, plus
+  custom-only template export/import with strict validation, preview, merge,
+  replace, and cancel controls;
+- memory-only finding triage (pin, acknowledge, filter, and private notes) and
+  a bounded 10-action undo/redo history that is cleared with the workspace;
+- accessible Inspect/Compare tabs, result jump links, keyboard shortcuts,
+  display preferences, and print-safe report output, all kept in memory only;
 - detailed local views of content-script registrations, static DNR rulesets,
   external messaging, and web-accessible resource changes;
 - dedicated checks for built-in browser page replacements and homepage,

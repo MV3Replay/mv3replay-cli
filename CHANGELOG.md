@@ -26,7 +26,10 @@ public for testing, but no package, tag, or GitHub Release exists.
   checklists and JSON and Markdown export of reports and checklists to
   local files. It also includes clearly labeled built-in examples, severity
   filters, manual-test readiness gates, unpacked-directory selection, and a
-  private tester-notes template. It is not published and is covered by the
+  private tester-notes template. Productivity controls now include accessible
+  Inspect/Compare navigation, memory-only display preferences, customizable
+  checklists, local checklist templates, finding triage, and a bounded local
+  undo/redo history. It is not published and is covered by the
   normal `npm test` gate together with its privacy boundary and a
   dependency-free client runtime harness.
 - Public-safety gate that scans every public working-tree file, including

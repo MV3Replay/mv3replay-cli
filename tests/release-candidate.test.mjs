@@ -145,7 +145,13 @@ test("the compact release-candidate record distinguishes public source from an u
       "JSON export",
       "Markdown export",
       "share-safe structural Markdown summaries",
-      "private tester-notes template"
+      "private tester-notes template",
+      "custom checklist items, ordering, and private notes",
+      "memory-only finding triage",
+      "memory-only display preferences",
+      "accessible Inspect and Compare navigation",
+      "strict local checklist template import and export",
+      "bounded memory-only undo and redo history"
     ],
     testCommand: "npm run test:app",
     integratedIntoNormalTestGate: true,
